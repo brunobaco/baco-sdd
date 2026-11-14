@@ -1,0 +1,124 @@
+# Phase 7: Review
+
+Output: `revisao/trace-spec-<nome>.json` per spec, the delivery's pull request (PR) when the project is on GitHub, `revisao/handoff-NN.md`, `revisao/veredito-NN.md` and, when the reviewer asks for changes, `tarefas/FIX-NN.md`; or, when the human waives the external review, `revisao/dispensa-revisao-externa.md`. Gate: none of its own, but a verdict of `aprovado`, a current waiver, or the human's recorded choice at exit 3 ([gates.md](gates.md)) is required before delivery, and none of them is an approval of the merge ([gates.md](gates.md)). Load this reference when all tasks of the delivery are merged and tested ([implementation.md](implementation.md)).
+
+Roles named below are subagents when the host has them; otherwise run the role inline in the session. Two independent looks protect the delivery: an internal cold review, which is never waived, then an external one, the review of the delivery's PR by an agent on another harness, a person, or both (`review.pr.reviewer`), which only the human may waive. You conduct both; you never review your own code in the same context that wrote it.
+
+This phase is part of the autonomous run ([implementation.md](implementation.md), section 7): with an agent reviewer, sections 1 to 6 run without waiting, fix rounds included when `review.pr.auto_fix` is on, and the run goes on into [delivery.md](delivery.md) up to the point where the delivery is ready for the person to test. The run stops earlier, with the end-of-run summary ([implementation.md](implementation.md), section 11), when the review waits for a person (reviewer `pessoa`, or the person's turn in `ambos`), when `auto_fix` is off and there are findings, at a `bloqueio`, and at exit 3.
+
+## 1. Entry
+
+- Every plan task is merged on `baco/ENT-NNN` and the whole suite ran once in its quick form on it, writing JUnit XML into `.baco/junit/` ([implementation.md](implementation.md), section 9). Run `baco check-branch` before editing files and `baco plan-freshness ENT-NNN` (exit 1: [spec-change.md](spec-change.md), section 4).
+- Everything is committed. The engine reads committed work only; the one exception is `.baco/junit/`, git-ignored and rewritten by each test run, which `baco trace` reads from disk.
+- Provenance matters here. The trace, the verdict and the waiver record the commit they were made on; the acceptance report later refuses them if code changed after. Commits that touch only `docs/entregas/**` (traces, handoffs, verdicts, reports) do not make them stale; **any other commit does** (code, tests, QA files). So finish all code and QA edits first (including the manual scenarios of section 3), then run the rest of section 3 and onwards in one pass.
+- Where records go. Run logs, notes and anything else the team writes about a delivery go inside `docs/entregas/ENT-NNN-<slug>/`, so they never make traces, verdicts or waivers stale. Anything else the project writes on its own outside that folder (for example an environment that commits every few minutes) is listed in `provenance.ignore` in `.baco/config.yaml` ([configure.md](configure.md), "Records outside the delivery folder"). When the engine reports a stale trace, verdict or waiver, first look at which files changed after it (`git diff --stat <commit it records> HEAD`), then explain in plain words what changed and whether it matters, before deciding to re-run.
+
+## 2. Internal final review
+
+Run the role [final-reviewer](roles/final-reviewer.md) on the whole delivery, without the task reports (`git diff <Base>..HEAD -- . ':(exclude)docs/entregas/**'`, handed over as a diff, or as the command that produces it). For everything else the brief gives paths and IDs, never copied text: the paths of the approved specs of the plan with the IDs of the cut, the QA file paths, the plan path (its `Restrições globais` and `Foco de revisão`), the ADR paths and `docs/arquitetura/README.md`; the reviewer reads them itself. It must not see the implementers' reports; the external packet leaves them out too. Ask it for:
+- every CA and RF/RN/INV of the plan's cut checked against the code and a test that really proves it (semantic link: actor, operation, boundary, polarity, effect), not against an ID that merely appears;
+- missing negative and limit cases, behavior the spec does not ask for, security, data and permission risks, consistency across tasks, leftovers (debug code, disabled tests, secrets);
+- findings as `crítico`, `importante` or `sugestão`, each with `file:line`.
+
+Each review role writes only its own report, at the path you name (`revisao/revisao-final-NN.md` for the final-reviewer, `revisao/simplificacao-NN.md` for the simplifier, NN the next free number), and returns the verdict, the count per severity and the path; after each, check with `git status` that only the report changed (SKILL.md, "Roles"). When the final-reviewer and the simplifier run at the same time, each one's `git status` check ignores the other's report and `custo.md`, and you run no `baco cost add` while either is running: record their cost after both return.
+
+Then run the role [simplifier](roles/simplifier.md) on the same diff, with the approved specs and the plan. Its cuts are suggestions (`sugestão`), except a cut that removes behavior nobody asked for, handled like an `importante` finding (it is labeled `muda comportamento`, so it goes to the person, below). A code cut you decide to apply is never applied by hand: only through an INT task with a test, by label. `seguro` (it names the existing tests that would catch a change): the task makes the cut and runs those tests and the task's layer; if one fails, the cut is reverted and becomes `muda comportamento`. `precisa de teste`: the task first writes the test of the current behavior the simplifier named (it must pass before the cut), then makes the cut; the test must still pass, otherwise the cut is reverted and becomes `muda comportamento`. `muda comportamento`: never applied in the run; it goes to the end-of-run summary for the person, with what changes. A cut the simplifier labels `seguro` without naming a covering test is treated as `precisa de teste`.
+
+Handle the findings of both by [review-protocol.md](review-protocol.md), "Handling review findings" (fix, contest with readable evidence, escalate, or decline as detail; alert when a fix undoes an earlier fix), and like a task review ([implementation.md](implementation.md), sections 4 to 6): fix `crítico` and `importante` as tasks `INT-01`, `INT-02`, … (never `FIX-NN`, which belongs to the engine's verdict import), each with a short file `tarefas/INT-NN.md` from [tarefa.md](../templates/pt-BR/tarefa.md) (so reconciliation can list it) and a branch `baco/ENT-NNN-INT-NN`, same guards, the same 5-round limit, and the independent ones in parallel ([implementation.md](implementation.md), section 2); log `sugestão` in `progresso.md`. Record each run with `baco cost add ENT-NNN --phase 7 --agent <final-reviewer|simplifier> --model <m> --effort <e>`, naming the real model and effort.
+
+**Full battery.** After the internal fixes are merged, empty `.baco/junit/` and run every test layer in every browser chosen for the project, once: `baco run-tests --all`. A failure is fixed as an INT task and the battery runs again. It runs again only before each new external round (section 6), so the verdict always matches the final code.
+
+## 3. Evidence for the reviewer
+
+**Manual scenarios first.** Scenarios marked `manual` in the QA files of the plan's specs (those of the plan's CAs and those tied only to a rule or requirement, which the trace lists in `otherScenarios`) need a person, and their evidence is written into the QA files, outside `docs/entregas/**`. When the user is present, run them now with the user, following [delivery.md](delivery.md), section 2, and commit the evidence **before** the trace below, so the trace, the packet and the verdict are all made on the commit that already contains it. A retest after FIX tasks adds new rows before the next round. A scenario the user cannot run yet, or that waits because nobody is watching the run, stays pending (see below) and is named in the end-of-run summary.
+
+Per spec of the plan header (`**Specs:**`), run:
+
+```
+baco trace --spec docs/specs/spec-<nome>.md --qa docs/qa/cenarios-qa-spec-<nome>.md --delivery ENT-NNN --out docs/entregas/ENT-NNN-<slug>/revisao/trace-spec-<nome>.json
+```
+
+- `--delivery` makes only this delivery's manual evidence count; evidence from older deliveries is ignored. JUnit files default to everything in `.baco/junit/`.
+- Exit 1: at least one CA is `uncovered` or `failed`, or a scenario of `otherScenarios` failed or was rejected. Do not ask for an external review of a delivery that fails its own criteria. Uncovered: a missing test, or a missing `Contratos` link in QA; failed: a real failure. Both go back to [implementation.md](implementation.md) (never loosen a test), then repeat this step.
+- An `automatizado` scenario that shows `not_run` or `skipped` means its test did not run (often a command that writes no JUnit file, or a skip). Fix the command or the test and re-run before the external review; never send it out as is. Only a mobile scenario awaiting CI ([implementation.md](implementation.md), section 6) may stay so, named to the user; delivery still needs its CI result.
+- Manual scenarios without evidence show as `pending`; they do not block the review; delivery handles those still pending ([delivery.md](delivery.md), section 2).
+- Look at `orphanTests` in the output: a tagged test that matches no known ID is a typo or a leftover; fix it before going on.
+
+Commit the trace files (only `docs/entregas/**` changes).
+
+**Open the delivery's PR.** When the project has a GitHub remote (`git remote -v` names github.com) and `gh auth status` works: push `baco/ENT-NNN` and open the PR as a draft, from `baco/ENT-NNN` to `branches.integration`, with a short body (the delivery, its specs, "rascunho para revisão"; the acceptance report replaces it in [delivery.md](delivery.md), section 5). A draft is not a request to merge: the `before_pr` gate decides, in phase 8, when it is marked ready ([gates.md](gates.md)). Reuse the PR if it already exists (`gh pr view baco/ENT-NNN`).
+
+```
+gh pr create --draft --base <integration> --head baco/ENT-NNN --title "ENT-NNN | <nome da entrega>" --body-file <body file outside the repo>
+```
+
+Without GitHub (no remote, or no working `gh` login), the review runs on the local diff of the delivery branch against the base, with the same content; say so in plain words and go on. BACO still needs the git repository.
+
+Then read the plan's `**Revisão externa:**` (an older plan without the PR review: use `review.pr` of `.baco/config.yaml`, with the agent reviewer on the harness the plan's agents table gives the `pr-reviewer`, or yours):
+
+- **PR review** (the default): build the request in mode `pr`, with the PR address when there is one (it goes only to `handoff-NN.md`, for you and the person; the request to the reviewer never carries it), one `--trace` per spec, one `--qa` per QA file of the plan's specs and one `--adr` per ADR that bears on this delivery:
+
+```
+baco build-handoff ENT-NNN --mode pr [--pr <PR address>] --trace docs/entregas/ENT-NNN-<slug>/revisao/trace-spec-<nome>.json --qa docs/qa/cenarios-qa-spec-<nome>.md [--adr docs/arquitetura/adr/ADR-001-<slug>.md]
+```
+
+- **Modo repositório or pacote**, only when the plan or the person asks for it (planning, 1B, can record `repositorio` when the delivery needs an isolation that is enforced, not only instructed): `baco build-handoff ENT-NNN --mode <pacote|repositorio>` with the same `--trace` and `--adr` flags, then section 4, "Person outside".
+- **Dispensada**, with a reason: build nothing yet; section 4 still confirms the waiver once.
+
+No request carries `docs/entregas/` (progress, reports, earlier requests and verdicts), so the reviewer does not read what the authors say about their own work. Mode `pr` writes, in the git-ignored `.baco/logs/revisao-pr/ENT-NNN-rNN/`, the request `pedido.md` ([prompt-revisor-pr.md](../templates/pt-BR/prompt-revisor-pr.md): base and head, the paths of `mudancas.diff`, of the answer file and of the specs, QA and ADRs) and `mudancas.diff`; the reviewer reads the project in place, read-only, and its answer goes to `resposta.md` in the same folder, the path the command prints in `answer`, the only file it may create. The request tells the reviewer to read the change only from `mudancas.diff` and the listed spec, QA and ADR paths, and never to use `gh`, open `docs/entregas/`, open `.baco/logs/` beyond its own request, diff and answer, or look at earlier rounds. In mode `pr` this is an instruction, not an enforced isolation: the reviewer could still open those files. When the isolation must be enforced, the plan records mode `repositorio` (planning, 1B), which exports a copy without those files; never switch modes on your own at run time. Mode `pacote` writes one self-sufficient file to paste into a chat site that cannot open files ([prompt-revisor.md](../templates/pt-BR/prompt-revisor.md)). Mode `repositorio` exports a read-only copy of the project, without `docs/entregas/`, to a folder outside it (or `--dest <dir>`), with `REVISAO.md` ([prompt-revisor-repositorio.md](../templates/pt-BR/prompt-revisor-repositorio.md)) and `mudancas.diff`. Exit 64 means no base was found (the plan header lacks a valid `**Base:**`; fix the plan, never invent a ref), a refused folder, or bad usage. The first request is full (plan base to HEAD); after an imported verdict the next one is a delta since the commit the last verdict reviewed. Commit `handoff-NN.md` (only `docs/entregas/**`).
+
+## 4. External review or waiver
+
+**Waiver.** If the plan records the review as dispensada, ask the human once here, to confirm. Only the human decides; never waive on your own, and never because the review is slow. Run `baco waive-review ENT-NNN --by <name> --reason <text>`, with the name and the reason the human gave, after every code and QA commit (a later code commit makes the waiver stale, `merge.waiver_stale`, and the human decides again). Commit the waiver file (only `docs/entregas/**`), then go to [delivery.md](delivery.md). A waiver is refused once a verdict was imported (exit 64): then the verdict rules apply. The internal independent review (section 2) is never waived; recommend the external one whenever the delivery touches data, login or money.
+
+**Agent reviewer** (`agente`, and the first turn of `ambos`). Run the role [pr-reviewer](roles/pr-reviewer.md) on the harness, model and effort the plan gives it, never another one chosen now. Commit `handoff-NN.md` first: the import below only takes a round whose handoff is committed. The pr-reviewer never runs inline in your session, not even without subagents:
+
+- On another harness (the plan names one): its non-interactive read-only command ([ambientes.md](ambientes.md), section 5), with the prompt `Leia o arquivo <pedido.md> e siga as instruções dele. Responda somente no formato pedido lá.` and the answer written to `resposta.md`.
+- On your own harness, with subagents: a subagent in a fresh context (in Claude Code, `baco:pr-reviewer`, with the model and the effort). With only one harness this is allowed, and it stays recorded as less independent (below).
+- On your own harness, without subagents: never inline. Ask the person to open a fresh session for the role ([ambientes.md](ambientes.md), section 8) with the request of that section; its answer is imported only with the person's confirmation that it came from that session, unchanged. If the person does not open one, the review falls back to `pessoa` for this round (the person reviewer, below); say so in the end-of-run summary.
+
+The brief is the two paths, `pedido.md` and `resposta.md`; nothing from this conversation, and nothing under `docs/entregas/`. After it ends, run the check of SKILL.md, "Roles" (`git status`, also of ignored paths under `.baco` and `.worktrees`): only `resposta.md` may be new. Record the run with `baco cost add ENT-NNN --phase 7 --agent pr-reviewer --model <m> --effort <e> --harness <h>`. When the reviewer ran on the harness that built the delivery (only one harness available), add a row to `## Pendências` of `progresso.md`: the PR review ran on the same harness that built, in a fresh context, so it was less independent; the acceptance report lists it among the risks.
+
+Then import its answer, untouched, without the person (except the fresh session above, which waits for the person's confirmation). The command takes no file: it reads the `resposta.md` of the latest round only, and refuses an answer that is missing, older than the request, or of a round already imported:
+
+```
+baco import-pr-verdict ENT-NNN
+```
+
+Exit 65 (no answer, or an answer older than the request): run the reviewer again with the current request; never copy or point to another round's answer. Exit 64: commit `handoff-NN.md`, or, when the round was already imported, build a new round (section 6).
+
+**Person reviewer** (`pessoa`, the second turn of `ambos` after the agent's verdict is `aprovado`, and the fallback above). The PR waits for the person: the end-of-run summary gives the PR address (or, without GitHub, the path of `mudancas.diff` and how to see the change) and asks for the review. The person states the verdict line (`VEREDITO: aprovado`, `ajustes` or `bloqueio`) and the severity of each comment (`crítico`, `importante` or `sugestão`); when they did not say one of these, ask them, and never choose or change a severity or the verdict yourself. Their comments may come in the PR (`gh pr view <number> --comments`) or here. Your only job is to copy: put their verdict line and each comment, with its text copied literally and the severity they gave, into the format of [prompt-revisor-pr.md](../templates/pt-BR/prompt-revisor-pr.md). Add nothing, drop nothing, soften nothing. Show the exact text to the person and import it only after they confirm that exact text, on standard input (a quoted here-document, so nothing is expanded): `baco import-verdict ENT-NNN -`. The project's ask rule for `import-verdict` makes the tool ask too.
+
+**Person outside** (modes `repositorio` and `pacote`). Tell the user the folder and the short request, or the file to paste, and ask them to paste back the whole answer of the reviewer. Feed what the user pastes, untouched, to `baco import-verdict ENT-NNN -`.
+
+Never edit, complete, summarize or write an agent's or an outside reviewer's verdict yourself, and never reformat it to make it parse. Without a verdict or a current waiver the merge stays blocked: `merge.no_verdict` is never accepted without a recorded waiver ([gates.md](gates.md)).
+
+| Exit | Meaning | You do |
+|---|---|---|
+| 0 | verdict stored as `veredito-NN.md`; `FIX-NN.md` created for each finding that is not a `sugestão` | read `verdict` and `fixes` from the output (section 5) |
+| 1 | the text cannot be read as a verdict, or it contradicts itself (for example `aprovado` with a `crítico` finding). Nothing was written | agent reviewer: run it once more with the same request (the answer file is rewritten); a second failure goes to the end-of-run summary. Person reviewer: show the localized reason and ask the person for the missing verdict line or severity, never fill it in. Person outside: show the reason and ask for a new answer (below) |
+| 3 | the round passed `review.external_rounds_max` and is still not `aprovado` | stop, human decision ([gates.md](gates.md), exit 3 text) |
+| 64 / 65 | usage or environment | fix the call or setup |
+
+Exit 1 message, for a person or an outside reviewer:
+
+> A resposta do revisor não veio no formato esperado: [motivo, em palavras simples]. Peça para ele responder de novo seguindo exatamente o formato pedido (uma linha "VEREDITO:" e os achados com [crítico], [importante] ou [sugestão] no começo de cada linha) e cole a nova resposta aqui.
+
+## 5. After an imported verdict
+
+Record the round in `progresso.md` (reviewer, harness and model, verdict, counts). In the end-of-run summary, tell the user in plain words: the verdict, how many findings per severity and what each means for the product.
+
+- **`aprovado`.** Suggestions (`sugestão`) create no task: log them, and list them in the end-of-run summary asking whether any should be done now; if yes, treat as extra tasks of the delivery (any code change makes the verdict stale, so a new round follows). With `ambos`, an agent's `aprovado` hands the PR to the person (section 4). Otherwise go to [delivery.md](delivery.md). The verdict is an input for the merge decision, not the decision.
+- **`ajustes`.** Every finding other than `sugestão` is now a file `tarefas/FIX-NN.md` written by the engine with the same fields as any task: origin, severity, location, description, class (`arriscada` for a `crítico` finding, `padrão` otherwise; raise it when the code it touches is riskier), level/effort from `models`, lane `FIX`, likely file (from the location), branch `baco/ENT-NNN-FIX-NN`, no dependencies, no human stop, and `Testes da tarefa` "a escrever: teste que falha antes da correção". The brief only completes what the finding makes known (the CAs). With `review.pr.auto_fix` on, run each as a task through [implementation.md](implementation.md) without waiting: branch `baco/ENT-NNN-FIX-NN`, class of the code it touches and at least `padrão`, on the harness and model the plan gives implementers of that class, test first (a finding about a CA gets a tagged test), same guards, review and merge into `baco/ENT-NNN`; the independent ones in parallel. A finding that asks to "update the ADR or create a new one" is always the new one: an accepted ADR is never edited in a fix task; write a new ADR that supersedes it and change the old one only to status superseded, with a link to the new one. Push `baco/ENT-NNN`, so the fixes land on the same PR. With `auto_fix` off, the findings go to the end-of-run summary and wait for the person to say which to fix.
+- **`bloqueio`.** Always ask the human first, whatever `auto_fix` says: keep fixing, change the spec or plan ([spec-change.md](spec-change.md)) or stop; a block usually means the cut is wrong.
+- Handle each finding by [review-protocol.md](review-protocol.md), "Handling review findings". A finding you think is mistaken is not discarded: contest it with evidence the reviewer can read, record it in `progresso.md`, put it in the end-of-run summary for the human to decide, and the human can say so to the reviewer in the next round. Never delete a `FIX` file.
+
+## 6. Next round
+
+After the FIX tasks are merged and pushed: run the full battery again (`baco run-tests --all`, section 2), then redo section 3 (trace per spec, commit, `baco build-handoff` in the same mode as before unless the human changes it: now a delta that shows only what changed since the last reviewed commit) and section 4 with the same reviewer (same harness, model and effort, or the same person), which checks only the corrections. Each verdict is one round, whoever gave it, and the limit is `review.external_rounds_max` (default 3). At exit 3 offer the options of [gates.md](gates.md); never raise the limit in the config on your own.
+
+## 7. Closing the phase
+
+Done when the highest-numbered verdict is `aprovado` (with `ambos`, the person's), or a current waiver exists and no verdict was imported, or the human chose to proceed at exit 3; and no code, test or QA commit came after the commit it reviewed or waived. Next phase: [delivery.md](delivery.md); in the autonomous run, go on without waiting, up to the point where the delivery is ready to test.
+
+Talking to the user: "revisor independente", "pedido de junção (PR)", "achado", "correção", "rodada", "dispensa da revisão externa". Say what each finding means for the product, never the raw file names unless asked. Never use "diff", "handoff", "sha" or "stdin" without a plain explanation. Keep proposto / alterado / verificado apart: a verdict you received is an input, a fix you merged is alterado, a trace with exit 0 on the final commit is verificado.

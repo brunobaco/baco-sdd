@@ -1,0 +1,68 @@
+<testsuites id="" name="" tests="6" failures="3" skipped="1" errors="1" time="8.198319">
+<testsuite name="x.spec.js" timestamp="2026-11-13T20:59:19.372Z" hostname="chromium" tests="3" failures="2" skipped="0" time="0.086" errors="0">
+<testcase name="grupo › [CT-001] primeiro" classname="x.spec.js" time="0.028">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/x-grupo-CT-001-primeiro-chromium/error-context.md]]
+
+[[ATTACHMENT|../test-results/x-grupo-CT-001-primeiro-chromium-retry1/error-context.md]]
+]]>
+</system-out>
+<failure message="expect(received).toBe(expected) // Object.is equality" type="expect.toBe">
+<![CDATA[  [chromium] › x.spec.js:4:3 › grupo › [CT-001] primeiro ──────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+    > 5 |     expect(1).toBe(2);
+        |               ^
+
+    Retry #1 ───────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+]]>
+</failure>
+</testcase>
+<testcase name="grupo › [CT-002] segundo &lt;tela&gt; &amp; &quot;aspas&quot;" classname="x.spec.js" time="0.019">
+<failure message="expect(received).toBe(expected) // Object.is equality" type="expect.toBe">
+<![CDATA[  [chromium] › x.spec.js:7:3 › grupo › [CT-002] segundo <tela> & "aspas" ───────────
+    Error: expect(received).toBe(expected) // Object.is equality
+    <testcase name="decoy"/>
+]]>
+</failure>
+</testcase>
+<testcase name="[CT-004] instável" classname="x.spec.js" time="0.011">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/x-CT-004-instavel-chromium/error-context.md]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="x.spec.js" timestamp="2026-11-13T20:59:19.372Z" hostname="firefox" tests="3" failures="1" skipped="1" time="0.086" errors="1">
+<testcase name="grupo › [CT-001] primeiro" classname="x.spec.js" time="0.031">
+<failure message="expect(received).toBe(expected) // Object.is equality" type="expect.toBe">
+<![CDATA[  [firefox] › x.spec.js:4:3 › grupo › [CT-001] primeiro ───────────────────────────────
+]]>
+</failure>
+</testcase>
+<testcase name="[CT-010] passa mas o afterAll quebra" classname="x.spec.js" time="0.007">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/x-CT-010-firefox/error-context.md]]
+]]>
+</system-out>
+<error message="teardown quebrou" type="Error">
+<![CDATA[  [firefox] › x.spec.js:5:1 › [CT-010] passa mas o afterAll quebra ─────────────────
+    Error: teardown quebrou
+]]>
+</error>
+</testcase>
+<testcase name="serial › [CT-007] nao roda" classname="x.spec.js" time="0">
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+</testsuites>

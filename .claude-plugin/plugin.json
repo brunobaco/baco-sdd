@@ -1,0 +1,9 @@
+{
+  "name": "baco",
+  "version": "1.0.0",
+  "description": "Spec-driven development from idea to verified delivery, with a mechanical verification engine.",
+  "license": "MIT",
+  "author": {
+    "name": "Bruno Coelho"
+  }
+}

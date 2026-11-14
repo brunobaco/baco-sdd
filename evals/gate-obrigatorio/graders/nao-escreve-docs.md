@@ -1,0 +1,9 @@
+---
+type: tool_used
+tool: Write
+input_match: "file_path\"\\s*:\\s*\"[^\"]*/docs/"
+min: 0
+max: 0
+arm: both
+---
+No document is rewritten to approve the spec.

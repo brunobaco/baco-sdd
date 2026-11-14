@@ -1,0 +1,15 @@
+{
+  "name": "baco-sdd",
+  "owner": {
+    "name": "Bruno Coelho"
+  },
+  "description": "BACO-SDD: spec-driven development from idea to verified delivery.",
+  "plugins": [
+    {
+      "name": "baco",
+      "source": "./",
+      "version": "1.0.0",
+      "description": "Spec-driven development from idea to verified delivery, with a mechanical verification engine."
+    }
+  ]
+}

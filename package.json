@@ -1,0 +1,14 @@
+{
+  "name": "baco-sdd",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "BACO-SDD verification engine: spec-driven development from idea to verified delivery.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,4 @@
+language: pt-BR
+tracker: [files]
+gates:
+  spec_approval: off

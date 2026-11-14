@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1210" viewBox="0 0 1000 1210" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <marker id="setaVolta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="1210" fill="#ffffff"/>
+
+  <text x="40" y="52" font-size="28" font-weight="700" fill="#0f172a">BACO-SDD: da ideia à entrega verificada</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Você decide e aprova. O BACO escreve, constrói, testa, revisa e mostra a prova.</text>
+
+  <g font-size="13" fill="#334155">
+    <rect x="40" y="102" width="14" height="14" rx="3" fill="#dc2626"/><text x="60" y="114">Parada obrigatória (nunca desliga)</text>
+    <rect x="290" y="102" width="14" height="14" rx="3" fill="#2563eb"/><text x="310" y="114">Você aprova ou decide</text>
+    <rect x="470" y="102" width="14" height="14" rx="3" fill="#16a34a"/><text x="490" y="114">O BACO faz sozinho</text>
+    <rect x="640" y="102" width="14" height="14" rx="3" fill="#94a3b8"/><text x="660" y="114">Opcional</text>
+  </g>
+
+  <g font-size="12" font-weight="700" fill="#475569">
+    <rect x="44" y="140" width="6" height="285" rx="3" fill="#cbd5e1"/>
+    <text transform="translate(32,282) rotate(-90)" text-anchor="middle">DEFINIR O QUÊ</text>
+    <rect x="44" y="440" width="6" height="280" rx="3" fill="#cbd5e1"/>
+    <text transform="translate(32,580) rotate(-90)" text-anchor="middle">DEFINIR O COMO</text>
+    <rect x="44" y="735" width="6" height="270" rx="3" fill="#cbd5e1"/>
+    <text transform="translate(32,870) rotate(-90)" text-anchor="middle">CONSTRUIR E PROVAR</text>
+    <rect x="44" y="1025" width="6" height="80" rx="3" fill="#cbd5e1"/>
+    <text transform="translate(32,1065) rotate(-90)" text-anchor="middle">FECHAR</text>
+  </g>
+
+  <g transform="translate(70,140)">
+    <rect width="760" height="80" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+    <circle cx="40" cy="40" r="22" fill="#94a3b8"/><text x="40" y="47" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">0</text>
+    <text x="80" y="33" font-size="18" font-weight="700" fill="#0f172a">Configurar <tspan font-size="14" font-weight="400" fill="#64748b">/baco:configurar</tspan></text>
+    <text x="80" y="58" font-size="14" fill="#334155">Idioma, paradas, comandos de teste, regras de permissão. Sem ela, vale o padrão.</text>
+    <rect x="640" y="26" width="105" height="28" rx="14" fill="#94a3b8"/><text x="692" y="45" text-anchor="middle" font-size="13" fill="#fff">Opcional</text>
+  </g>
+  <g transform="translate(70,235)">
+    <rect width="760" height="80" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+    <circle cx="40" cy="40" r="22" fill="#2563eb"/><text x="40" y="47" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">1</text>
+    <text x="80" y="33" font-size="18" font-weight="700" fill="#0f172a">Iniciar <tspan font-size="14" font-weight="400" fill="#64748b">/baco:iniciar</tspan></text>
+    <text x="80" y="58" font-size="14" fill="#334155">Entrevista e visão do produto, navegadores e restrições técnicas já conhecidas.</text>
+    <rect x="640" y="26" width="105" height="28" rx="14" fill="#2563eb"/><text x="692" y="45" text-anchor="middle" font-size="13" fill="#fff">Você aprova</text>
+  </g>
+  <g transform="translate(70,345)">
+    <rect width="760" height="80" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <circle cx="40" cy="40" r="22" fill="#dc2626"/><text x="40" y="47" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">2</text>
+    <text x="80" y="33" font-size="18" font-weight="700" fill="#0f172a">Spec <tspan font-size="14" font-weight="400" fill="#64748b">/baco:spec</tspan></text>
+    <text x="80" y="58" font-size="14" fill="#334155">O contrato: regras e critérios de aceite, conferidos por um leitor sem contexto.</text>
+    <rect x="640" y="26" width="105" height="28" rx="14" fill="#dc2626"/><text x="692" y="45" text-anchor="middle" font-size="13" fill="#fff">Obrigatória</text>
+  </g>
+  <g transform="translate(70,440)">
+    <rect width="760" height="80" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+    <circle cx="40" cy="40" r="22" fill="#2563eb"/><text x="40" y="47" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">3</text>
+    <text x="80" y="33" font-size="18" font-weight="700" fill="#0f172a">Arquitetura <tspan font-size="14" font-weight="400" fill="#64748b">/baco:arquitetura</tspan></text>
+    <text x="80" y="58" font-size="14" fill="#334155">Tecnologia com custo e risco, decisões registradas, um crítico ataca antes.</text>
+    <rect x="640" y="26" width="105" height="28" rx="14" fill="#2563eb"/><text x="692" y="45" text-anchor="middle" font-size="13" fill="#fff">Você aprova</text>
+  </g>
+  <g transform="translate(70,535)">
+    <rect width="760" height="80" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+    <circle cx="40" cy="40" r="22" fill="#2563eb"/><text x="40" y="47" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">4</text>
+    <text x="80" y="33" font-size="18" font-weight="700" fill="#0f172a">Plano <tspan font-size="14" font-weight="400" fill="#64748b">/baco:plano</tspan></text>
+    <text x="80" y="58" font-size="14" fill="#334155">Uma entrega (ENT-001, 002...): tarefas, nível de cuidado, paradas, agentes e modelos.</text>
+    <rect x="640" y="26" width="105" height="28" rx="14" fill="#2563eb"/><text x="692" y="45" text-anchor="middle" font-size="13" fill="#fff">Você aprova</text>
+  </g>
+  <g transform="translate(70,640)">
+    <rect width="760" height="80" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+    <circle cx="40" cy="40" r="22" fill="#2563eb"/><text x="40" y="47" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">5</text>
+    <text x="80" y="33" font-size="18" font-weight="700" fill="#0f172a">Publicar <tspan font-size="14" font-weight="400" fill="#64748b">/baco:publicar</tspan></text>
+    <text x="80" y="58" font-size="14" fill="#334155">Grava as tarefas em arquivos do projeto (e no GitHub, se configurado).</text>
+    <rect x="640" y="26" width="105" height="28" rx="14" fill="#2563eb"/><text x="692" y="45" text-anchor="middle" font-size="13" fill="#fff">Você aprova</text>
+  </g>
+  <g transform="translate(70,735)">
+    <rect width="760" height="80" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <circle cx="40" cy="40" r="22" fill="#16a34a"/><text x="40" y="47" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">6</text>
+    <text x="80" y="33" font-size="18" font-weight="700" fill="#0f172a">Executar <tspan font-size="14" font-weight="400" fill="#64748b">/baco:executar</tspan></text>
+    <text x="80" y="58" font-size="14" fill="#334155">Teste primeiro, cada tarefa revisada por outro agente. Retoma sozinho de onde parou.</text>
+    <rect x="640" y="26" width="105" height="28" rx="14" fill="#16a34a"/><text x="692" y="45" text-anchor="middle" font-size="13" fill="#fff">Sozinho</text>
+  </g>
+  <g transform="translate(70,830)">
+    <rect width="760" height="80" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+    <circle cx="40" cy="40" r="22" fill="#2563eb"/><text x="40" y="47" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">7</text>
+    <text x="80" y="33" font-size="18" font-weight="700" fill="#0f172a">Revisar <tspan font-size="14" font-weight="400" fill="#64748b">/baco:revisar</tspan></text>
+    <text x="80" y="58" font-size="14" fill="#334155">Bateria completa e revisão independente. Depois: revisão por outra IA ou dispensa.</text>
+    <rect x="640" y="26" width="105" height="28" rx="14" fill="#2563eb"/><text x="692" y="45" text-anchor="middle" font-size="13" fill="#fff">Você escolhe</text>
+  </g>
+  <g transform="translate(70,925)">
+    <rect width="760" height="80" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <circle cx="40" cy="40" r="22" fill="#dc2626"/><text x="40" y="47" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">8</text>
+    <text x="80" y="33" font-size="18" font-weight="700" fill="#0f172a">Entregar <tspan font-size="14" font-weight="400" fill="#64748b">/baco:entregar</tspan></text>
+    <text x="80" y="58" font-size="14" fill="#334155">Relatório de aceite com a prova de cada critério. Junção na linha principal do código.</text>
+    <rect x="640" y="26" width="105" height="28" rx="14" fill="#dc2626"/><text x="692" y="45" text-anchor="middle" font-size="13" fill="#fff">Obrigatória</text>
+  </g>
+  <g transform="translate(70,1025)">
+    <rect width="760" height="80" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+    <circle cx="40" cy="40" r="22" fill="#2563eb"/><text x="40" y="47" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">9</text>
+    <text x="80" y="33" font-size="18" font-weight="700" fill="#0f172a">Reconciliar <tspan font-size="14" font-weight="400" fill="#64748b">/baco:reconciliar</tspan></text>
+    <text x="80" y="58" font-size="14" fill="#334155">Código entregue contra a spec inteira; catálogo atualizado. Diferenças: você decide.</text>
+    <rect x="640" y="26" width="105" height="28" rx="14" fill="#2563eb"/><text x="692" y="45" text-anchor="middle" font-size="13" fill="#fff">Você decide</text>
+  </g>
+
+  <g stroke="#64748b" stroke-width="2" marker-end="url(#seta)">
+    <line x1="110" y1="220" x2="110" y2="233"/>
+    <line x1="110" y1="315" x2="110" y2="343"/>
+    <line x1="110" y1="425" x2="110" y2="438"/>
+    <line x1="110" y1="520" x2="110" y2="533"/>
+    <line x1="110" y1="615" x2="110" y2="638"/>
+    <line x1="110" y1="720" x2="110" y2="733"/>
+    <line x1="110" y1="815" x2="110" y2="828"/>
+    <line x1="110" y1="910" x2="110" y2="923"/>
+    <line x1="110" y1="1005" x2="110" y2="1023"/>
+  </g>
+
+  <path d="M830,1065 C940,1065 940,385 833,385" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#setaVolta)"/>
+  <g fill="#6d28d9" text-anchor="middle">
+    <rect x="852" y="682" width="110" height="112" rx="10" fill="#ffffff"/>
+    <text x="907" y="702" font-size="13" font-weight="700">Mudou a regra?</text>
+    <text x="907" y="724" font-size="12">nova versão</text>
+    <text x="907" y="740" font-size="12">da spec e nova</text>
+    <text x="907" y="756" font-size="12">entrega só com</text>
+    <text x="907" y="772" font-size="12">a diferença</text>
+  </g>
+
+  <g font-size="13" fill="#475569">
+    <text x="40" y="1145">Também obrigatório em toda entrega: testes ligados aos critérios, revisão por quem não escreveu o código</text>
+    <text x="40" y="1164">e nenhuma ação sem volta sem o seu ok.</text>
+    <text x="40" y="1190">Fora do fluxo: /baco:status mostra onde o projeto está; /baco:roteiro-negocio prepara o teste para alguém de negócio.</text>
+  </g>
+</svg>

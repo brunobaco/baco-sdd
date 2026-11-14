@@ -1,0 +1,2 @@
+# Preserve CRLF bytes in the CRLF fixture
+test/fixtures/spec-exemplo.md -text

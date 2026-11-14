@@ -1,0 +1,181 @@
+# Phase 6: Implementation
+
+Output: the delivery's code and tests on the branch `baco/ENT-NNN`, one finished and reviewed task at a time, plus `progresso.md`, `custo.md` and the task reports. Load this reference when the plan and the task batch are approved ([planning.md](planning.md), [task-publication.md](task-publication.md)) and the user wants the delivery built. Also load [gates.md](gates.md) (exit codes 2 and 3, irreversible actions).
+
+Execution is autonomous by default (section 7): after the plan is approved, run this phase, phase 7 ([review.md](review.md)) and the first part of phase 8 ([delivery.md](delivery.md), "Ready to test") until the delivery is ready for the person to test, and stop earlier only when there is no way around or the review waits for a person (reviewer `pessoa`, `auto_fix` off with findings, a `bloqueio`, a waiver to confirm, exit 3). Everything that waits for the person goes into one end-of-run summary (section 11).
+
+Roles named below are subagents when the host has them; otherwise run the role inline in the session, one task at a time. If the host offers no subagents, ignore `parallel`: lanes become a queue. You are the conductor: you dispatch, decide, run the engine and write `progresso.md`. Subagents never write it; they return a short state and a report file.
+
+## 1. Entry
+
+1. The plan is approved and fresh: `baco plan-freshness ENT-NNN`. On exit 1 stop and follow [spec-change.md](spec-change.md), section 4 (replan, or finish on the old version if the human chooses it). Repeat this check before releasing each new task: a spec can change along the way.
+2. Task files exist in `docs/entregas/ENT-NNN-<slug>/tarefas/`. Read each one ([tarefa.md](../templates/pt-BR/tarefa.md)): CAs, class, level/effort, `Testes da tarefa`, dependencies, `Parada humana`.
+3. The delivery branch `baco/ENT-NNN` normally exists already (planning creates it). If it does not, create it from the commit in the plan's `**Base:**`, never from a moving branch name. Work happens on it and on task branches; run `baco check-branch` before any edit and switch away from a protected branch first.
+4. Test commands come from `tests` and `tests_quick` in `.baco/config.yaml`. Run them only through `baco run-tests`: it adds the machine settings of `.baco/local.env` and queues browser batteries machine-wide, one at a time, so deliveries running side by side on the same machine do not slow each other into flaky failures. Each command must write JUnit XML into `.baco/junit/` ([configure.md](configure.md), "Known gap: each command must write its own JUnit file"). If a layer has no command yet, ask the human to decide it; do not invent one. If `.baco/junit/` or `.baco/logs/` is not in `.gitignore`, add it (reports and logs are never committed). `baco run-tests` prints only a summary (each layer passed or failed, the failing tests with their message) and writes the full output to a log under `.baco/logs/`, whose path it prints; when a test failed, read its part of the log in full before fixing or judging it.
+5. **Resume.** If `progresso.md` has a `## Retomada` section filled by an earlier run, this is a resume (section 10): continue from it and skip the steps of section 1A that it records as done.
+
+## 1A. Before the run
+
+Once per delivery, before the first task. Ask short, separate questions, one subject each, one at a time, waiting for each answer; ask only what is relevant and skip the rest silently. The other-plugins warning is a statement, not a question.
+
+1. **Execution rules**, only when the project's permission and block rules are missing ([configure.md](configure.md), "Execution rules"; in Claude Code, `permissions.allow`, `permissions.ask` and `permissions.deny` in `.claude/settings.local.json`; `ask` is what makes a move onto or a push into the main or integration branch, merging the PR, `baco waive-review` and the import of a person's verdict stop for the human). If they exist, say nothing and skip, with one exception: when `review.pr.reviewer` is `agente` or `ambos` and the rules do not allow `baco import-pr-verdict` (rules written by an older version), show the change of [configure.md](configure.md) (allow `import-pr-verdict`; keep the ask for every `import-verdict`, restoring the broad `Bash(node *baco.mjs import-verdict*)` if it was narrowed and removing any allow of `import-verdict`; move an OpenCode allow to ask; add the Codex asks and denies) and save it only after the user agrees. If missing, create them following that section (show, ask, save after the user agrees, read back). If the user declines, go on and say that the tool may stop to ask for confirmation. If saving is blocked by a hook or policy of another plugin, follow [configure.md](configure.md), "When a write is blocked".
+2. **Other plugins.** State once, without asking:
+
+> Aviso: outros plugins instalados podem pedir confirmação de algum comando no meio do trabalho, e isso eu não controlo. Se aparecer um pedido assim e você não estiver olhando, o trabalho espera até você responder.
+
+3. **Other harnesses.** When the plan gives work to a harness other than yours, look in `.baco/logs/harnesses.md` for a `passou` of each harness and mode the plan uses, from this machine and at most 7 days old, with the `rede` and `porta` capabilities the tasks need. When the plan assigns implementers to another harness, run the write check again at this start whatever the record's age (it is cheap). If the task branch already holds a commit the environment made by itself, handle it as [ambientes.md](ambientes.md), section 5, step 0 says: check its content like an uncommitted change, amend only the message to the standard with the `Implementado por:` line, never a commit already pushed or merged. Missing or older (or another machine, or a fresh clone): run the check again ([ambientes.md](ambientes.md), section 5, "Check before relying on it"; a write check stops for the person's confirmation, so run it now, while asking these questions). A failure is not fixed by moving the work: the tasks and roles planned on that harness wait (section 7) and the rest goes on; tell the person with the message of that section. Not a question when every check passes.
+4. **Agents and quota.** Show the plan's agents table (`Agentes desta entrega`: role, what it does, level, harness, model and effort, maximum fix rounds) and its quota estimate, short, as information; the plan is already approved. Not a question.
+
+Then fill `## Retomada` (section 10) and start.
+
+## 2. Worktrees, lanes and parallelism
+
+- One worktree and one branch per task: `baco/ENT-NNN-<TASK-ID>` (for example `baco/ENT-001-T-001`), created from the current tip of `baco/ENT-NNN` with `git worktree add <folder> -b baco/ENT-NNN-<TASK-ID> baco/ENT-NNN`. Put the folder outside the tracked tree of the project. The name never nests under the delivery name.
+- Create worktrees **one after another**, never at once. If one fails, report it and go on with the others; a failure does not stop sibling tasks.
+- The plan's `Faixas paralelas` rule. Inside a lane tasks run in order; a task waits for its `Depende de` even when its lane is free. Lanes run side by side, at most `parallel` tasks at once (default 3; 0 = one at a time).
+- A task branch starts from the delivery branch as it is when the task starts, so a task that depends on another starts only after that one was merged (section 6).
+- Fix tasks of phase 7 (`INT-NN`, `FIX-NN`) follow the same rules: the independent ones (no shared file, no dependency) run in parallel; the ones that touch the same files share a lane.
+
+## 3. Human stop (`Parada humana: sim`)
+
+A task whose file says `Parada humana: sim` (the plan shows `PARADA`) is built and reviewed like any other, then waits for the human check before it is merged. Meanwhile independent tasks keep going; tasks that depend on it, or come after it in its lane, wait. If everything left depends on it (or on another waiting item), the run stops and says so (section 11).
+
+1. When the task is reviewed and its guards and checks passed (sections 4 to 6), record in `progresso.md` that it waits for the check, add it to `## Esperando a pessoa`, and go on with the rest. Do not stop the run to ask: the question goes into the end-of-run summary, or earlier only when nothing else can move.
+
+> A tarefa [código] ([o que entrega]) está pronta e revisada, e espera você conferir antes de entrar na entrega, porque [motivo do plano]. Para conferir: [o que abrir e o que olhar]. Posso juntar? (sim / quero mudar algo)
+
+   In the Ratoeira (detected as in section 10), when the check needs the person to try screens, offer once, as a question and never automatically, a preview of the app on a link with login only for them (Ratoeira "Publicados", through the Ratoeira's own `publicar-ratoeira` skill), instead of only screenshots: "Posso deixar o sistema aberto num link só seu, com login, para você testar as telas? Depois eu tiro do ar." Record the choice in the testing/homologation ADR ([architecture.md](architecture.md), "Preview for the owner"). Outside the Ratoeira, offer the local way to run the app that the architecture already describes.
+
+2. After an explicit "sim", record under `Decisões registradas` the date (from `date`), the task and who approved; merge (section 6) and release the tasks that waited for it. "Quero mudar algo" is a fix round of the task (section 6), or [spec-change.md](spec-change.md) when it changes the contract.
+
+`each_task` is off by default. If the human turns it on, this same check applies to every task: each waits for the human before it is merged. Neither is the `irreversible_action` gate, which exists on its own.
+
+## 4. One task, start to finish
+
+1. **Dispatch** the role [implementer](roles/implementer.md) on the harness, model and effort the plan gives the task (column `Harness e modelo`; the level and effort come from `models.<class>` through its class, translated by [ambientes.md](ambientes.md)); every dispatch passes both model and effort. Follow the plan: never pick another harness or model at run time. A task planned on a harness other than yours runs there through its non-interactive command ([ambientes.md](ambientes.md), section 5), and only if the config marks that harness `implementers: on` and its write check passed (section 1A); otherwise the plan is wrong, and the task waits for the human. That implementer does not commit: its brief says to leave the changes uncommitted, and when it returns you verify and commit them ([ambientes.md](ambientes.md), section 5, "Implementer on another harness: you commit") before the review. A plan with no harness column (an older plan) runs on yours. In Claude Code with the `baco` plugin, dispatch `baco:implementer-<class>` and pass the model and the effort in the call. Its brief gives paths and IDs, never copied text: the task file path; the spec path with the IDs of its CAs; the QA file path with the IDs of the scenarios (`CT-…`) that cover them; the plan path (it reads `Restrições globais` and `Foco de revisão` there); the paths of the relevant ADRs and of `docs/arquitetura/README.md`; the worktree folder and branch; the test commands; the report path; the rules below. The subagent reads those files itself. Give it only that, not the whole conversation. When you dispatch it, add the task's row to `Tarefas em andamento` in `## Retomada` (section 10). When the agent will run browser tests, write in `## Retomada` ("Rodando agora") that the task may wait for the machine's test queue, so a slow task is not read as stuck; `baco queue-status` shows who holds the queue and who waits.
+2. **Rules for the implementer**
+   - Test first. The test that proves the criterion carries `[CT-…]` or `[CA-…]` in its title (the engine links by that tag); write it, see it fail for the right reason, then write the code that makes it pass. Report the failing and the passing run. A task with no CA follows its done criterion the same way.
+   - Test the behavior the user sees (what appears on the screen, what the system answers, what is stored), not the internal way it is done. Fix the root cause of a failure, not its symptom.
+   - Run only the task's tests, in their quick form: `baco run-tests --layer <layer> --quick -- <files>`, with the tests the task creates plus the existing tests of the files it touches (`Testes da tarefa`). Never the whole suite or every browser during a task.
+   - Change files only through the edit tool, never by shell redirection (`cat >>`, `sed -i`, `tee`, a heredoc into a file). Command output is filtered (`| tail`) or written only under `.baco/logs/` inside the project; nothing is ever written outside the project folder (parent folder, `/tmp`, home), and the report says so in one line. Run a destructive-looking command (cleaning a test database, deleting data) only through a project script that carries its own guard; never use a command that waits for an interactive answer.
+   - Never loosen, skip, delete or rename a test to get green (see section 5). Never edit `.baco/config.yaml` `tests`, `tests_quick` or `app.smoke`, `.baco/local.env`, protected branches, or files outside the task's scope. Never run an irreversible action.
+   - In a task with the clean-install criterion ([planning.md](planning.md), section 4, "Skeleton task"), after committing: `git worktree add --detach .worktrees/copia-limpa-<TASK-ID> <task branch>`, then in that folder the install command and `baco run-tests --all --quick`; put each command, its exit code and the last lines of its output in the report, then `git worktree remove --force` the folder. A failure is a failure of the task, fixed in it (a missing build tool is an environment block, section 7, with the tool named). For an implementer on another harness, you run this when you commit its work.
+   - Commit on the task branch, in small commits; on a harness other than yours, leave the changes uncommitted for you to verify and commit. Write the full report to `docs/entregas/ENT-NNN-<slug>/relatorios/<TASK-ID>.md` (what was done, tests run and results, decisions, doubts); return only the state and a two-line summary.
+3. **Read the state** it returns:
+
+| State | You do |
+|---|---|
+| `FEITO` | go to the review (step 5) |
+| `FEITO_COM_RESSALVAS` | read the caveat in the report; if it touches the contract treat it as `PRECISA_CONTEXTO`, otherwise log it in `progresso.md` and review |
+| `PRECISA_CONTEXTO` | answer from the spec, plan and ADRs and re-dispatch; a product doubt follows section 7 |
+| `BLOQUEADO` | give the missing context or the next stronger level once (if the host cannot switch, as in section 6); if it stays blocked, the task waits (section 7) and the rest goes on |
+
+4. Add one row to `progresso.md` only after the task ends (date and time from `date`, task, state, short commit ids, note), and update `## Retomada` (section 10: `Atualizado em` and the `Tarefas em andamento` table). Refresh `Atualizado em` also at the start and the end of a test battery and while waiting in the queue. Never record a state that did not happen. Run logs and notes about the delivery go inside `docs/entregas/ENT-NNN-<slug>/`, never loose in the project: a commit outside that folder makes traces, verdicts and waivers stale ([review.md](review.md), section 1). Whatever the project writes by itself (for example an environment that commits every few minutes) goes in `provenance.ignore` ([configure.md](configure.md)).
+5. **Review.** Run the role [task-reviewer](roles/task-reviewer.md) on the task branch diff against the delivery branch without the reports (`git diff baco/ENT-NNN...baco/ENT-NNN-<TASK-ID> -- . ':(exclude)docs/entregas/**'`), reading the task, its CAs and the spec, in the task's folder. It runs the task's tests (`baco run-tests --layer <layer> --quick -- <Testes da tarefa files>`) before approving. It edits nothing except its own report, at the path you name: `docs/entregas/ENT-NNN-<slug>/revisao/<TASK-ID>-revisao-NN.md` in the task's folder (NN the round). It writes its findings there as `crítico`, `importante` or `sugestão` and returns only the verdict, the count per severity and the path. Then run `git status` in the task's folder: only that report may have changed; anything else is reverted and becomes a finding (SKILL.md, "Roles"). Commit the report on the task branch (it touches only `docs/entregas/**`). Only `crítico` and `importante` open a fix round; log `sugestão` in `progresso.md` and move on. Handle each finding by [review-protocol.md](review-protocol.md), "Handling review findings" (fix, contest with evidence the reviewer can read, escalate, or decline as detail; severity changes only by contesting; alert when a fix undoes an earlier fix). A review is cold: it never sees the implementer's reasoning.
+6. **Trace of the task.** In the task's folder, after the tests ran there: `baco trace --spec <spec> --qa <qa> --delivery ENT-NNN --ca <the task's CAs>`, with no `--out` (nothing is committed). Exit 1: a criterion of the task is `uncovered` (usually a test title without its `[CT-…]` tag, or a QA scenario without the link) or `failed`; it goes back to the fix loop. Also fix any `orphanTests`. A manual scenario shows as `pending` here; that is expected.
+7. **Guards and checks before the merge** (section 5), then merge (section 6).
+
+## 5. Test and branch guards
+
+- Before each commit: `baco check-branch` (exit 1: you are on a protected branch; switch to the task branch).
+- After committing and before the work is reported done or merged: `baco guard-tests --base <Base>`, with `<Base>` the sha from the plan header, run in the task's folder on the task branch. The engine reads only committed changes, so commit first. It catches skipped tests, changed or deleted tagged tests and changes to the `tests`, `tests_quick` and `app.smoke` settings. On a task branch `baco/ENT-NNN-<TASK-ID>` it also compares the task with the point where it left the delivery branch `baco/ENT-NNN` (their merge-base), so a test that an earlier task of the same delivery added is protected too; the output names that point. If the task branch does not follow that name, pass `--task-base baco/ENT-NNN`.
+- Exit 0: continue. Exit 2: a human decision, following [gates.md](gates.md) (translate the findings into plain words; `CONFIG_TESTS_CHANGED` and `CONFIG_PROVENANCE_CHANGED` have their own path there). The task is not merged meanwhile: it waits like a `Parada humana` (section 3) and the rest goes on.
+- `--allow-from-spec <spec>@<ref>` only when the plan itself changes those criteria: the spec version changed and `baco spec-diff` listed the CA as modified or removed (use the same `<ref>` as that diff; [spec-change.md](spec-change.md), section 3). Use `--allow <ID>` only after the human allowed that ID, and record who allowed it in `progresso.md`.
+- If the human refuses, the offending change is reverted on the task branch and the guard is re-run to 0.
+- A human decision already recorded in `progresso.md` (an ID allowed, or the `CONFIG_TESTS_CHANGED` or `CONFIG_PROVENANCE_CHANGED` approval) is not asked again: on later task branches that carry the same diff, pass `--allow <ID>` for each ID already allowed and rely on the recorded approval for the config finding. Ask only for findings that are new.
+- **Start the app.** Before merging a task that touches the screen or the server, run `baco run-tests --smoke` in the task's folder, one task at a time: it starts the app the way the user does and checks that it answers. Exit 1: the task goes back to the fix loop, with the output as a finding. Exit 64 (no `app.smoke` configured): record a pending item and go on; a task never counts as checked by a smoke that did not run.
+
+## 6. Fix loop and merging
+
+- Each cycle is: reviewer finds `crítico`/`importante` → implementer fixes in the same worktree, reading the findings in the review report (you pass its path, and the paths of the earlier rounds' reports, not their text) → guards → review again. At most **5 rounds**.
+- Rounds 1 to 3 use the task's own level. Rounds 4 and 5 use the next stronger level (`leve` → `medio`, `medio` → `forte`; with `forte` keep it and raise the effort to `alto`), on the same harness, with that harness's model for the stronger level; this rule is part of every approved plan. If the host cannot switch models (inline mode), tell the user, continue on the session model, and record the model that really ran in `baco cost add`.
+- If round 5 still ends with open `crítico`/`importante` findings, do not start a sixth: the task waits for the human (section 7) and goes into the end-of-run summary with this question:
+
+> Esta tarefa já passou por 5 rodadas de correção e ainda tem [o que falta, em palavras simples]. Opções: [A: aceitar com este ponto aberto], [B: mudar a tarefa ou a spec], [C: parar a entrega]. Recomendo [X], mas a decisão é sua.
+
+- Merge when the review has no open `crítico`/`importante` (or the human accepted the open finding at round 5, recorded in `progresso.md`), `guard-tests` exits 0, the task trace exits 0 and the app check passed when required: from the delivery branch, `git merge --no-ff baco/ENT-NNN-<TASK-ID>`. Merge one task at a time.
+- Update `## Retomada` (`Atualizado em` and the `Tarefas em andamento` table, section 10) at each event of the task: when it is dispatched, when it returns, when its review returns and when it is merged (the row leaves the table at the merge).
+- After each merge run only the fast layers (the ones that open no browser, usually `unit`: `baco run-tests --layer <fast layers> --quick`) and the merged task's own quick tests (`baco run-tests --layer <layer> --quick -- <Testes da tarefa files>`). If the merge breaks a test, the task goes back to the fix loop, not forward.
+- A merge conflict is a signal that the lane plan missed a shared file. Resolve it only if mechanical and obviously right; otherwise the colliding tasks wait for the human (section 7), named in the end-of-run summary, and the rest goes on. Record it in `progresso.md`.
+- Leave merged task branches and worktrees alone; `baco cleanup-branches` removes them after delivery ([delivery.md](delivery.md)).
+- Mobile end-to-end scenarios when no emulator or device exists in the session: mark them "automatizado, aguardando execução". They prove nothing until a CI result exists; without CI they become a manual script at acceptance. To bring a CI result into the local trace, download the run's JUnit artifact (named `junit` in [ci-github-actions.yml](../templates/pt-BR/ci-github-actions.yml)): `gh run download <run-id> -n junit -D .baco/junit`.
+
+## 7. Autonomous execution
+
+The run goes on by itself. A doubt in one task never stops the others: that task, and the tasks that depend on it, wait; independent tasks keep going. Write every waiting item in `## Esperando a pessoa` of `progresso.md` when it appears, so a resumed run and the end summary find it.
+
+| Situation | You do |
+|---|---|
+| minor technical choice | decide from the spec, plan, ADRs and conventions; record under `Decisões registradas` with "agente" as the author ([progresso.md](../templates/pt-BR/progresso.md) shows the format) |
+| product doubt that is easy to change later (the spec or QA allows two behaviors) | follow your recommendation and go on; record it under `Decisões registradas` as "decidido pelo agente, conferir no fim", with the other option and what changes with it |
+| product doubt that is hard to undo, or would change the contract | the task and its dependents wait; the question, with your recommendation, goes to the end summary. Anything that changes the contract returns to [spec-change.md](spec-change.md); never edit a spec or a CA during implementation |
+| environment block (a browser that does not open, a missing tool, a service down) | record it in `## Pendências` (what, impact, owner, destination, `aberta`) and go on with the work that does not need it; tests it prevented are "não rodado", never passed. If it prevents proving the task itself, that task waits |
+| persistent failure (5 fix rounds, `BLOQUEADO` after the stronger level) | the task waits; the end summary says what is missing and the options |
+| contested or escalated review finding | goes to the end summary ([review-protocol.md](review-protocol.md)); the fix work goes on |
+| `irreversible_action` (destructive migration, data deletion, production deploy) or `merge_main` | never done alone: queue it for the end, saying what would be lost or changed ([gates.md](gates.md)) |
+
+Stop the whole run only when nothing can move: everything left depends on something waiting, or the next step is a never-off gate. Also stop for the quota (section 10), for a switch to a new conversation (section 10, "Conversation size") and when the human says "pare" (finish the agents already running, record them, write `## Retomada`, and stop).
+
+## 8. Cost
+
+After every agent run (implementer, reviewer, fix round) record it, naming the real model and effort that ran, never the level, and the harness it ran in ([ambientes.md](ambientes.md), section 6):
+
+```
+baco cost add ENT-NNN --phase 6 --agent <role> --model <model> --effort <effort> --harness <harness> [--turns N] [--tokens N] [--seconds N] [--note "<TASK-ID> round N"]
+```
+
+Pass only the numbers the host actually reports; leave the others out (they are stored as unknown). Never estimate. These rows say who ran; the real usage is measured from the transcripts at the end of the delivery (`baco cost measure ENT-NNN --conductor-harness <harness> --write`, [delivery.md](delivery.md)), from the plan's `**Início:**` line. Every date and time written to `progresso.md` comes from `date`.
+
+## 9. Closing the phase
+
+When every task of the plan is merged and reviewed: empty `.baco/junit/` (old reports would mix with the new ones), run the whole suite once in its quick form on `baco/ENT-NNN` (`baco run-tests --all --quick`), to catch regressions between tasks before the internal review, and confirm each layer wrote its XML. A failure goes back to the fix loop of the task whose code it touches, then this run is repeated. If a task still waits for the human here, phase 7 cannot start: stop with the end-of-run summary.
+
+Then go on to [review.md](review.md) without waiting: the run goes through the PR review and, when nothing waits for a person, on to the point where the delivery is ready to test ([delivery.md](delivery.md), "Ready to test"). In the end-of-run summary (section 11), say what was built, which tasks needed fix rounds and which decisions were logged, keeping **proposto**, **alterado** and **verificado** apart (verified means a test run you just did).
+
+## 10. Long runs: state, resume, quota and conversation size
+
+The state of a run lives only in `progresso.md`, never in the conversation. Update its `## Retomada` section at every task end and at every stop: when it was updated (from `date`), where the run is, what is running, what comes next, and its situation: `rodando`, or why it stopped (`parado por cota`, `parado para conversa nova`, `parado por pergunta`, `parado por bloqueio`, `parado a pedido`, `fim`).
+
+**Tasks in progress.** `## Retomada` carries the table `Tarefas em andamento`, one row per task started and not yet merged: tarefa, ramo (the task branch), pasta de trabalho (the worktree folder), relatório (the report path), último commit (short sha), etapa e rodada (building, review, fix round N, waiting for the person). Update it at the same moments as the rest of the section (a task starts, a task ends, a step or round changes, a long step, a stop); a merged task leaves the table. Make it an explicit step of the loop in section 4: update `Atualizado em` and the table when each task is dispatched, when it returns, when its review returns and when it is merged. A stale Retomada misleads the next conversation, and in Claude Code the plugin hook reminds you when `progresso.md` has not changed for 30 minutes while a task branch is open. The merged task leaves the table, since the task log already has it. A new conversation finds each task from this table instead of searching for it.
+
+**One conductor at a time.** When a conductor starts or resumes a run, its first write to `## Retomada` is the situation `rodando` with the time (from `date`) and the owner line (`Dono da execução`: the start time of this session, from `date`). It refreshes `Atualizado em` at least at every task end and at every long step (the start and the end of a test battery, a wait in the machine-wide queue), so a live run never looks stale. Before each refresh, read the section again: if the owner line is no longer yours, another conductor took over; stop and write nothing.
+
+**Resume.** `/baco:executar ENT-NNN` (or "continuar") on a delivery whose `progresso.md` has a filled `## Retomada` continues there: start from the `Tarefas em andamento` table and check it against git (merged tasks, task branches and their last commits, worktree folders); when the table and git disagree, git wins and you correct the table. Never redo a task the log shows as done, re-dispatch a task that was running on its existing worktree (the implementer starts from its branch and its report), and keep `## Esperando a pessoa`. When it says the run is in phase 7, continue in [review.md](review.md). A `rodando` updated within the last 6 hours belongs to a live conductor (a full battery plus a queue wait can take over an hour); `parado por cota`, `parado para conversa nova`, or `rodando` with no update for more than 6 hours, can be taken over. When a person asks to continue a fresher `rodando`, ask whether another session is still running before taking over.
+
+**Quota.** When the usage window runs out (an agent returns a usage-limit error, or the host warns the window is ending), finish what you can record, then write in `## Retomada`: `parado por cota`, the time (from `date`) and the next step. Tell the user that the work continues when they send "continuar" after the window renews. In the Ratoeira, add that the limit notice also offers to continue right away with another account or another agent; the new conversation resumes from `## Retomada` the same way. BACO creates no scheduled routine to resume by itself: resuming after the quota belongs to the environment.
+
+**Ratoeira.** The Ratoeira is detected when `/usr/local/bin/ratoeira-cron` or `~/.config/ratoeira/` exists. Other sections use this test (the preview link of section 3, the blocked-write prompt of [configure.md](configure.md), opening a new conversation below).
+
+**Conversation size.** The general rule is in SKILL.md, "Conversation size". When the conversation passes `context.handoff_at` (the plugin hook warns you) during this phase or phase 7:
+
+Never stop halfway. Which of the three cases applies:
+
+1. **`context.auto_handoff` on, in the Ratoeira.** Do not ask and do not dispatch a new task. Let the tasks already running end and record them (`progresso.md`, `baco cost add`). Write `## Retomada` with the `Tarefas em andamento` table, the situation `parado para conversa nova`, the time (from `date`), the next step, and one line under `Trocas de conversa` (time, this conversation's identifier, the new conversation's title). Open the new conversation yourself with the Ratoeira's tool, titled with the next sequence number (SKILL.md, "Conversation size"), with the short request below, and stop: your last message says in one line where the work goes on.
+2. **`context.auto_handoff` on, outside the Ratoeira.** You cannot open a conversation, so the run cannot move to a new one by itself. Do not ask. Write `## Retomada` the same way but keep the situation `rodando`, give the suggested title and the request to paste, and keep going with the run in this conversation, dispatching tasks as usual and relying on the host's automatic summary. Never stop a run only to wait for a person to paste it.
+3. **`context.auto_handoff` off or missing.** Finish the task you are running, write `## Retomada` the same way (situation `rodando`), and ask once whether to continue in a new conversation. Keep going with the run while you wait, dispatching tasks as usual. With a yes, follow case 1 in the Ratoeira or case 2 outside it.
+
+The request for the new conversation, in pt-BR, short:
+
+```
+Continue a entrega ENT-NNN deste projeto, na fase <6 ou 7>, com a skill baco-sdd. O estado está em docs/entregas/ENT-NNN-<slug>/progresso.md, seção "Retomada" (tabela "Tarefas em andamento"). Últimos arquivos de rastreio: <caminhos de revisao/trace-spec-*.json>, com o resultado de cada um (<N> provados, <M> pendentes) ou "ainda sem rastreio". Conversa anterior: <identificador>. Leia a conversa anterior só se o disco não responder uma dúvida, por busca, nunca inteira.
+```
+
+Fill the trace line from the latest `trace-spec-<nome>.json` of the delivery (its path and, from `baco trace`'s output, the count of proven and pending criteria); with none yet, write "ainda sem rastreio". The new conversation resumes as in "Resume" above. Every switch is listed in the end-of-run summary (section 11).
+
+## 11. End-of-run summary
+
+When the run stops (when the delivery is ready to test, [delivery.md](delivery.md); when the PR review waits for a person, [review.md](review.md), sections 4 and 5; or earlier when nothing can move), send one message in plain pt-BR with everything that waits for the person, read from `progresso.md`:
+
+1. what was built: a short table (tarefa, estado, rodadas de correção);
+2. task checks waiting (`Parada humana`, `each_task`, `guard-tests` findings, round-5 tasks, merge conflicts);
+3. decisions "decidido pelo agente, conferir no fim", each with the other option;
+4. contract questions and contested or escalated review findings, each with your recommendation;
+5. open pending items (`## Pendências`);
+6. never-off gates queued (irreversible actions, the merge into the main branch);
+7. the PR review: who reviewed, on which harness and model, the rounds and verdicts, and what waits for a person (the PR address to review, findings to decide with `auto_fix` off, a `bloqueio`, a waiver to confirm); when it ran on the harness that built, say it was less independent;
+7a. when the delivery is ready to test: what changed for the person, the PR address, the manual scenarios to run, in the Ratoeira the preview link offer, and the two human approvals left (`before_pr` and the merge, which waits for "pode juntar");
+8. the switches to a new conversation (`Trocas de conversa` in `## Retomada`), one line each, when there were any.
+
+Each item says what happens with each answer. Write `## Retomada` with the situation (`fim`, `parado por pergunta` or `parado por bloqueio`).
+
+Talking to the user: "tarefa", "teste automático", "revisão", "parada para você conferir". Never "worktree", "merge" or "branch" without a plain explanation. Show progress as a short table (tarefa, estado, rodadas de correção), not as a log.

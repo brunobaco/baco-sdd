@@ -1,0 +1,106 @@
+# Configuração do BACO-SDD neste projeto.
+# Copie para `.baco/config.yaml`. Tudo aqui é opcional: o que você apagar volta ao valor padrão.
+# Regras do arquivo: use só espaços (nada de tabulação), comentários começam com "#" e "on" liga, "off" desliga.
+
+language: pt-BR           # idioma dos documentos e das perguntas
+
+tracker: [files]          # onde ficam registradas as tarefas: "files" = arquivos em docs/
+                          # para registrar também no GitHub, escreva: tracker: [files, github]
+
+branches:
+  main: main              # a branch principal, onde só entra o que foi aprovado
+  integration: develop    # a branch onde as entregas se juntam antes da principal
+  protected: [main, master, develop]   # branches que ninguém edita direto
+
+parallel: 3               # quantas tarefas podem andar ao mesmo tempo; 0 = uma de cada vez
+
+# Pontos em que o trabalho para e espera uma pessoa aprovar. "on" = para, "off" = segue sozinho.
+# Três paradas nunca desligam, mesmo que você escreva "off": aprovação da spec,
+# ação sem volta (apagar dados, publicar em produção) e junção na branch principal. Estão sempre ligadas.
+gates:
+  project_start: on       # antes de começar um projeto novo
+  architecture: on        # antes de seguir com a arquitetura proposta
+  plan: on                # antes de executar o plano da entrega
+  task_batch: on          # antes de soltar o lote de tarefas
+  each_task: off          # depois de cada tarefa (desligado: as tarefas rodam sozinhas entre as paradas)
+  before_pr: on           # antes de marcar o pedido de junção (PR) como pronto para juntar
+                          # (o rascunho aberto para a revisão não é pedido de junção)
+
+# O que fazer quando um cenário manual ainda não foi executado por uma pessoa.
+# "block" = não deixa juntar; "warn" = avisa e deixa seguir.
+manual_pending:
+  main: block             # na branch principal: bloqueia
+  "*": warn               # em develop e em qualquer outra branch: só avisa
+
+# Comandos que rodam os testes. Cada comando precisa gravar o próprio relatório JUnit
+# dentro da pasta .baco/junit; sem esse arquivo, os testes contam como "não rodaram".
+# Os dois abaixo são só exemplos: troque pelos comandos do seu projeto.
+tests:
+  unit: "npx vitest run --reporter=junit --outputFile=.baco/junit/unit.xml"   # testes das regras e funções
+  e2e_web: "PLAYWRIGHT_JUNIT_OUTPUT_FILE=.baco/junit/e2e-web.xml npx playwright test --reporter=junit"   # testes do site no navegador
+  # Baterias que nunca rodam ao mesmo tempo nesta máquina, nem vindas de projetos diferentes:
+  # uma espera a outra terminar. Sem esta linha, entram na fila as camadas cujo nome começa com "e2e".
+  # queue: [e2e_web]
+
+# Versão rápida dos comandos, usada durante as tarefas (baco run-tests --quick): por exemplo,
+# só um navegador. A bateria completa, com todos os navegadores, roda uma vez no fim da entrega.
+# Camada sem versão rápida usa o comando de "tests".
+tests_quick:
+  e2e_web: "PLAYWRIGHT_JUNIT_OUTPUT_FILE=.baco/junit/e2e-web.xml npx playwright test --project=chromium --reporter=junit"   # só no Chromium
+
+# Teste de fumaça: um comando que sobe o sistema do jeito que a pessoa sobe, confere que ele
+# responde e encerra (0 = ok). Não pode fazer perguntas na tela. Roda com baco run-tests --smoke.
+app:
+  # smoke: "npm run smoke"
+
+# Quanta capacidade de IA cada tipo de tarefa recebe, e com quanto esforço.
+# Nível (level) em palavras simples:
+#   forte = o modelo mais capaz do ambiente (mais caro e mais lento)
+#   medio = o modelo intermediário
+#   leve  = o mais rápido e barato
+# Esforço (effort): alto, medio ou baixo = quanto a IA pensa antes de responder.
+# O nome real do modelo depende da ferramenta que você usa; aqui só se escolhe o nível.
+# (O formato antigo, com "model: opus|sonnet|haiku" e "effort: high|medium|low", ainda funciona.)
+models:
+  mechanical: { level: leve, effort: baixo }    # tarefa mecânica: troca simples
+  standard: { level: medio, effort: medio }     # tarefa padrão: trabalho comum
+  risky: { level: forte, effort: medio }        # tarefa arriscada: dados, login, dinheiro
+
+# Ferramentas de IA (harness) que este projeto usa, e qual modelo de cada uma corresponde a cada nível.
+# O agente principal lista os modelos de uma ferramenta nova e recomenda o nível de cada um; você aprova.
+# O plano de cada entrega escolhe, entre estas, a ferramenta, o modelo e o esforço de cada tarefa e papel.
+# "implementers: on" deixa a ferramenta construir tarefas mesmo quando não é a do agente principal;
+# sem isso (padrão off), ela só faz papéis que leem e revisam, sem mexer no código.
+# Modelo que só existe nesta máquina não entra aqui: fica nas configurações da própria ferramenta.
+harnesses:
+  claude-code:
+    models: { forte: opus, medio: sonnet, leve: haiku }
+    implementers: on
+  # codex:
+  #   models: { forte: <modelo mais capaz>, medio: <intermediário>, leve: <mais rápido> }
+  #   implementers: off
+  # opencode:
+  #   models: { forte: <provedor/modelo>, medio: <provedor/modelo>, leve: <provedor/modelo> }
+  #   implementers: off
+
+review:
+  external_rounds_max: 3  # quantas rodadas de revisão externa antes de pedir decisão a uma pessoa
+  # Revisão do pedido de junção (PR) da entrega, ao fim da construção.
+  pr:
+    reviewer: agente      # quem revisa: agente (outra IA), pessoa, ou ambos (a IA primeiro, depois a pessoa)
+    auto_fix: on          # on = os achados viram tarefas de correção que rodam sozinhas no mesmo PR
+
+# Arquivos que não contam como mudança de código para o aceite.
+# Normalmente, qualquer commit fora de docs/entregas/ depois dos testes ou da revisão faz o aceite
+# pedir tudo de novo, porque o código pode ter mudado. Liste aqui arquivos que mudam sozinhos e não
+# são código, como um registro de trabalho ou logs, para que um commit só neles não atrapalhe.
+# Aceita "*" e "**" (qualquer pasta dentro). Não ponha aqui código, testes nem specs.
+provenance:
+  # ignore: [docs/registro-da-rodada.md, "logs/**"]
+
+# Tamanho da conversa. Conversa muito longa fica mais cara a cada passo e lembra pior dos detalhes;
+# como o estado do trabalho fica salvo nos arquivos, continuar numa conversa nova custa pouco.
+context:
+  handoff_at: 400000   # a partir de quantos tokens de contexto sugerir continuar numa conversa nova
+  auto_handoff: off    # on = durante a construção, trocar de conversa sem perguntar
+

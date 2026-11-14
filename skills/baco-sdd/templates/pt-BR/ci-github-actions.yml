@@ -1,0 +1,45 @@
+# Rotina de testes automática no GitHub (copie para `.github/workflows/baco-testes.yml`).
+# Roda a cada envio de código (push) e a cada pedido de junção (pull request).
+# Os testes geram relatórios JUnit em `.baco/junit/`, que o BACO-SDD lê para provar os critérios de aceite.
+# Linhas marcadas com "ADAPTE" mudam conforme a tecnologia do projeto.
+
+name: Testes
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar o Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24          # ADAPTE: versão do Node usada pelo projeto
+          cache: npm                # ADAPTE: troque por pnpm ou yarn se for o caso
+
+      - name: Instalar dependências
+        run: npm ci                 # ADAPTE: pnpm install --frozen-lockfile, yarn install --frozen-lockfile, etc.
+
+      - name: Preparar a pasta dos relatórios
+        run: mkdir -p .baco/junit
+
+      - name: Rodar testes unitários
+        run: npx vitest run --reporter=junit --outputFile=.baco/junit/unit.xml   # ADAPTE: o mesmo comando de tests.unit no config.yaml
+
+      # ADAPTE: apague este passo se o projeto não tem testes de navegador.
+      - name: Rodar testes do site no navegador
+        run: |
+          npx playwright install --with-deps
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE=.baco/junit/e2e-web.xml npx playwright test --reporter=junit
+
+      - name: Guardar os relatórios
+        if: always()                # guarda os relatórios mesmo quando um teste falha
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit
+          path: .baco/junit

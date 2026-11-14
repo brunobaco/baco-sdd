@@ -1,0 +1,169 @@
+# Phase 4: Planning
+
+Output: `docs/entregas/ENT-NNN-<slug>/plano.md` (from [plano.md](../templates/pt-BR/plano.md)) and the automation status of the QA scenarios it covers. Gate: `plan` (see [gates.md](gates.md)). Load this reference when approved specs exist and the user wants them built, when a delivery must be cut from the roadmap, or when a plan is stale. Also load [common-process.md](common-process.md): its discovery and reconciliation rules apply here.
+
+Roles named below are subagents when the host has them; otherwise run the role inline in the session. Run the role [planner](roles/planner.md) twice: first to propose the cut (step 1, nothing written), then, after the user agrees and you did step 7.1 to 7.3 (number, base, branch), for steps 3 to 6; you present the result and run the gate.
+
+Planning organizes work. It does not write application code, fix bugs, run QA or CI, or replace the technical owner. Acceptance criteria on paper are not evidence of executed tests. For contract identity see [spec-model.md](spec-model.md); for readiness conflicts see [review-protocol.md](review-protocol.md).
+
+## Entry and boundary
+
+Plan only from an **approved spec** (state `Aprovada` in the catalog, `baco catalog get <CODE>`) and its relevant sources: the cut and version, the QA file, decisions and policies, `docs/arquitetura/README.md` and the ADRs ([architecture.md](architecture.md)), the roadmap in `planejamento-do-produto.md`, `.baco/config.yaml`, and the real delivery context. Identify repositories, task conventions and available tools without presuming a technical structure. With no architecture document: in a project that already has code, read the stack from the repository, write it in `Restrições globais` as observed (not approved) and offer phase 3 Validate to record it, without blocking; in a project with no code yet, phase 3 comes first.
+
+A candidate or partly blocked spec allows only an **exploratory analysis, explicitly not publishable**, with its scope and gaps delimited. Never produce a definitive plan for the full implementation of it, and never propose implementation of what is undefined. Separate approved contracts from suggestions. A spec whose approved version differs from the file in the working tree is not planned: ask for the pending approval first. Compare the version number in the catalog row with the one `baco validate-spec <spec>` reports (it may carry extra text, such as `1.8 (aprovada em …)`).
+
+Before editing files run `baco check-branch`; on exit 1 switch to the delivery branch (step 7).
+
+## 1. A delivery is the unit of planning
+
+> **1 delivery = 1 plan = 1 PR = 1 acceptance report.** A delivery is work planned, executed, reviewed and approved together.
+
+Examples: "empresas 2.0 completa"; "autenticação 1.5, só cadastro por e-mail (RF-001 a RF-004)"; "empresas 2.0 → 2.1" (only the difference). The delivery moves the catalog state of its specs; nothing else does.
+
+The [planner](roles/planner.md) **proposes the cut** from the roadmap and the dependencies between specs; the human approves it at the `plan` gate. Criteria: one verifiable outcome; small enough to finish and review in one PR; specs it depends on are already approved or inside the cut. The default proposal is **one spec per delivery**: it keeps the review small and the acceptance clear. Joining two specs needs a written reason in the plan (for example, neither works without the other); never join unrelated specs to save ceremony. For the first delivery of a new project, ENT-001 is the architecture proof ([architecture.md](architecture.md), "Architecture proof: ENT-001"); its plan includes the CI and the non-production deploy as tasks.
+
+Ask the cut as one plain question, with your recommendation:
+
+> Proponho esta entrega: [nome], que deixa pronto [o que o usuário final consegue fazer, em palavras simples]. Fica de fora: [o que fica para depois]. Faz sentido assim, ou prefere uma entrega maior ou menor?
+
+## 1A. Delivery level
+
+Risk and reversibility decide how much ceremony a delivery gets: too much on trivial work wastes money, too little on irreversible work is dangerous. The [planner](roles/planner.md) proposes the level with the cut, naming the signals that decided it; the human approves it with the plan. Write it in the plan as `**Nível:**`.
+
+| Level | When | What changes |
+|---|---|---|
+| `leve` | **all of**: small change, easy to undo, no money and no personal data, no new technology, one spec, no `arriscada` task | spec-minima or a point evolution; short plan; no architecture Revisit; `Se der errado` not required |
+| `normal` | everything else | the standard flow |
+| `completo` | **any one signal**: touches several specs, costly to undo, money or personal data, technology new to the project, long work (more than about a month), a destructive migration | architecture Revisit with ADR when the signal is technical ([architecture.md](architecture.md)); `Parada humana: sim` on the risky tasks; `Se der errado` required (section 7) |
+
+When unsure, take the higher level. No level changes the never-off gates or the external review ([review.md](review.md)): the level only decides optional work. Show it in the plan presentation with its reason in one line; the human approves it with the plan, no separate question. For example:
+
+> Nível: **leve** (pequena, fácil de desfazer, sem dinheiro nem dados pessoais), por isso não revisei a arquitetura.
+
+## 1B. External review
+
+The external look is the review of the delivery's pull request (PR) at the end of construction ([review.md](review.md), sections 3 and 4). The plan records it in `**Revisão externa:**`, from `review.pr` in `.baco/config.yaml`, so the person approves it with the plan and the conductor only follows it:
+
+- who reviews: `agente`, `pessoa` or `ambos` (`review.pr.reviewer`; agent first, then the person);
+- for the agent reviewer, the harness, model and effort it runs on (role `pr-reviewer`, level `forte`, effort `alto` by default): preferably a harness from `harnesses` other than the one that builds, read-only, whose read check passed (section 7). With only one harness, the same one, in a fresh context; say in the plan that the review is then less independent;
+- whether findings are fixed on their own (`review.pr.auto_fix`);
+- the mode, `pr` by default. In mode `pr` the reviewer reads the project in place and keeping it out of `docs/entregas/` is only an instruction; record `repositorio` when that isolation must be enforced (the reviewer then reads a copy without the delivery folder).
+
+Ask once, with the plan, only when the person may want something else than the config (for example a delivery that touches data, login or money and a config with `pessoa` only, or a person who asks for the review in a separate copy or a chat site, modes `repositorio` and `pacote`). The default is yes and it is recommended, always when the delivery touches data, login or money. The human may waive it with a reason; the waiver is recorded later, at the end of construction, with `baco waive-review`, never before the work exists. The internal independent review is never waived.
+
+> No fim desta entrega, o pedido de junção (PR) vai ser revisado por [outra IA, o Codex com o modelo X / uma pessoa do time / outra IA e depois uma pessoa], sem ver como o trabalho foi feito, e [as correções que ela pedir eu faço sozinho no mesmo PR / eu paro para você decidir as correções]. Eu recomendo manter, principalmente porque [mexe com dinheiro, login ou dados / é uma conferência a mais]. Quer mudar algo?
+
+## 2. Incremental case (a spec already implemented in part)
+
+Use the engine, never your own reading of the history:
+
+```
+baco spec-diff <spec> --base auto
+```
+
+`--base auto` takes the catalog's `Versão implementada` for the spec's code and lists `added`, `modified` and `removed` IDs; with nothing implemented, everything is `added`. Details and the catalog distance are in [spec-change.md](spec-change.md).
+
+- **Prove the implemented baseline** with identifiable evidence: the catalog's `Versão implementada` (version, sha, delivery), a release or deploy, associated commits, confirmed finished work, an operational demo, or a statement by the responsible person with its reach. Approval of V1 or the closing of one issue does not prove the whole was implemented.
+- Compare baseline and new spec **by functional effect**: add, modify, remove, preserve, migrate or verify previous behavior, including effects on queries, integrations, authorization, historical data and acceptance criteria. A modified ID whose text changed only cosmetically still appears; judge it per behavior and say which entries need no work.
+- Generate only the deliveries the delta needs, with **explicit non-regressions** (preserved behaviors the change can touch, each with a verification). Do not plan the whole new spec and do not declare "no work" because titles or IDs stayed equal.
+- If the baseline **cannot be proven**, record what is evidence and what is assumption, produce a conditional contract comparison, declare the incremental plan **não fechado**, and name the baseline check needed before any task is published as a guaranteed delta. For a baseline outside the catalog, use `--base <ref>` with the commit the owner confirms, and write that commit and its evidence in `Restrições globais`.
+
+## 3. Boundaries and dependencies
+
+Before defining tasks, check that each delivery has a cohesive outcome and responsibility, and which contracts of other capabilities it really consumes. Tell apart: **single normative authority**, mandatory integrity or security dependency, accessory-operation dependency, and merely organizational precedence. For each relevant dependency state the required outcome and the failure condition, not a presumed technology.
+
+When shared contracts are stable, prefer deliveries that evolve and are validated by their own outcome; when integrity or atomicity needs a coordinated change, keep it coordinated. An accessory failure must not disable a valid main outcome unless a rule or guarantee says so. Do not split work only to simulate decoupling, and do not invent microservices, messaging, endpoints or repositories. Circular dependencies call for consequence analysis, not automatic rejection.
+
+On normative duplication, an internal dependency nobody contracted, or a cascading change with no functional reason, record **source/IDs, scenario, consequence, plan impact and routing**. Do not claim the implemented architecture is decoupled, do not change approved contracts without material evidence, and do not turn delegable technical choices into human pending items.
+
+## 4. Deliveries into tasks
+
+Organize by **verifiable outcome**: a cohesive vertical of behavior, rule or integration; not "backend" and "frontend" by default. Split only when independent execution, responsibility or verification has value. A task is small enough for one agent to finish and verify at once. Do not impose labels, priority, owner or estimates; use only fields the destination really has, and mark any estimate preliminary. Never duplicate work already delivered or issues that already exist.
+
+Per task, write one row of the `Entregas e tarefas` table:
+
+| Field | Rule |
+|---|---|
+| Task ID | `T-NNN`, unique in the delivery, never renumbered or reused (fix tasks `FIX-NN` come from the review phase) |
+| CAs | the CA IDs it fulfils; an associated ID proves nothing, check the semantic link (actor, operation, boundary, polarity, effect) |
+| Interfaces | what it consumes and produces |
+| Likely files | paths, for the conflict pre-scan; "likely", not a promise |
+| Done criterion | observable and checkable by a command or a screen, including negative and limit cases; "looks good" is not one. Written in the task's subsection of `Detalhes das tarefas` |
+| Expected result | `Resultado esperado`: what exists or works after the task, in plain words, one or two sentences. Written in the task's subsection of `Detalhes das tarefas`, so the publisher copies it and never invents it |
+| Risk class | `mecânica` (simple swap, no decision), `padrão` (ordinary work), `arriscada` (data, login, money, or hard to undo) |
+| Level/effort | from `models` in `.baco/config.yaml`: mecânica → `mechanical`, padrão → `standard`, arriscada → `risky`; the plan shows the level (`leve`, `medio`, `forte`) and the effort (`baixo`, `medio`, `alto`) |
+| Harness and model | the harness from `harnesses` that builds it, with the real model of its level and the real effort ([ambientes.md](ambientes.md), section 5). Implementers run on the conductor's harness, unless the config marks another harness `implementers: on` and its write check passed. With no `harnesses` in the config, the conductor's harness and its usual mapping |
+| Lane / depends on | step 5 |
+| Task tests | `Testes da tarefa`: which tests run while building it: the tests it creates plus the existing tests of the files it touches, in their quick (Chromium) form. Written in the task's subsection of `Detalhes das tarefas` and copied into the task file ([task-publication.md](task-publication.md)) |
+| Human stop | step below |
+
+When unsure between two classes, take the higher one. Cost matters, so do not mark everything `arriscada`.
+
+**Human stop marker.** A task whose result a person must check before it is merged carries the field `Parada humana: sim`, with the reason in one sentence; the default is `não`. Propose `sim` for irreversible-adjacent or high-stakes work (data migration, authentication or permission changes, money rules, an interface the user must see). The field lives in the task file ([tarefa.md](../templates/pt-BR/tarefa.md)) and the plan shows `PARADA` beside that task. The human approves the stops with the plan. The stop applies on top of any gate layer, even with `each_task` off ([gates.md](gates.md)); `implementation.md` and `delivery.md` honor it. It is not the `irreversible_action` gate, which exists independently.
+
+**Skeleton task.** The first task that creates the project skeleton (the dependency manifest, such as `package.json`, and the test setup) carries in its done criterion a clean install and the test commands running in a fresh copy: a new worktree of its branch, with no dependencies installed in the folder, where the install command the architecture names (for example `npm ci`) and then `baco run-tests --all --quick` both pass, with their output in the task report as proof. A machine that lacks a build tool or a system library then fails in the first task, not at the end of the delivery. The same criterion goes on any later task that adds a dependency with native parts or changes how the project installs. Every ADR line marked "a provar na tarefa do esqueleto" ([architecture.md](architecture.md)) is listed by the planner among this task's done criteria, each with the command that proves it.
+
+## 5. Order, lanes and conflicts
+
+- Define precedence from functional requirements, technical or external dependencies, security, data, migration, integrations, and risks that really condition the work. Do not invent architecture.
+- **Conflict pre-scan:** list the files more than one task may touch. Tasks that touch the same files go **in the same lane**, one after another. Write the result in `Varredura de conflitos`, or "nenhum conflito encontrado".
+- **Parallel by default:** tasks in independent lanes (no shared files, no dependency) run at the same time, up to `parallel` in `.baco/config.yaml` (default 3; 0 = one at a time). Fill `Faixas paralelas`; inside a lane tasks run one after another.
+- A dependency across lanes is written in `Depende de`; a task waits for it even if its lane is free.
+
+## 6. QA automation status and coverage
+
+For every QA scenario that covers a CA of the plan, decide the planned `- **Automação:**` value in `docs/qa/cenarios-qa-spec-<nome>.md` and write it. The planner also fills the `Estratégia` column of the coverage table for the scenarios of the delivery's CAs (the layer and the kind of proof, in one short line, replacing "pendente (a decidir no plano)"); reconciliation only keeps it consistent with what was built. Keep any other project field and never delete one:
+- `automatizado` (with the planned test path in backticks): the task that creates the test is in the plan and the scenario's CT is in the coverage table. State its **layer** on the same line, as the word `regra` (a unit test of the rule, inside the code) or `navegador` (a browser test), for example ``automatizado, camada `navegador` (`tests/e2e/x.spec.ts`)``. Use `navegador` only for the main paths a user walks through; a business rule is proven by a `regra` test, never by a browser test that repeats it. A scenario whose "Então" is what the person sees on screen is `navegador`. `baco trace` reads the layer: a `navegador` scenario counts as proven only by a passing test from a file declared for `navegador`, and a test of another layer carrying its ID gives `layer_mismatch`, which fails the criterion;
+- `manual`: the scenario is not worth or not possible to automate (a visual judgment, an external system). Write a **manual script** in the scenario: numbered steps a non-developer can follow, the expected result, and where to record the outcome in the evidence table;
+- `pendente` does not survive planning. If it cannot be decided, ask the human, or report the scenario as a gap with its effect.
+
+This edit is limited to those lines, the `Estratégia` cells and the scripts; never change what a scenario or a CA requires, and never fill the evidence table (only execution does). Distinguish planned tests from executed ones.
+
+**Existing code.** In a project that already has code, check that every file, function and module the plan and the tasks name really exists (search the repository, or have the planner do it). A reference that does not exist is either a thing the plan creates (say so) or a mistake (fix it). Do not publish a plan that points at code that is not there.
+
+**Coverage check.** Every approved behavior in scope has a responsible task and a verification path; every CA of the plan's specs appears in `Cobertura` (a CA left out is explained); a QA item cannot introduce a requirement contrary to the spec. Verdict per scope: `apta`, `apta com dependências` or `bloqueada` (see [review-protocol.md](review-protocol.md)).
+
+## 7. Write the plan
+
+1. Choose `ENT-NNN`: the next free number in `docs/entregas/` (three digits). The engine resolves a delivery by the prefix `ENT-NNN-`, so two folders with the same number break every command; never create one. Slug: lowercase ASCII words joined by hyphens.
+2. **Base** is the commit the delivery starts from. Take the integration branch from `branches.integration` (default `develop`) and run `git rev-parse <integration>`; the output is the sha. A branch name is not valid, because the branch moves.
+3. Create the delivery branch `baco/ENT-NNN` from that commit and write the plan there. Task branches are `baco/ENT-NNN-<TASK-ID>`.
+4. Copy [plano.md](../templates/pt-BR/plano.md) to `docs/entregas/ENT-NNN-<slug>/plano.md` (the planner writes it). The conductor, after the planner returns, copies [progresso.md](../templates/pt-BR/progresso.md) to `docs/entregas/ENT-NNN-<slug>/progresso.md` (the delivery log; the planner never writes it, and later phases append to it). The plan header is read by the engine, keep it exact:
+
+```
+**Specs:** docs/specs/spec-empresas.md@2.1, docs/specs/spec-autenticacao.md@1.4
+**Base:** 3f9c2ab
+**Início:** 2026-03-10 09:15
+```
+
+`**Início:**` is the time (from `date`) when planning this delivery started, noted by you before dispatching the planner and passed in its brief; `baco cost measure ENT-NNN` starts its window there.
+
+Fill the agents table: one row per role that will run in this delivery (implementer per class, task reviewer, final reviewer, simplifier, PR reviewer, locator when used, and so on), with what it does, its level, the harness it runs on, the real model and effort of that harness for its level ([ambientes.md](ambientes.md), section 5) and the maximum fix rounds. This is where the harness, model and effort of every role are decided; during construction the conductor only follows the table. A harness other than the conductor's takes only read-only roles (reviewers and locator), unless the config marks it `implementers: on`. Assign a harness other than yours only in a mode whose check passed on this machine within the last 7 days (`.baco/logs/harnesses.md`, [ambientes.md](ambientes.md), section 5, "Check before relying on it"); with no such record, run the check before writing the plan (it is cheap), and with a failure leave that harness out and say why in the plan. Give that harness only tasks whose needs it has (the `rede` and `porta` of its record: installing dependencies needs network, a local server or browser test needs a port); otherwise plan the conductor doing the install and the browser tests and state the cost. Name the locator only when the delivery has large reads to do (several long specs, a large codebase to search). Fill the quota estimate from the usage measured in previous deliveries when any exist (`baco cost summary ENT-NNN`, the measured part, not the reported tokens), scaled by task count and class; with no measured delivery write "sem histórico", never a number. Fill `Restrições globais`, `Foco de revisão` (what review must examine most), the tables, `Varredura de conflitos`, `Cobertura`, and `Reconciliação` ("ainda não executado" for now). `Se der errado` (how to go back, how long it takes, what is lost; how we will know it broke) is required when the level is `completo` or any task is `arriscada`; otherwise delete the section. "Unknown" is not an answer there: if no one knows how to undo, say so in the plan and propose a task that creates the way back. Planning writes only `plano.md`, the new `progresso.md`, and the QA lines of step 6; task files come from [task-publication.md](task-publication.md).
+
+## 8. Before the gate
+
+1. Run the documentary reconciliation gate ([common-process.md](common-process.md), step 5, "plan" cut): the plan against the approved spec, QA, ADRs, delivery records, dependencies, indexes and future notes. Fix only planning documents you may write; for records you cannot access or are not authorized to change, say so and keep planned, reconciled and verified apart, never claiming a sync that did not happen. A conflict in a normative rule is reported (origin, effect, decision needed); never rewrite a spec, policy or approval to fit tasks (see `reconciliation.md`). Do not turn a discrepancy into an issue to dodge it, and do not plan tasks to "fix" a product decision nobody took.
+2. Run:
+
+```
+baco plan-freshness ENT-NNN
+```
+
+Exit 0: continue. Exit 1: a spec changed since the versions in the header (or the header lists no specs); go to "Re-planning" below, do not present the plan.
+
+3. Present the plan lean: the verdict first, then the cut, tasks per lane, stops, QA status, the agents table with the quota estimate (who builds and who reviews, on which harness and model), the external review (section 1B), gaps, and reconciliation (consulted / changed / no impact / pending). Keep proposto, alterado and verificado apart. Then ask for the `plan` gate (the approval sentence of [gates.md](gates.md)) and wait; a recommendation is not approval.
+4. After an explicit "sim", or immediately when `gates.plan` is off (record that the gate was off instead of an approver), record in the delivery's `progresso.md`, under `Decisões registradas`: date, who approved, the spec versions. Commit `plano.md`, `progresso.md` and the QA lines on `baco/ENT-NNN` (task branches start from its tip), and record the planner runs with `baco cost add ENT-NNN --phase 4 --agent planner --model <m> --effort <e>` (the model and effort that really ran). The plan does not authorize publishing tasks; that is [task-publication.md](task-publication.md), with its own gate.
+
+## Re-planning a stale plan
+
+Plan made, not yet executed, spec changed ([spec-change.md](spec-change.md), section 4). Replan **only the difference between the planned and the current version**:
+
+1. Read the planned version from the plan's `**Specs:**` header.
+2. Find the commit that holds that version of the spec: list the history with `git log --format=%h -- <spec path>` and, from the newest down, read the version of each with `git show <sha>:<spec path>` (metadata version line). Take the **newest commit whose version equals the planned one**. Do not use the plan's `**Base:**` blindly: the spec may have been approved after it. `--base auto` is for "what changed since the implemented version" (the incremental case above), not for this.
+3. Run `baco spec-diff <spec> --base <sha>`. The list is the replan.
+4. Keep tasks the diff does not touch. Change or add only the tasks the listed IDs need, with new IDs; never renumber. Update `**Specs:**` to the current versions. Keep `**Base:**` while the delivery branch still starts there; if the branch is recreated from a newer integration commit, set the new `git rev-parse` sha.
+5. Re-run steps 6 and 8, and pass the `plan` gate again. Mid-execution changes follow the choice recorded in [spec-change.md](spec-change.md); tasks already done keep their IDs and files.
+
+## Talking to the user
+
+Plain pt-BR, business words: "entrega", "tarefa", "parada para você conferir", "pedido de junção (PR)". Never "lane", "sha", "worktree", "diff" without a plain explanation. Show the plan as a short table (tarefa, o que entrega, depende de, parada) and do not paste the whole file. Next phase: [task-publication.md](task-publication.md); execution is `implementation.md`.
