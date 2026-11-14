@@ -18,6 +18,8 @@ Aqui entram só o plugin, a skill, o motor, os testes, os casos de avaliação c
 
 Antes de cada envio ao GitHub, conferir o que vai sair: `git log origin/main..HEAD --format='%an <%ae>%n%B'` (autor, e-mail e mensagem de cada commit) e `git diff origin/main..HEAD` (conteúdo). Commit com e-mail pessoal ou mensagem fora do padrão é corrigido antes do envio. Na dúvida, fica de fora.
 
+O envio automático da Ratoeira fica desligado para este projeto. O envio ao GitHub é feito pelo agente no fim de cada conversa que mudou algo no projeto, depois da conferência acima, e ele diz à pessoa o que mandou. Antes de enviar, os commits ainda não enviados que estiverem fora do padrão (mensagem automática ou pedido copiado, e-mail pessoal) são juntados num commit com mensagem no padrão. Commit já enviado nunca é reescrito. Uma trava local (`.git/hooks/pre-push`, fora do repositório) recusa o envio de commit com e-mail que não seja o privado do GitHub ou com mensagem fora do padrão; se ela barrar, corrigir o commit, nunca desligar a trava.
+
 ## Onde fica cada coisa
 
 - `skills/baco-sdd/SKILL.md`: roteador das fases e regras centrais. Referências por fase em `skills/baco-sdd/references/`, papéis em `references/roles/`, modelos de documento em `templates/pt-BR/`.
