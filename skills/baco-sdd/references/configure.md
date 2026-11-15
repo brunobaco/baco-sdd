@@ -108,7 +108,19 @@ A number -> `handoff_at` (a positive whole number of tokens; above the effective
 
 **9. AI tools** (`harnesses`)
 
-Detect what this machine has (for example `claude`, `codex`, `opencode` on the PATH, and the tool you run in), then ask:
+First, the tool you run in. In Claude Code, ask how free it is in this project (`harnesses.claude-code.sandbox`; [ambientes.md](ambientes.md), section 2, "Claude Code's sandbox"), and recommend `rede`:
+
+> Antes das outras ferramentas, uma pergunta sobre mim. Neste projeto, quanta liberdade eu tenho nos comandos? (a) rede: eu gravo só na pasta do projeto e acesso a internet só nos endereços que você aprovar (GitHub e o registro de pacotes do projeto); se um texto malicioso lido de fora me mandasse enviar suas chaves para outro lugar, a caixa recusaria; (b) livre: como hoje, gravo onde você pode e acesso qualquer endereço, protegido só pelas regras e pela confirmação das ações arriscadas. Recomendo a rede. Ela vale para todas as conversas deste projeto, inclusive as suas.
+
+With `rede`, propose the network list from the project's stack (GitHub, its package registries) and ask:
+
+> Vou liberar estes endereços: [lista]. Precisa de mais algum, como uma API que os testes chamam?
+
+and, when the project has an app the person tests in the browser:
+
+> Para você testar o sistema no navegador, eu deixo ele rodando com um comando. Dentro da caixa, um sistema iniciado assim só fica visível para o próprio comando, então esse comando roda fora dela. Qual é ele? [detectado: por exemplo npm run dev]
+
+Save the answer as `sandbox` under `harnesses.claude-code`, and keep the list and the command for the settings (step 7 of "Write the file" and "Execution rules"). Then detect what else this machine has (for example `claude`, `codex`, `opencode` on the PATH), then ask:
 
 > Além de mim, você tem outras ferramentas de IA para usar neste projeto, como Codex ou OpenCode? Com mais de uma, uma pode revisar o trabalho da outra, o que deixa a revisão mais independente. Detectei: [lista]. Quais quer usar?
 
@@ -205,6 +217,12 @@ Save only after the user agrees. In another environment (Codex or another host),
 > Neste ambiente não consigo impedir esses comandos por regra, só pedir para não rodarem. Se quiser a garantia de verdade, é preciso configurar o bloqueio na própria ferramenta.
 
 Never claim a block is in force until you have read the saved file back.
+
+**Claude Code's sandbox.** When `harnesses.claude-code.sandbox` is `rede`, write the `sandbox` block of [ambientes.md](ambientes.md), section 2, into the same `.claude/settings.local.json`: `enabled: true`, `allowUnsandboxedCommands: false`, `excludedCommands` with `codex exec *` when Codex is in `harnesses` and the command that keeps the app running (question 9), `filesystem.allowWrite` with the package manager's cache, and `network.allowedDomains` with the approved list. Keep what the file already has. Add to the summary for the person, before saving:
+
+> Também vou ligar a minha caixa neste projeto: gravo só na pasta dele e acesso só [lista]. O [Codex / comando do app] roda fora da minha caixa, [o Codex com a caixa e as regras dele / para você conseguir abrir o sistema no navegador].
+
+After saving, run the check of that section (a refused connection to a host outside the list) and say the result in one line. If the sandbox does not come on, say why (for example `bubblewrap` or `socat` missing on Linux) and ask whether to go on as `livre`.
 
 ### When a write is blocked
 

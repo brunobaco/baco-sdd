@@ -14,7 +14,7 @@ Atualizado em 2026-11-14.
 Liberdade das ferramentas de IA quando constroem, em quatro etapas:
 
 1. Feita na branch `feat/caixa-harness`: valor `sandbox` por ferramenta (`protegida`, `rede`, `livre`; padrão `rede`), regras de comando do BACO para o Codex e chamada do Codex por caixa. Testado nesta máquina com o modelo leve do Codex: rede, porta, instalação de pacote, regras no modo não interativo, também numa subpasta. Falta uma entrega inteira com o Codex construindo em `rede`.
-2. Claude em `rede`, com o isolamento próprio do Claude Code. Conferir na documentação e testar aqui antes (pode atrapalhar MCPs, o envio ao GitHub e a chamada do Codex dentro da caixa do Claude).
+2. Feita na mesma branch: Claude em `rede` com o isolamento do Claude Code (gravação na pasta do projeto, lista de endereços, sem saída de emergência, Codex e comando do app como exceções). Testado nesta máquina com o Haiku numa pasta temporária; falta usar numa conversa real de projeto.
 3. Configuração completa e obrigatória no início do projeto, passando por todos os parâmetros e explicando cada opção.
 4. Versão nova e configuração de um projeto real já em andamento como teste.
 
