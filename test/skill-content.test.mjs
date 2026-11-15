@@ -679,7 +679,7 @@ test('review fixes: resume guards, execution rules, waiver entry, tests-settings
   const prog = read(join(TEMPLATES, 'progresso.md'));
   for (const p of ['**Dono da execução:**', 'mais de 6 horas']) assert.ok(prog.includes(p), `progresso.md: "${p}" missing`);
   const conf = ref('configure.md');
-  for (const p of ['git worktree add', 'git worktree list', '`permissions.ask`','git checkout <m>*', 'git push *:<i>*', 'Bash(node *baco.mjs waive-review*)', 'Bash(node *baco.mjs import-verdict*)', 'Bash(node *baco.mjs import-pr-verdict ENT-*)', 'Bash(opencode run*)', 'Bash(codex exec *--dangerously-bypass-approvals-and-sandbox*)', 'Bash(codex exec *sandbox_*)', 'Bash(codex exec *workspace-write*)', 'Bash(gh pr merge*)', 'Bash(gh pr create --draft --base * --head baco/*)', 'Bash(codex exec * -s read-only *)', 'deny, then ask, then allow', '<projeto>-revisao-ENT-NNN-rNN', 'a cópia para o revisor, ao lado do projeto', 'onde fica o que já foi aprovado']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  for (const p of ['git worktree add', 'git worktree list', '`permissions.ask`','git checkout <m>*', 'git push *:<i>*', 'Bash(node *baco.mjs waive-review*)', 'Bash(node *baco.mjs import-verdict*)', 'Bash(node *baco.mjs import-pr-verdict ENT-*)', 'Bash(opencode run*)', 'Bash(codex exec *--dangerously-bypass-approvals-and-sandbox*)', 'Bash(codex exec *sandbox_mode*)', 'Bash(codex exec *--approve-for-me*)', 'Bash(codex exec *--ignore-rules*)', 'Bash(codex exec *--dangerously-bypass-hook-trust*)', 'Bash(codex exec *workspace-write*)', 'Bash(gh pr merge*)', 'Bash(gh pr create --draft --base * --head baco/*)', 'Bash(codex exec * -s read-only *)', 'deny, then ask, then allow', '<projeto>-revisao-ENT-NNN-rNN', 'a cópia para o revisor, ao lado do projeto', 'onde fica o que já foi aprovado']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   assert.ok(conf.includes('\n\n### Machine settings: `.baco/local.env`'), 'configure.md: heading on its own line');
   const waiver = 'a current waiver recorded by the human (`baco waive-review`)';
   assert.ok(read(join(SKILL_ROOT, 'SKILL.md')).includes(waiver), 'SKILL.md: row 8 accepts the waiver');
@@ -749,9 +749,26 @@ test('PR review: draft PR or local diff, agent verdict straight from its file, p
   assert.ok(!impl.includes('external review question'), 'implementation.md: old stop point gone');
 });
 
+test('harness sandbox: protegida, rede and livre, the Codex call of each, the command rules and the setup question', () => {
+  const amb = read('skills/baco-sdd/references/ambientes.md');
+  const conf = read('skills/baco-sdd/references/configure.md');
+  const rules = read('skills/baco-sdd/templates/codex/baco.rules');
+  const tpl = read('skills/baco-sdd/templates/pt-BR/config.yaml');
+  for (const p of ['**Sandbox.**', '`protegida`', '`rede`', '`livre`', 'templates/codex/baco.rules', '`.codex/rules/baco.rules`',
+    "-c 'projects.\"<task folder>\".trust_level=\"trusted\"'", '-c sandbox_workspace_write.network_access=true',
+    'shell_environment_policy.set={npm_config_cache="/tmp/baco-npm-cache"}', '-s danger-full-access', '< /dev/null',
+    'Never `--approve-for-me`', '`regra: sim`', 'identical to the skill\'s template (`cmp`)']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
+  for (const p of ['`harnesses.<name>.sandbox`', '(a) protegida', '(b) rede', '(c) livre', 'Recomendo a rede', 'O padrão é rede.',
+    '`.codex/rules/baco.rules` there']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  for (const p of ['pattern = ["sudo"]', 'pattern = ["git", "push"]', 'pattern = ["git", "commit"]', 'pattern = ["git", "reset", "--hard"]',
+    'pattern = ["rm", ["-rf"', 'pattern = ["gh"]', 'decision = "forbidden"', 'justification = "BACO:']) assert.ok(rules.includes(p), `baco.rules: "${p}" missing`);
+  assert.equal((rules.match(/decision = "forbidden"/g) || []).length, (rules.match(/prefix_rule\(/g) || []).length, 'every BACO rule forbids');
+  assert.ok(tpl.includes('#   sandbox: rede'), 'config template shows the sandbox key');
+});
+
 test('harness check before the plan; the conductor commits for an implementer on another harness', () => {
   const amb = ref('ambientes.md');
-  for (const p of ['**Check before relying on it.**', '.baco/logs/harnesses.md', 'never retry with the sandbox off', '**Implementer on another harness: you commit.**', '`.git/worktrees/<name>`', 'Implementado por: <harness>, <model>, <effort>']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
+  for (const p of ['**Check before relying on it.**', '.baco/logs/harnesses.md', 'Never retry with a sandbox wider than the configured value', '**Implementer on another harness: you commit.**', '`.git/worktrees/<name>`', 'Implementado por: <harness>, <model>, <effort>']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   assert.ok(ref('configure.md').includes('Check before relying on it'), 'configure.md: checks each tool');
   assert.ok(ref('planning.md').includes('only in a mode whose check passed'), 'planning.md: only checked harnesses');
   const impl = ref('implementation.md');

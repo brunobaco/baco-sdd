@@ -40,7 +40,10 @@ export const DEFAULTS = {
   review: { external_rounds_max: 3, pr: { reviewer: 'agente', auto_fix: true } },
   // AI tools (harnesses) available to the project, by name: `models` maps the BACO levels (forte,
   // medio, leve) to that tool's model names; `implementers` allows it to run implementers when it is
-  // not the conductor's own tool (default false: only read-only roles run there).
+  // not the conductor's own tool (default false: only read-only roles run there); `sandbox` says how
+  // free it is when it implements: protegida (writes only in the task folder, no network), rede (the
+  // same folder limit, with network and local ports) or livre (no sandbox, only the command rules).
+  // Default rede.
   harnesses: {},
   // Paths (git pathspec globs) that, like <docs_root>/entregas/**, never make a recorded head stale (R26).
   provenance: { ignore: [] },
@@ -233,11 +236,14 @@ function normalizeModels(models, warnings) {
 }
 
 const HARNESS_LEVELS = ['forte', 'medio', 'leve'];
+const HARNESS_SANDBOXES = ['protegida', 'rede', 'livre'];
 const PR_REVIEWERS = ['agente', 'pessoa', 'ambos'];
 
-// `harnesses.<name>`: a map with `models` (level -> non-empty model name) and `implementers`
-// (boolean, default false). An entry that is not a map, a level that is not forte/medio/leve, an
-// empty model name or a bad `implementers` is dropped with `config.invalid_section`.
+// `harnesses.<name>`: a map with `models` (level -> non-empty model name), `implementers`
+// (boolean, default false) and `sandbox` (protegida, rede or livre, default rede). An entry that is
+// not a map, a level that is not forte/medio/leve, an empty model name or a bad `implementers` is
+// dropped with `config.invalid_section`; a bad `sandbox` falls back to protegida, the strictest,
+// with `config.sandbox_invalid`.
 function normalizeHarnesses(harnesses, warnings) {
   const warn = (section) => warnings.push({ key: 'config.invalid_section', params: { section: `harnesses.${section}` } });
   const out = {};
@@ -259,7 +265,15 @@ function normalizeHarnesses(harnesses, warnings) {
       if (typeof entry.implementers === 'boolean') implementers = entry.implementers;
       else warn(`${name}.implementers`);
     }
-    out[name] = { ...entry, models, implementers };
+    let sandbox = 'rede';
+    if (entry.sandbox !== undefined && entry.sandbox !== null) {
+      if (HARNESS_SANDBOXES.includes(entry.sandbox)) sandbox = entry.sandbox;
+      else {
+        sandbox = 'protegida';
+        warnings.push({ key: 'config.sandbox_invalid', params: { harness: name, value: String(entry.sandbox) } });
+      }
+    }
+    out[name] = { ...entry, models, implementers, sandbox };
   }
   return out;
 }

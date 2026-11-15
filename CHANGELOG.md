@@ -1,5 +1,11 @@
 # Histórico de mudanças
 
+## Não lançado
+
+- Caixa por ferramenta de IA (`harnesses.<nome>.sandbox`): `protegida` (grava só na pasta da tarefa, sem internet), `rede` (a mesma pasta, com internet e porta local; padrão) ou `livre` (sem caixa). Valor inválido cai para `protegida`, com aviso. A configuração pergunta a caixa quando uma ferramenta que não é a do condutor passa a construir, e recomenda `rede`.
+- Regras de comando do BACO para o Codex (`templates/codex/baco.rules`, instaladas em `.codex/rules/baco.rules`): recusam `sudo`, `git push`, `git commit`, `git reset --hard`, `rm -rf` e `gh` em qualquer caixa. O condutor marca a pasta da tarefa como confiável só na chamada, para o Codex carregar as regras sem mexer na configuração da pessoa, e confere antes que o `.codex/` da pasta só tem essas regras.
+- Chamada do Codex implementador por caixa, com o cache do npm no `/tmp` em `rede`. A verificação de escrita roda na caixa configurada e testa também uma regra (`regra: sim`). Nunca `--approve-for-me` (o revisor automático aprovou gravar fora da caixa num teste), `--ignore-rules` nem `--dangerously-bypass-hook-trust`; toda chamada do Codex termina com `< /dev/null`.
+
 ## 1.0.0 (2026-11-14)
 
 Primeira versão estável. Reúne o que veio de quatro rodadas de teste ponta a ponta com um app de exemplo: troca de conversa por tamanho com retomada pelo disco, ferramenta de IA, modelo e esforço por tarefa e papel no plano, revisão do PR da entrega por outra ferramenta em modo só leitura, medição de custo real nas conversas, instalação limpa provada na primeira tarefa, conferência de camada do teste, trava de gravação fora do projeto e validador do aceite mais rigoroso. O repositório passa a ser público, com licença MIT.

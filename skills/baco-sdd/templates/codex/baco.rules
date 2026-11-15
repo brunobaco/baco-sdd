@@ -1,0 +1,51 @@
+# Regras do BACO para o Codex (instaladas pelo BACO em .codex/rules/baco.rules).
+# Valem para todo comando que o Codex rodar neste projeto quando o BACO o chama, em qualquer caixa
+# (protegida, rede ou livre). Recusam o que o método nunca deixa um implementador fazer: o condutor
+# é quem faz commit e envia ao GitHub. São um filtro de comandos, não uma barreira: um comando
+# escondido num script mais complexo pode passar. Não edite à mão; o BACO reinstala a cópia dele.
+
+prefix_rule(
+    pattern = ["sudo"],
+    decision = "forbidden",
+    justification = "BACO: sudo não é permitido.",
+    match = [["sudo", "-n", "true"], ["sudo", "apt", "install", "x"]],
+)
+
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "forbidden",
+    justification = "BACO: só o condutor envia ao GitHub.",
+    match = [["git", "push"], ["git", "push", "--force", "origin", "main"]],
+    not_match = [["git", "pull"]],
+)
+
+prefix_rule(
+    pattern = ["git", "commit"],
+    decision = "forbidden",
+    justification = "BACO: só o condutor faz commit; deixe as mudanças na pasta da tarefa.",
+    match = [["git", "commit", "-m", "x"]],
+    not_match = [["git", "status"]],
+)
+
+prefix_rule(
+    pattern = ["git", "reset", "--hard"],
+    decision = "forbidden",
+    justification = "BACO: reset --hard apaga trabalho sem volta.",
+    match = [["git", "reset", "--hard", "HEAD~1"]],
+    not_match = [["git", "reset", "HEAD", "arquivo"]],
+)
+
+prefix_rule(
+    pattern = ["rm", ["-rf", "-fr", "-Rf", "-rF", "-fR", "-FR", "-RF"]],
+    decision = "forbidden",
+    justification = "BACO: rm -rf não é permitido; apague arquivo por arquivo.",
+    match = [["rm", "-rf", "pasta"], ["rm", "-fr", "/"]],
+    not_match = [["rm", "arquivo.txt"]],
+)
+
+prefix_rule(
+    pattern = ["gh"],
+    decision = "forbidden",
+    justification = "BACO: o implementador não fala com o GitHub; o condutor cuida do PR.",
+    match = [["gh", "pr", "merge", "1"]],
+)

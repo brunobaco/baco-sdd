@@ -395,8 +395,8 @@ test('harnesses: default is an empty map; a full entry loads as written', () => 
   ].join('\n')));
   assert.deepEqual(cfg.warnings, []);
   assert.deepEqual(cfg.harnesses, {
-    'claude-code': { models: { forte: 'opus', medio: 'sonnet', leve: 'haiku' }, implementers: true },
-    codex: { models: { forte: 'modelo-a', leve: 'modelo-c' }, implementers: false },
+    'claude-code': { models: { forte: 'opus', medio: 'sonnet', leve: 'haiku' }, implementers: true, sandbox: 'rede' },
+    codex: { models: { forte: 'modelo-a', leve: 'modelo-c' }, implementers: false, sandbox: 'rede' },
   });
 });
 
@@ -415,13 +415,34 @@ test('harnesses: bad entries, levels and implementers flag warn and fall back', 
     '',
   ].join('\n')));
   assert.deepEqual(cfg.harnesses, {
-    opencode: { models: { leve: 'provedor/modelo' }, implementers: false },
-    outro: { models: {}, implementers: false },
+    opencode: { models: { leve: 'provedor/modelo' }, implementers: false, sandbox: 'rede' },
+    outro: { models: {}, implementers: false, sandbox: 'rede' },
   });
   assert.deepEqual(cfg.warnings.map((w) => w.params.section), [
     'harnesses.codex', 'harnesses.opencode.models.forte', 'harnesses.opencode.models.turbo',
     'harnesses.opencode.implementers', 'harnesses.outro.models',
   ]);
+});
+
+// harnesses.<name>.sandbox: how free the tool is when it implements (protegida, rede or livre).
+test('harnesses: sandbox defaults to rede and loads protegida, rede and livre as written', () => {
+  for (const sandbox of ['protegida', 'rede', 'livre']) {
+    const cfg = loadConfig(rootWith(`harnesses:\n  codex:\n    implementers: on\n    sandbox: ${sandbox}\n`));
+    assert.equal(cfg.harnesses.codex.sandbox, sandbox, sandbox);
+    assert.deepEqual(cfg.warnings, [], sandbox);
+  }
+  assert.equal(loadConfig(rootWith('harnesses:\n  codex:\n    implementers: on\n')).harnesses.codex.sandbox, 'rede');
+});
+
+test('harnesses: an invalid sandbox falls back to protegida (the strictest) with a warning', () => {
+  const cfg = loadConfig(rootWith('harnesses:\n  codex:\n    implementers: on\n    sandbox: aberta\n  opencode:\n    sandbox: [rede]\n'));
+  assert.equal(cfg.harnesses.codex.sandbox, 'protegida');
+  assert.equal(cfg.harnesses.opencode.sandbox, 'protegida');
+  assert.deepEqual(cfg.warnings, [
+    { key: 'config.sandbox_invalid', params: { harness: 'codex', value: 'aberta' } },
+    { key: 'config.sandbox_invalid', params: { harness: 'opencode', value: 'rede' } },
+  ]);
+  for (const lang of ['pt-BR', 'en']) assert.match(t(lang, 'config.sandbox_invalid', { harness: 'codex', value: 'aberta' }), /codex.*aberta.*protegida/s);
 });
 
 // review.pr: who reviews the delivery's pull request, and whether findings are fixed on their own.

@@ -9,6 +9,17 @@ Atualizado em 2026-11-14.
 3. README reescrito para a 1.0: proteções com o que garante cada uma (motor, plugin ou método) e tabela do que funciona com o plugin, só com a skill e nas outras ferramentas.
 4. Licença MIT.
 
+## Em andamento
+
+Liberdade das ferramentas de IA quando constroem, em quatro etapas:
+
+1. Feita na branch `feat/caixa-harness`: valor `sandbox` por ferramenta (`protegida`, `rede`, `livre`; padrão `rede`), regras de comando do BACO para o Codex e chamada do Codex por caixa. Testado nesta máquina com o modelo leve do Codex: rede, porta, instalação de pacote, regras no modo não interativo, também numa subpasta. Falta uma entrega inteira com o Codex construindo em `rede`.
+2. Claude em `rede`, com o isolamento próprio do Claude Code. Conferir na documentação e testar aqui antes (pode atrapalhar MCPs, o envio ao GitHub e a chamada do Codex dentro da caixa do Claude).
+3. Configuração completa e obrigatória no início do projeto, passando por todos os parâmetros e explicando cada opção.
+4. Versão nova e configuração de um projeto real já em andamento como teste.
+
+Gancho do BACO para o Codex na caixa `livre`: fica para depois. O Codex roda gancho antes de cada comando (`PreToolUse`, mesmo formato do Claude Code), mas gancho de projeto só roda aprovado pela pessoa ou com `--dangerously-bypass-hook-trust`, e o comando do gancho precisaria de um caminho que sirva em qualquer máquina.
+
 ## Pendente
 
 1. Subir a imagem de prévia (`docs/imagens/previa-github.png`) nas configurações do repositório no GitHub (Settings, Social preview). É feito pelo site.

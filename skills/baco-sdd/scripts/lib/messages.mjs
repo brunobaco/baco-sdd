@@ -101,6 +101,7 @@ Object.assign(messages['pt-BR'], {
   'config.mandatory_gate_ignored': 'O gate obrigatório "{gate}" não pode ser desligado; configuração ignorada.',
   'config.invalid_section': 'A seção "{section}" da configuração tem formato inválido; usando os valores padrão.',
   'config.pr_reviewer_invalid': 'Quem revisa o PR (review.pr.reviewer) tem um valor inválido ("{value}"); usando "pessoa", a revisão mais humana. Corrija para agente, pessoa ou ambos.',
+  'config.sandbox_invalid': 'A caixa da ferramenta {harness} (harnesses.{harness}.sandbox) tem um valor inválido ("{value}"); usando "protegida", a mais restrita. Corrija para protegida, rede ou livre.',
 });
 Object.assign(messages.en, {
   'cli.unknown_command': 'Unknown command: {name}',
@@ -179,6 +180,7 @@ Object.assign(messages.en, {
   'config.mandatory_gate_ignored': 'Mandatory gate "{gate}" cannot be turned off; setting ignored.',
   'config.invalid_section': 'Config section "{section}" has an invalid shape; using the defaults.',
   'config.pr_reviewer_invalid': 'The PR reviewer (review.pr.reviewer) has an invalid value ("{value}"); using "pessoa", the most human review. Set it to agente, pessoa or ambos.',
+  'config.sandbox_invalid': 'The sandbox of the {harness} tool (harnesses.{harness}.sandbox) has an invalid value ("{value}"); using "protegida", the strictest. Set it to protegida, rede or livre.',
 });
 
 Object.assign(messages['pt-BR'], {

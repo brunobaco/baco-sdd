@@ -71,6 +71,9 @@ models:
 # O plano de cada entrega escolhe, entre estas, a ferramenta, o modelo e o esforço de cada tarefa e papel.
 # "implementers: on" deixa a ferramenta construir tarefas mesmo quando não é a do agente principal;
 # sem isso (padrão off), ela só faz papéis que leem e revisam, sem mexer no código.
+# "sandbox" diz o quanto ela é livre quando constrói: protegida (grava só na pasta da tarefa, sem
+# internet), rede (a mesma pasta, com internet e porta local; padrão) ou livre (sem caixa, só as regras
+# de comando do BACO).
 # Modelo que só existe nesta máquina não entra aqui: fica nas configurações da própria ferramenta.
 harnesses:
   claude-code:
@@ -79,6 +82,7 @@ harnesses:
   # codex:
   #   models: { forte: <modelo mais capaz>, medio: <intermediário>, leve: <mais rápido> }
   #   implementers: off
+  #   sandbox: rede
   # opencode:
   #   models: { forte: <provedor/modelo>, medio: <provedor/modelo>, leve: <provedor/modelo> }
   #   implementers: off
