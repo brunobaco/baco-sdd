@@ -1,6 +1,6 @@
 // Machine-wide queue for heavy test batteries (browser e2e): one at a time on this machine, whatever
 // the project. The lock is a directory (mkdir is atomic) holding an owner file.
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { accessSync, chmodSync, constants, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -8,9 +8,23 @@ import { randomBytes } from 'node:crypto';
 // The lock sits under the shared `/tmp`, not `os.tmpdir()`: hosts often give each user or session its
 // own TMPDIR, and a queue that cannot see the other batteries is no queue. It sits in its own folder,
 // open to every user without the sticky bit, so anyone can take over a dead lock left by another user
-// (in a sticky `/tmp` only the owner can move it). BACO_QUEUE_DIR overrides the folder.
-const defaultBase = () => join(process.platform !== 'win32' && existsSync('/tmp') ? '/tmp' : tmpdir(), 'baco-queue');
-const queueBase = () => process.env.BACO_QUEUE_DIR || defaultBase();
+// (in a sticky `/tmp` only the owner can move it). BACO_QUEUE_DIR overrides the folder. Inside a
+// sandbox that makes `/tmp` read-only (Claude Code's sandbox writes only the project and its own
+// TMPDIR), the queue falls back to TMPDIR; the conductor then hands the same folder to the Codex
+// implementer through BACO_QUEUE_DIR (references/ambientes.md), so both still share one queue.
+const writableDir = (p) => {
+  try { accessSync(p, constants.W_OK); return true; } catch { return false; }
+};
+export function resolveQueueBase({ env = process.env, platform = process.platform, isWritable = writableDir, tmp = tmpdir() } = {}) {
+  if (env.BACO_QUEUE_DIR) return env.BACO_QUEUE_DIR;
+  if (platform !== 'win32') {
+    const shared = join('/tmp', 'baco-queue');
+    if (isWritable(shared) || isWritable('/tmp')) return shared;
+  }
+  return join(tmp, 'baco-queue');
+}
+const defaultBase = () => resolveQueueBase({ env: {} });
+const queueBase = () => resolveQueueBase();
 export const queueLockDir = () => join(queueBase(), 'baco-test-queue.lock');
 // Runs waiting for the lock, one `<pid>-<token>.json` each ({pid, root, layer, since}), next to it.
 export const queueWaitingDir = (lockDir = queueLockDir()) => join(dirname(lockDir), 'waiting');
@@ -133,7 +147,7 @@ async function waitForLock({ mine, t0, timeoutMs, pollMs, lockDir, onWait }) {
   for (;;) {
     try {
       try { mkdirSync(lockDir); } catch (e) {
-        if (['EACCES', 'EPERM', 'ENOENT', 'ENOTDIR'].includes(e.code)) throw new QueueBlockedError('base', dirname(lockDir), e);
+        if (['EACCES', 'EPERM', 'ENOENT', 'ENOTDIR', 'EROFS'].includes(e.code)) throw new QueueBlockedError('base', dirname(lockDir), e);
         throw e;
       }
       mine.started = new Date().toISOString();

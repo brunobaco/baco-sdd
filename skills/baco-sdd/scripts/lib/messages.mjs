@@ -574,6 +574,8 @@ Object.assign(messages['pt-BR'], {
   'cost.measure_written': 'Medição gravada em {file} (etapa "{label}"; uma medição nova da mesma etapa substitui esta).',
   'cost.project_title': 'Custo do projeto fora das entregas, medido nas transcrições\n\n| Etapa | Respostas | Total | Condutor | Maior contexto |\n|---|---|---|---|---|',
   'cost.project_row': '| {label} | {responses} | {total} | {conductor} | {maxContext} |',
+  'cost.all_title': 'Custo do projeto inteiro, medido nas transcrições: etapas fora das entregas e cada entrega\n\n| Etapa ou entrega | Respostas | Total | Condutor | Maior contexto |\n|---|---|---|---|---|',
+  'cost.nothing_measured': 'Nada medido ainda neste projeto: nem docs/custo-projeto.md nem custo.md de entrega com a seção medida. Meça com baco cost measure --write.',
 });
 
 Object.assign(messages.en, {
@@ -611,6 +613,8 @@ Object.assign(messages.en, {
   'cost.measure_written': 'Measurement written to {file} (stage "{label}"; a new measurement of the same stage replaces it).',
   'cost.project_title': 'Project cost outside the deliveries, measured in the transcripts\n\n| Stage | Responses | Total | Conductor | Largest context |\n|---|---|---|---|---|',
   'cost.project_row': '| {label} | {responses} | {total} | {conductor} | {maxContext} |',
+  'cost.all_title': 'Whole project cost, measured in the transcripts: stages outside the deliveries and each delivery\n\n| Stage or delivery | Responses | Total | Conductor | Largest context |\n|---|---|---|---|---|',
+  'cost.nothing_measured': 'Nothing measured yet in this project: neither docs/custo-projeto.md nor a delivery custo.md with the measured section. Measure with baco cost measure --write.',
 });
 
 Object.assign(messages['pt-BR'], {

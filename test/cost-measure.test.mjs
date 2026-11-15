@@ -307,6 +307,23 @@ test('measure --write without a delivery: project file, label required, rows kep
   assert.equal(s.measured.total.total, 2 * 3717);
 });
 
+test('summary with no delivery: the whole project, stages outside the deliveries plus each delivery', async (t) => {
+  const dir = await makeRepo({});
+  const args = ['cost', 'measure', ...WINDOW, '--claude-dir', claudeFixture(tmp(t)), '--no-codex', '--write', '--label', 'fase 3'];
+  assert.equal((await call(dir, ...args)).code, 0);
+  const rows = [{ harness: 'claude-code', model: 'm', who: 'condutor', responses: 2, input: 1, cacheRead: 2, cacheWrite: 3, output: 4, total: 100, maxContext: 60 },
+    { harness: 'codex', model: 'x', who: 'exec', responses: 1, input: 30, cacheRead: 0, cacheWrite: 0, output: 0, total: 300, maxContext: null }];
+  const ledger = appendCost(null, { ent: 'ENT-001', timestamp: 't', phase: '6', agent: 'a', model: 'm', effort: 'e' });
+  put(join(dir, ENT, 'custo.md'), [writeMeasured(ledger, { label: 'entrega', window: 'a a b', rows })]);
+  const r = await call(dir, 'cost', 'summary');
+  assert.equal(r.code, 0);
+  assert.match(r.stdout, /\| fase 3 \|/);
+  assert.match(r.stdout, /\| ENT-001 \| 3 \| 400 \| 100 \|/);
+  const s = JSON.parse((await call(dir, 'cost', 'summary', '--json')).stdout);
+  assert.equal(s.measured.total.total, 3717 + 400);
+  assert.deepEqual(Object.keys(s.bySource), ['fase 3', 'ENT-001']);
+});
+
 test('writeMeasured and summarizeMeasured on text; appendCost keeps a ledger written before them', () => {
   const ledger = appendCost(null, { ent: 'ENT-001', timestamp: 't', phase: '6', agent: 'a', model: 'm', effort: 'e' });
   const rows = [{ harness: 'claude-code', model: 'm', who: 'condutor', responses: 1, input: 1, cacheRead: 2, cacheWrite: 3, output: 4, total: 10, maxContext: 6 },

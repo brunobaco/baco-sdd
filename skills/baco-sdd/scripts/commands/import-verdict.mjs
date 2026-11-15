@@ -24,7 +24,7 @@ function fixFields(entId, name, finding, config) {
     '| CAs | `a definir pelo implementador (achado da revisão)` |',
     `| Classe | \`${risky ? 'arriscada' : 'padrão'}\` |`,
     `| Nível/esforço | \`${m ? `${m.level}/${m.effort}` : risky ? 'forte/medio' : 'medio/medio'}\` |`,
-    '| Harness e modelo | `o do condutor, como o plano define para a classe` |',
+    '| Harness e modelo | `o que o plano dá aos implementadores da classe` |',
     '| Faixa | `FIX` |',
     `| Arquivos prováveis | \`${file ?? 'a definir pelo implementador'}\` |`,
     `| Branch | \`baco/${entId}-${name}\` |`,
@@ -33,7 +33,7 @@ function fixFields(entId, name, finding, config) {
     '',
     '## Testes da tarefa',
     '',
-    '- a escrever: teste que falha antes da correção',
+    '- a escrever: teste que falha antes da correção (achado que pede só prova, como cenário manual, homologação ou registro: troque por "evidência: <o que falta>", sem teste novo)',
     '',
   ];
 }

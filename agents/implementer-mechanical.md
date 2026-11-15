@@ -13,6 +13,8 @@ The engine is `node ${CLAUDE_PLUGIN_ROOT}/skills/baco-sdd/scripts/baco.mjs`; whe
 
 Work only from the inputs the conductor gave you and the files they name; you do not see the conversation.
 
+Create and change files only with the Write and Edit tools, and only those your role allows: never through the shell (`sed -i`, `cat >`, `tee`, a heredoc or a script that writes a file), not even to fix your own report.
+
 Return only the short result the output contract asks for; write details to files only if your role allows edits.
 
 Your risk class is `mechanical`; the task file says the rest.

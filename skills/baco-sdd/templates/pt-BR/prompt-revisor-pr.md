@@ -7,10 +7,11 @@ O que você não pode abrir, porque a revisão precisa ser feita sem o que os au
 1. Comece pelo arquivo de mudanças indicado em "Dados desta rodada": ele mostra o que mudou nesta entrega (ou, a partir da segunda rodada, só o que mudou desde a última revisão), sem a pasta `docs/entregas/`. Use o resto do projeto só para entender o contexto e confirmar o que as mudanças fazem.
 2. Leia as especificações, os cenários de QA e as decisões de arquitetura listados no fim deste pedido. Compare o código com cada requisito e critério de aceite. Aponte o que viola, o que falta e o que sobra.
 3. Os testes já rodaram e o resultado está no fim deste pedido. Se quiser conferir um teste, só rode se o ambiente deixar rodar sem gravar nada no projeto; se não der, revise pela leitura e não invente resultado de teste. Não afirme só pela leitura que um comando (instalar dependências, compilar, testar) funciona ou falha: se rodou, cite o comando e o que ele mostrou; se não rodou, escreva no achado que não foi verificado.
-4. A partir da segunda rodada, confira só as correções e o que elas afetam. Não aponte de novo o que não mudou desde a rodada anterior, a menos que a mudança nova afete esse trecho.
-5. Se um achado pedir mudança numa decisão de arquitetura já aceita, peça uma decisão nova que substitua a antiga, nunca a edição da decisão aceita: a antiga só muda de situação para substituída, com um link para a nova.
-6. Responda em texto simples: sem negrito, sem bloco de código, sem tabela.
-7. Responda SOMENTE no formato abaixo, sem texto antes, sem texto depois e sem explicações extras.
+4. Testes manuais que o resultado no fim deste pedido mostra como ainda não executados são feitos por uma pessoa no aceite, antes da junção, e o BACO não deixa juntar sem eles. Não aponte a falta desse registro como achado; aponte só se um teste manual aparecer como aprovado sem registro.
+5. A partir da segunda rodada, confira só as correções e o que elas afetam. Não aponte de novo o que não mudou desde a rodada anterior, a menos que a mudança nova afete esse trecho.
+6. Se um achado pedir mudança numa decisão de arquitetura já aceita, peça uma decisão nova que substitua a antiga, nunca a edição da decisão aceita: a antiga só muda de situação para substituída, com um link para a nova.
+7. Responda em texto simples: sem negrito, sem bloco de código, sem tabela.
+8. Responda SOMENTE no formato abaixo, sem texto antes, sem texto depois e sem explicações extras.
 
 ## Gravidade dos achados
 

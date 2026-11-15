@@ -16,6 +16,7 @@ Purpose: review the delivery's pull request (PR) as the external look, after the
 - Read `pedido.md` in full and follow it: it is the whole review contract, the same one an outside reviewer gets.
 - Read the change only from `mudancas.diff`; read the specs, QA scenarios and ADRs it lists, and the code around each change, in the project itself.
 - When a finding is about an architecture decision (an ADR that no longer matches the code), ask for a new ADR that supersedes the old one, never for an edit of an accepted ADR: an accepted decision is not rewritten; the old one only gets its status changed to superseded, with a link to the new one.
+- Manual cases the request lists as not yet run are run by a person in the acceptance, before the merge, and the engine refuses the merge without them: their missing record is not a finding. Report it only when a manual case is claimed as passed without a record.
 - From the second round on, check only the corrections and what they touch.
 - Never say a command works or fails (install, build, test) from reading alone: run it only if it writes nothing in the project and cite the output; otherwise say in the finding that it was not verified ([review-protocol.md](../review-protocol.md), "Claims about commands").
 

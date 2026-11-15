@@ -6,7 +6,7 @@ import { tables, fold } from '../lib/markdown.mjs';
 import { git, worktrees } from '../lib/git.mjs';
 import { claudeHome, codexSessionsDir, encodeProjectDir, measureUsage, totals } from '../lib/usage.mjs';
 
-export const usage = 'baco cost add <ENT-NNN> --phase <n> --agent <name> --model <m> --effort <e> [--harness <h>] [--turns n] [--tokens n] [--seconds n] [--note s] | baco cost summary <ENT-NNN> | baco cost summary --project | baco cost measure [<ENT-NNN>] [--since <AAAA-MM-DD HH:MM>] [--until <AAAA-MM-DD HH:MM>] [--session <id>]... [--claude-dir <dir>]... [--codex-dir <dir> | --no-codex] [--conductor-harness <claude-code|codex>] [--write [--label <etapa>]] [--json] [--cwd <dir>]';
+export const usage = 'baco cost add <ENT-NNN> --phase <n> --agent <name> --model <m> --effort <e> [--harness <h>] [--turns n] [--tokens n] [--seconds n] [--note s] | baco cost summary | baco cost summary <ENT-NNN> | baco cost summary --project | baco cost measure [<ENT-NNN>] [--since <AAAA-MM-DD HH:MM>] [--until <AAAA-MM-DD HH:MM>] [--session <id>]... [--claude-dir <dir>]... [--codex-dir <dir> | --no-codex] [--conductor-harness <claude-code|codex>] [--write [--label <etapa>]] [--json] [--cwd <dir>]';
 
 const DASH = '—';
 const HARNESS_NAME = { 'claude-code': 'Claude', codex: 'Codex' };
@@ -67,9 +67,14 @@ export function writeMeasured(md, { label, window, rows }) {
 
 // Totals of the measured section, or null when the file has none.
 export function summarizeMeasured(md) {
+  const rows = measuredRows(md);
+  return rows ? summarizeRows(rows) : null;
+}
+
+function measuredRows(md) {
   const table = measuredTable(md);
   if (!table) return null;
-  const rows = table.rows.map(({ cells }) => {
+  return table.rows.map(({ cells }) => {
     const [label, , harness, model, who] = cells;
     const r = { label, harness, model, who };
     NUMERIC.forEach((k, i) => { r[k] = toInt((cells[5 + i] ?? '').trim()); });
@@ -77,8 +82,11 @@ export function summarizeMeasured(md) {
     r.maxContext = /^\d+$/.test(ctx) ? Number(ctx) : null;
     return r;
   });
+}
+
+function summarizeRows(rows, keyOf = (r) => r.label) {
   const byLabel = {};
-  for (const r of rows) (byLabel[r.label] ??= []).push(r);
+  for (const r of rows) (byLabel[keyOf(r)] ??= []).push(r);
   return {
     ...totals(rows),
     byLabel: Object.fromEntries(Object.entries(byLabel).map(([k, list]) => {
@@ -86,6 +94,31 @@ export function summarizeMeasured(md) {
       return [k, { ...s.total, conductor: s.conductor.total, maxContext: s.conductor.maxContext }];
     })),
   };
+}
+
+// The whole project: the stages outside the deliveries (custo-projeto.md, one source per stage) and
+// each delivery's measured section (one source per delivery), summed. Nothing measured yet: exit 1.
+function projectTotal(ctx) {
+  const docs = join(ctx.root, ctx.config?.docs_root ?? 'docs');
+  const rows = [];
+  const projectFile = join(docs, PROJECT_FILE);
+  if (existsSync(projectFile)) rows.push(...(measuredRows(readFileSync(projectFile, 'utf8')) ?? []).map((r) => ({ ...r, source: r.label })));
+  let names = [];
+  try { names = readdirSync(join(docs, 'entregas'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort(); } catch { /* none */ }
+  for (const name of names) {
+    const ent = /^(ENT-\d+)/.exec(name)?.[1];
+    const file = join(docs, 'entregas', name, 'custo.md');
+    if (!ent || !existsSync(file)) continue;
+    rows.push(...(measuredRows(readFileSync(file, 'utf8')) ?? []).map((r) => ({ ...r, source: ent })));
+  }
+  if (!rows.length) return { code: 1, data: { measured: null, bySource: {} }, messages: [{ key: 'cost.nothing_measured' }] };
+  const s = summarizeRows(rows, (r) => r.source);
+  const bySource = s.byLabel;
+  delete s.byLabel;
+  const messages = [{ key: 'cost.all_title' }];
+  for (const [k, a] of Object.entries(bySource)) messages.push({ key: 'cost.project_row', params: { label: k, ...a } });
+  messages.push({ key: 'cost.measure_total', params: totalsParams(s) });
+  return { code: 0, data: { measured: s, bySource }, messages };
 }
 
 const blank = () => ({ turns: 0, tokens: 0, seconds: 0, runs: 0 });
@@ -320,6 +353,7 @@ export async function run(args, ctx) {
     if (s) messages.push({ key: 'cost.measure_total', params: totalsParams(s) });
     return { code: 0, data: { measured: s }, messages };
   }
+  if (sub === 'summary' && ent === undefined && args.flags.project === undefined) return projectTotal(ctx);
   if (!['add', 'summary'].includes(sub) || !ent || !ENT_ID.test(ent)) return bad('cli.usage', { usage });
   const f = args.flags;
   if (sub === 'add') {

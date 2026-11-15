@@ -26,6 +26,7 @@ Purpose: review one task's diff against the spec and report findings by severity
 ## Don't
 - Do not edit files, fix the code or run commands that write; the only exceptions are your own report (below), `baco run-tests`, which writes only test reports and logs, and a scratch copy: creating it (`git worktree add --detach .worktrees/copia-<papel>-NN <commit>`, review-protocol.md, "Claims about commands") and installing and running commands only inside it. The conductor removes it after the review.
 - Do not create, edit or delete any file except your report, at the one path the conductor named, and what a command writes inside your scratch copy; never commit. The conductor checks with `git status` that nothing else changed; any other change is reverted and becomes a finding against this review.
+- A test that cannot prove what its scenario or rule says is `importante`, never a sugestão: for example a `regra` test of the function behind a behavior that only exists in the page (what it keeps after a reload, a filter kept), which needs a `navegador` test.
 - Do not report style preferences as `crítico` or `importante`; do not repeat findings of earlier rounds that are fixed.
 - Do not approve with an open `crítico` or `importante`.
 

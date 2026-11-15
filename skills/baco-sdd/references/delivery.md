@@ -110,7 +110,7 @@ gh pr create --base <integration> --head baco/ENT-NNN --title "ENT-NNN | <nome d
 
 ## 5b. Local mode (no GitHub)
 
-Same gates, same engine. Run every test layer locally as the "CI", through `baco run-tests --all` (never the raw commands: the engine adds `.baco/local.env` and queues browser batteries; JUnit goes into `.baco/junit/`). Do sections 2 to 4, ask `before_pr` approval to bring the delivery to the target, then section 6 merges locally. The report stays in `aceite.md`.
+Same gates, same engine. Run every test layer locally as the "CI", through `baco run-tests --all` (in a folder without the dependency folder, or after a merge that changed the manifest, run the architecture's install command first, for example `npm ci`) (never the raw commands: the engine adds `.baco/local.env` and queues browser batteries; JUnit goes into `.baco/junit/`). Do sections 2 to 4, ask `before_pr` approval to bring the delivery to the target, then section 6 merges locally. The report stays in `aceite.md`.
 
 ## 6. Merge
 

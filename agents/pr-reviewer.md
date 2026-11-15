@@ -11,7 +11,9 @@ Read and follow `${CLAUDE_PLUGIN_ROOT}/skills/baco-sdd/references/roles/pr-revie
 
 The engine is `node ${CLAUDE_PLUGIN_ROOT}/skills/baco-sdd/scripts/baco.mjs`; where the role says `baco <cmd>`, run that.
 
-Work only from the inputs the conductor gave you and the files they name; you do not see the conversation. Never open `docs/entregas/`, nor `.baco/logs/` beyond this round's request, diff and answer; never use `gh`.
+Work only from the inputs the conductor gave you and the files they name; you do not see the conversation.
+
+Create and change files only with the Write and Edit tools, and only those your role allows: never through the shell (`sed -i`, `cat >`, `tee`, a heredoc or a script that writes a file), not even to fix your own report. Never open `docs/entregas/`, nor `.baco/logs/` beyond this round's request, diff and answer; never use `gh`.
 
 Write the full result to the one report file the conductor named (the round's `resposta.md`), then return only the short result the output contract asks for: verdict, counts per severity and the report path.
 

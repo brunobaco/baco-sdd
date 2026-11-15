@@ -1,11 +1,11 @@
 # Estado do trabalho
 
-Atualizado em 2026-11-14.
+Atualizado em 2026-11-15.
 
 ## Pronto
 
 1. Versão 1.0.0: tudo o que estava na seção não lançada do CHANGELOG desde a 0.1.2, com 614 testes do motor passando. Manifesto do plugin, marketplace, `SKILL.md` e CHANGELOG em 1.0.0.
-2. Quatro rodadas de teste ponta a ponta com um app de exemplo (roteiro e semente em `evals/e2e/`). A divisão que funcionou melhor: Claude implementa e revisa as tarefas, Codex revisa o PR em modo só leitura.
+2. Cinco rodadas de teste ponta a ponta com um app de exemplo (roteiro e semente em `evals/e2e/`). Duas divisões funcionaram bem: Claude constrói e Codex revisa o PR em modo só leitura (mais barata), ou Codex constrói na caixa `rede` e as revisões ficam no Claude (construção mais rápida, quase sem correção).
 3. README reescrito para a 1.0: proteções com o que garante cada uma (motor, plugin ou método) e tabela do que funciona com o plugin, só com a skill e nas outras ferramentas.
 4. Licença MIT.
 
@@ -13,8 +13,9 @@ Atualizado em 2026-11-14.
 
 Liberdade das ferramentas de IA quando constroem, em quatro etapas:
 
-1. Feita na branch `feat/caixa-harness`: valor `sandbox` por ferramenta (`protegida`, `rede`, `livre`; padrão `rede`), regras de comando do BACO para o Codex e chamada do Codex por caixa. Testado nesta máquina com o modelo leve do Codex: rede, porta, instalação de pacote, regras no modo não interativo, também numa subpasta. Falta uma entrega inteira com o Codex construindo em `rede`.
-2. Feita na mesma branch: Claude em `rede` com o isolamento do Claude Code (gravação na pasta do projeto, lista de endereços, sem saída de emergência, Codex e comando do app como exceções). Testado nesta máquina com o Haiku numa pasta temporária; falta usar numa conversa real de projeto.
+1. Feita na branch `feat/caixa-harness`: valor `sandbox` por ferramenta (`protegida`, `rede`, `livre`; padrão `rede`), regras de comando do BACO para o Codex e chamada do Codex por caixa.
+2. Feita na mesma branch: Claude em `rede` com o isolamento do Claude Code (gravação na pasta do projeto, lista de endereços, sem saída de emergência, Codex, `git worktree remove` e comando do app como exceções).
+   As duas passaram por uma entrega inteira de teste (rodada E): Codex construindo em `rede`, revisões no Claude, 7 de 7 critérios, 1 rodada de correção em 7 tarefas, fase de construção em 51 minutos, cerca de 110 milhões de tokens até a junção. Os 15 problemas que ela achou foram corrigidos na branch, conferidos com os testes do motor e com chamadas curtas na caixa, sem nova rodada. Falta juntar na `main` e enviar.
 3. Configuração completa e obrigatória no início do projeto, passando por todos os parâmetros e explicando cada opção.
 4. Versão nova e configuração de um projeto real já em andamento como teste.
 

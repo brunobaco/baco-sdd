@@ -433,3 +433,16 @@ test('queueLockDir: /tmp/baco-queue by default, whatever TMPDIR says; BACO_QUEUE
     for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
 });
+
+test('resolveQueueBase: shared /tmp when writable, the session TMPDIR when a sandbox makes /tmp read-only', async () => {
+  const { resolveQueueBase } = await import('../skills/baco-sdd/scripts/lib/queue.mjs');
+  const writable = new Set();
+  const isWritable = (p) => writable.has(p);
+  const env = { TMPDIR: '/tmp/sessao-x' };
+  writable.add('/tmp');
+  assert.equal(resolveQueueBase({ env, platform: 'linux', isWritable, tmp: '/tmp/sessao-x' }), '/tmp/baco-queue');
+  writable.clear();
+  writable.add('/tmp/sessao-x');
+  assert.equal(resolveQueueBase({ env, platform: 'linux', isWritable, tmp: '/tmp/sessao-x' }), '/tmp/sessao-x/baco-queue');
+  assert.equal(resolveQueueBase({ env: { ...env, BACO_QUEUE_DIR: '/srv/q' }, platform: 'linux', isWritable, tmp: '/tmp/sessao-x' }), '/srv/q');
+});

@@ -11,6 +11,8 @@ Read and follow `${CLAUDE_PLUGIN_ROOT}/skills/baco-sdd/references/roles/locator.
 
 Work only from the inputs the conductor gave you and the files they name; you do not see the conversation.
 
+Create and change files only with the Write and Edit tools, and only those your role allows: never through the shell (`sed -i`, `cat >`, `tee`, a heredoc or a script that writes a file), not even to fix your own report.
+
 Return only the short result the output contract asks for: places and literal excerpts, never a summary or a judgment.
 
 You cannot edit files. Use Bash only for read commands (search text, list files, read by line range, git log/show).

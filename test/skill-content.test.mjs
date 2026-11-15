@@ -755,16 +755,16 @@ test('harness sandbox: protegida, rede and livre, the Codex call of each, the co
   const rules = read('skills/baco-sdd/templates/codex/baco.rules');
   const tpl = read('skills/baco-sdd/templates/pt-BR/config.yaml');
   for (const p of ['**Sandbox.**', '`protegida`', '`rede`', '`livre`', 'templates/codex/baco.rules', '`.codex/rules/baco.rules`',
-    "-c 'projects.\"<task folder>\".trust_level=\"trusted\"'", '-c sandbox_workspace_write.network_access=true',
+    'ignores a per-call trust override, so BACO adds none', 'run `git init -q` in it', '-c sandbox_workspace_write.network_access=true',
     'shell_environment_policy.set={npm_config_cache="/tmp/baco-npm-cache"}', '-s danger-full-access', 'Start every Codex call in the background from the beginning', 'Do not add `< /dev/null` instead',
     'Never `--approve-for-me`', '`regra: sim`', 'identical to the skill\'s template (`cmp`)']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
-  for (const p of ['`harnesses.<name>.sandbox`', '(a) protegida', '(b) rede', '(c) livre', 'Recomendo a rede', 'O padrão é rede.',
+  for (const p of ['`harnesses.<name>.sandbox`', '(a) protegida', '(b) rede', '(c) livre', 'Recomendo a rede', 'O padrão é rede.', 'A caixa vale a partir da próxima conversa', '`Bash(git switch docs/*)`',
     '`.codex/rules/baco.rules` there']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   for (const p of ['pattern = ["sudo"]', 'pattern = ["git", "push"]', 'pattern = ["git", "commit"]', 'pattern = ["git", "reset", "--hard"]',
     'pattern = ["rm", ["-rf"', 'pattern = ["gh"]', 'decision = "forbidden"', 'justification = "BACO:']) assert.ok(rules.includes(p), `baco.rules: "${p}" missing`);
   assert.equal((rules.match(/decision = "forbidden"/g) || []).length, (rules.match(/prefix_rule\(/g) || []).length, 'every BACO rule forbids');
   assert.ok(tpl.includes('#   sandbox: rede'), 'config template shows the sandbox key');
-  for (const p of ["**Claude Code's sandbox.**", '"allowUnsandboxedCommands": false', '"excludedCommands": ["codex exec *"]', '"allowedDomains"',
+  for (const p of ["**Claude Code's sandbox.**", '"allowUnsandboxedCommands": false', '"excludedCommands": ["codex exec *", "git worktree remove *"]', '"allowedDomains"', 'BACO_QUEUE_DIR="<your $TMPDIR>/baco-queue"', 'never `git add -A`', 'apply in the next conversation',
     'CONNECT tunnel failed, response 403', 'only two values make sense', 'reachable only by that same command']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   for (const p of ['Antes das outras ferramentas, uma pergunta sobre mim', 'Vou liberar estes endereços', "**Claude Code's sandbox.** When `harnesses.claude-code.sandbox` is `rede`"]) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   assert.ok(read('skills/baco-sdd/SKILL.md').includes('offer once to turn it on'), 'SKILL.md: startup offer for the sandbox');
