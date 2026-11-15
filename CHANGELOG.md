@@ -1,6 +1,8 @@
 # Histórico de mudanças
 
-## Não lançado
+## 1.1.0 (2026-11-15)
+
+As ferramentas de IA ganham caixa própria, e o Codex passa a poder construir com a mesma liberdade prática do Claude: instala, abre porta e roda os testes de navegador sozinho, dentro de uma caixa que grava só na pasta da tarefa e com regras de comando do BACO. O próprio Claude Code também passa a trabalhar numa caixa, com a internet limitada aos endereços aprovados. Tudo foi conferido numa entrega inteira de teste com o Codex construindo, e os problemas que ela mostrou foram corrigidos nesta versão.
 
 - Caixa por ferramenta de IA (`harnesses.<nome>.sandbox`): `protegida` (grava só na pasta da tarefa, sem internet), `rede` (a mesma pasta, com internet e porta local; padrão) ou `livre` (sem caixa). Valor inválido cai para `protegida`, com aviso. A configuração pergunta a caixa quando uma ferramenta que não é a do condutor passa a construir, e recomenda `rede`.
 - Regras de comando do BACO para o Codex (`templates/codex/baco.rules`, instaladas em `.codex/rules/baco.rules`): recusam `sudo`, `git push`, `git commit`, `git reset --hard`, `rm -rf` e `gh` em qualquer caixa. O Codex só carrega as regras em pasta confiável e marca sozinho a pasta onde roda; a verificação de escrita roda numa pasta git como as de tarefa e exige `regra: sim`. O condutor confere antes de cada chamada que o `.codex/` da pasta só tem essas regras.

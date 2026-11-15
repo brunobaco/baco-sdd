@@ -17,7 +17,7 @@ description: >-
   "aprovar spec", "gate". Do NOT use for generic coding with no spec intent,
   or to document a legacy system (planned for a future version).
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # BACO-SDD

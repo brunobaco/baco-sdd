@@ -6,18 +6,16 @@ Atualizado em 2026-11-15.
 
 1. Versão 1.0.0: tudo o que estava na seção não lançada do CHANGELOG desde a 0.1.2, com 614 testes do motor passando. Manifesto do plugin, marketplace, `SKILL.md` e CHANGELOG em 1.0.0.
 2. Cinco rodadas de teste ponta a ponta com um app de exemplo (roteiro e semente em `evals/e2e/`). Duas divisões funcionaram bem: Claude constrói e Codex revisa o PR em modo só leitura (mais barata), ou Codex constrói na caixa `rede` e as revisões ficam no Claude (construção mais rápida, quase sem correção).
-3. README reescrito para a 1.0: proteções com o que garante cada uma (motor, plugin ou método) e tabela do que funciona com o plugin, só com a skill e nas outras ferramentas.
+3. README reescrito para a 1.0 e atualizado na 1.1 (caixa das ferramentas de IA e divisões sugeridas): proteções com o que garante cada uma (motor, plugin, ferramenta ou método) e tabela do que funciona com o plugin, só com a skill e nas outras ferramentas.
 4. Licença MIT.
+5. Versão 1.1.0: caixa por ferramenta de IA (`protegida`, `rede`, `livre`; padrão `rede`), regras de comando do BACO para o Codex, caixa do próprio Claude Code em `rede` e as correções da rodada E (Codex construindo em `rede`, revisões no Claude: 7 de 7 critérios, 1 rodada de correção em 7 tarefas, construção em 51 minutos, cerca de 110 milhões de tokens até a junção). 619 testes do motor passando.
 
 ## Em andamento
 
-Liberdade das ferramentas de IA quando constroem, em quatro etapas:
+Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. Faltam:
 
-1. Feita na branch `feat/caixa-harness`: valor `sandbox` por ferramenta (`protegida`, `rede`, `livre`; padrão `rede`), regras de comando do BACO para o Codex e chamada do Codex por caixa.
-2. Feita na mesma branch: Claude em `rede` com o isolamento do Claude Code (gravação na pasta do projeto, lista de endereços, sem saída de emergência, Codex, `git worktree remove` e comando do app como exceções).
-   As duas passaram por uma entrega inteira de teste (rodada E): Codex construindo em `rede`, revisões no Claude, 7 de 7 critérios, 1 rodada de correção em 7 tarefas, fase de construção em 51 minutos, cerca de 110 milhões de tokens até a junção. Os 15 problemas que ela achou foram corrigidos na branch, conferidos com os testes do motor e com chamadas curtas na caixa, sem nova rodada. Falta juntar na `main` e enviar.
-3. Configuração completa e obrigatória no início do projeto, passando por todos os parâmetros e explicando cada opção.
-4. Versão nova e configuração de um projeto real já em andamento como teste.
+3. Configuração completa e obrigatória no início do projeto, passando por todos os parâmetros e explicando cada opção. É o próximo passo.
+4. Configuração de um projeto real já em andamento como teste.
 
 Gancho do BACO para o Codex na caixa `livre`: fica para depois. O Codex roda gancho antes de cada comando (`PreToolUse`, mesmo formato do Claude Code), mas gancho de projeto só roda aprovado pela pessoa ou com `--dangerously-bypass-hook-trust`, e o comando do gancho precisaria de um caminho que sirva em qualquer máquina.
 

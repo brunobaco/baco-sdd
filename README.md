@@ -6,7 +6,7 @@ O BACO-SDD leva uma necessidade de produto da ideia até a entrega verificada, c
 
 É uma skill no formato aberto Agent Skills, com um motor de verificação em Node, e um plugin do Claude Code que acrescenta comandos, agentes próprios e travas automáticas. A experiência completa é a do plugin no Claude Code; em outras ferramentas (Codex, Antigravity e outras que leiam Agent Skills) roda a skill, com as mesmas fases e o mesmo motor, mas sem as travas do plugin. A seção [Onde funciona](#onde-funciona) mostra recurso por recurso.
 
-Versão 1.0.0 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.0.0), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
+Versão 1.1.0 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.1.0), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
 
 ## A ideia em uma frase
 
@@ -81,7 +81,7 @@ O que ele nunca faz sozinho: aprovar spec, tomar ação sem volta, juntar na lin
 
 O BACO parte do princípio de que um agente de IA erra, se apressa e às vezes se convence de que terminou. Por isso as regras importantes não dependem só de instrução: o que dá para conferir mecanicamente fica com o motor, que roda igual em qualquer ferramenta, e o que precisa barrar uma ação do agente na hora fica com os ganchos do plugin, que só existem no Claude Code.
 
-A coluna "Garantido por" diz de onde vem cada proteção: **motor** (vale em qualquer ferramenta), **plugin** (só no Claude Code com o plugin instalado) ou **método** (instrução da skill que o agente segue, sem trava mecânica).
+A coluna "Garantido por" diz de onde vem cada proteção: **motor** (vale em qualquer ferramenta), **plugin** (só no Claude Code com o plugin instalado), **ferramenta** (o isolamento da própria ferramenta de IA, configurado pelo BACO) ou **método** (instrução da skill que o agente segue, sem trava mecânica).
 
 | Proteção | O que faz | Garantido por |
 |---|---|---|
@@ -96,15 +96,37 @@ A coluna "Garantido por" diz de onde vem cada proteção: **motor** (vale em qua
 | Trava de gravação fora do projeto | Barra um subagente que tenta gravar fora da pasta do projeto por redirecionamento de saída (`>`, `>>`, `tee`). É uma trava contra engano, não uma fronteira de segurança: as lacunas conhecidas estão no [contrato do motor](skills/baco-sdd/scripts/README.md). | plugin |
 | Revisores que não editam | Os papéis de revisão só leem e gravam o próprio relatório. Antes e depois de cada revisão o condutor compara o estado dos arquivos, inclusive os ignorados pelo git; qualquer outra mudança é desfeita e vira achado contra a revisão. | plugin (ferramentas dos agentes) e método (conferência) |
 | Revisão independente e por outra ferramenta | Quem escreveu nunca revisa. O PR da entrega é revisado de preferência por outra ferramenta de IA (por exemplo o Codex, em modo só leitura), sem ver os registros da entrega. A resposta é importada direto do arquivo do revisor, sem passar pela mão do condutor, e é recusada se for antiga, de outra rodada ou não disser o que foi conferido. | motor (importação) e método (isolamento do revisor) |
-| Teste de cada ferramenta antes do plano | Uma ferramenta de IA só entra no plano depois de passar numa chamada curta nesta máquina, no modo em que vai trabalhar, conferindo leitura, gravação, rede e porta. Até ser testada de ponta a ponta, uma ferramenta que não é a do condutor só revisa. | método |
+| Teste de cada ferramenta antes do plano | Uma ferramenta de IA só entra no plano depois de passar numa chamada curta nesta máquina, no modo e na caixa em que vai trabalhar, conferindo leitura, gravação, rede, porta e se as regras de comando do BACO foram carregadas. Se as regras não carregaram, ela não constrói. | método |
+| Caixa de cada ferramenta de IA | Cada ferramenta trabalha numa caixa escolhida na configuração: `protegida`, `rede` (o padrão) ou `livre`. Na `rede`, o Codex grava só na pasta da tarefa, com internet e porta local, e o Claude Code grava só na pasta do projeto e acessa só os endereços aprovados. Ver [A caixa das ferramentas de IA](#a-caixa-das-ferramentas-de-ia). | ferramenta |
+| Regras de comando do Codex | O BACO instala `.codex/rules/baco.rules`, que recusa ao Codex `sudo`, `git push`, `git commit`, `git reset --hard`, `rm -rf` e `gh`, em qualquer caixa. Só o condutor faz commit e envia. É um filtro de comandos, não uma barreira: um comando escondido num script pode passar. | ferramenta (regras do Codex) |
 | Instalação limpa | A tarefa que cria o esqueleto do projeto prova a instalação e os testes numa cópia nova, para que a falta de um compilador ou de uma biblioteca do sistema apareça na primeira tarefa. O revisor confere rodando, ou marca como não verificado. | método |
 | Validador do aceite | Antes do relatório, um agente confere se a prova de cada critério corresponde ao que o critério diz, lendo o corpo de cada teste e rodando quando há dúvida. | método (papel `acceptance-validator`) |
 | Decisão aceita não se edita | Um ADR aceito nunca é reescrito: decisão nova vira ADR novo que substitui o antigo, com link. | método |
 | Medição de custo real | `baco cost measure` lê o consumo dos arquivos das conversas do Claude Code e do Codex nesta máquina, separa condutor, subagentes e cada ferramenta, e grava no `custo.md` da entrega. Nunca usa o que um agente disse sobre o próprio consumo. | motor |
 | Troca de conversa por tamanho | A partir de 400 mil tokens de contexto (ajustável), ou antes do resumo automático do Claude Code, o condutor é avisado, termina o passo em andamento, grava onde parou e continua numa conversa nova. Depois de um resumo automático, é mandado reler as regras e a retomada antes do próximo passo. | plugin (aviso e releitura) e método (retomada pelo disco) |
-| Fila de testes de navegador | Testes de navegador de vários projetos na mesma máquina rodam um de cada vez, e o resultado chega resumido, com a saída completa guardada em `.baco/logs/`. | motor |
+| Fila de testes de navegador | Testes de navegador de vários projetos na mesma máquina rodam um de cada vez, e o resultado chega resumido, com a saída completa guardada em `.baco/logs/`. Dentro da caixa do Claude Code, a fila usa a pasta temporária da sessão e é repassada ao Codex, para os dois esperarem na mesma fila. | motor |
+| Custo do projeto inteiro | `baco cost summary` sem argumento soma as etapas fora das entregas e cada entrega, a partir do que foi medido. | motor |
 
 Fora do plugin, as proteções marcadas como "plugin" viram instrução: o agente é orientado a seguir a mesma regra, mas nada o impede de errar. O motor continua barrando o que é dele.
+
+## A caixa das ferramentas de IA
+
+Cada ferramenta de IA do projeto tem uma caixa, escolhida no `/baco:configurar` (`harnesses.<ferramenta>.sandbox` no `.baco/config.yaml`):
+
+1. `protegida`: grava só na pasta da tarefa, sem internet e sem abrir porta. O condutor instala as dependências e roda os testes de navegador por ela.
+2. `rede` (padrão): a mesma pasta, com internet e porta local. A ferramenta instala e roda os próprios testes, inclusive os de navegador.
+3. `livre`: sem caixa. Só com o pedido claro da pessoa.
+
+Para o Codex construindo, a caixa é a dele (`-s workspace-write`, com a rede liberada na `rede`), mais as regras de comando do BACO. O Codex nunca roda com `--approve-for-me`, porque o revisor automático dele chegou a aprovar gravar fora da caixa num teste, nem com as opções que desligam a caixa ou as regras.
+
+Para o próprio Claude Code, só `rede` ou `livre` fazem sentido, porque o condutor precisa da internet para o GitHub e para instalar pacotes. Na `rede`, a configuração liga o isolamento do Claude Code no `.claude/settings.local.json`: os comandos do terminal gravam só na pasta do projeto e na pasta temporária da sessão, a internet chega só aos endereços aprovados (GitHub e o registro de pacotes da stack), e não há saída de emergência para rodar fora da caixa. Ficam fora dela só o Codex (que tem a caixa dele), a remoção de pastas de tarefa (que o git não consegue fazer lá dentro) e o comando que deixa o app rodando para você abrir no navegador. A caixa vale a partir da conversa seguinte à configuração, e o BACO confere que ela ligou. No Linux, ela precisa do `bubblewrap` e do `socat`.
+
+Com o Codex disponível, a configuração sugere uma de duas divisões, e você escolhe:
+
+1. O Codex constrói na caixa `rede`, com o modelo mais capaz e esforço muito alto, e as revisões ficam no Claude. Em teste ponta a ponta, foi a construção mais rápida e quase sem correção; em troca, usa uma boa parte do limite do Codex.
+2. O Claude constrói, e o Codex revisa o PR em modo só leitura. Custou cerca de 1% do uso e achou defeitos que as revisões do Claude não acharam.
+
+Nas duas, quem revisa o PR é uma ferramenta diferente da que construiu.
 
 ## Nível de cuidado de cada entrega
 
@@ -162,7 +184,7 @@ Requisitos: git e Node 22 ou mais novo na máquina, e uma ferramenta de IA que t
 | Medição de custo real (`cost measure`) | sim | sim | Codex sim; outras não |
 | Atualização | `claude plugin update baco@baco-sdd` | copiar a pasta de novo | copiar a pasta de novo |
 
-Testado de ponta a ponta no Claude Code com o plugin, com o Codex revisando o PR em modo só leitura. Nas outras ferramentas a skill segue o formato Agent Skills, sem teste de ponta a ponta próprio.
+Testado de ponta a ponta no Claude Code com o plugin em dois arranjos: o Codex revisando o PR em modo só leitura, e o Codex construindo na caixa `rede` com o Claude conduzindo e revisando, também na caixa `rede`. Nas outras ferramentas a skill segue o formato Agent Skills, sem teste de ponta a ponta próprio.
 
 ## Instalação no Claude Code (plugin, recomendado)
 
@@ -208,7 +230,8 @@ Confira que existe `.../baco-sdd/SKILL.md`. Os papéis pedem um nível de modelo
 2. A proteção contra teste enfraquecido lê testes no estilo JavaScript (`it`, `test`, `describe`). Testes em outras linguagens ou escritos numa linha só podem escapar dela.
 3. O motor lê specs nos formatos documentados (títulos, listas e tabelas com o ID na frente). Item em outro formato não conta, e a validação avisa nos casos comuns.
 4. `cost measure` lê o Claude Code e o Codex; outras ferramentas ficam fora da medição.
-5. Documentar sistema legado está fora do escopo desta versão.
+5. As regras de comando do Codex filtram comandos, não são uma barreira, e a caixa do Claude Code cobre só os comandos do terminal (ler e editar arquivos seguem as regras de permissão). Dentro da caixa do Claude, um servidor iniciado num comando não responde no comando seguinte: quem confere o app rodando faz tudo num comando só.
+6. Documentar sistema legado está fora do escopo desta versão.
 
 A lista completa está no [contrato do motor](skills/baco-sdd/scripts/README.md#known-limitations).
 
