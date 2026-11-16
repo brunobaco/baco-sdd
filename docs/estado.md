@@ -10,7 +10,7 @@ Atualizado em 2026-11-16.
 4. Licença MIT.
 5. Versão 1.1.0: caixa por ferramenta de IA (`protegida`, `rede`, `livre`; padrão `rede`), regras de comando do BACO para o Codex, caixa do próprio Claude Code em `rede` e as correções da rodada E (Codex construindo em `rede`, revisões no Claude: 7 de 7 critérios, 1 rodada de correção em 7 tarefas, construção em 51 minutos, cerca de 110 milhões de tokens até a junção). 619 testes do motor passando.
 
-6. Versão 1.2.0: quadro do GitHub Project acompanhando a entrega como espelho dos arquivos (`github.project` na configuração, comando `baco board`, sincronia na publicação, a cada evento de tarefa e depois da junção na integração; falha no quadro vira pendência). Variante com GitHub e quadro no roteiro ponta a ponta, ainda não rodada.
+6. Versão 1.2.0: quadro do GitHub Project acompanhando a entrega como espelho dos arquivos (`github.project` na configuração, comando `baco board`, sincronia na publicação, a cada evento de tarefa e depois da junção na integração; falha no quadro vira pendência). Publicada (marca `v1.2.0` e release com o pacote da skill). Variante com GitHub e quadro no roteiro ponta a ponta, ainda não rodada.
 
 ## Em andamento
 
@@ -37,4 +37,4 @@ Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versã
 
 ## Próximo passo
 
-Juntar a branch `feat/github-project-board` na `main` e publicar a 1.2.0 (marca `v1.2.0` e release com o pacote da skill). Depois, a etapa 3 da liberdade das ferramentas (configuração completa no início do projeto).
+Etapa 3 da liberdade das ferramentas: configuração completa e obrigatória no início do projeto.
