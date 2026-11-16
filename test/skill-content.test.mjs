@@ -822,3 +822,18 @@ test('acceptance validator reads test bodies and reports what it read and ran; s
   const r = ref('review.md');
   for (const p of ['only through an INT task with a test', 'first writes the test of the current behavior', 'never applied in the run', 'without naming a covering test is treated as `precisa de teste`']) assert.ok(r.includes(p), `review.md: "${p}" missing`);
 });
+
+// 1.2.0: the GitHub Project board stayed in Backlog the whole delivery. Configuration asks for it,
+// publication adds the issues, every task event syncs it through the engine, and a failure never stops.
+test('GitHub Project board: asked in configuration, filled at publication, synced at every task event', () => {
+  const c = ref('configure.md');
+  for (const p of ['**2B. Project board**', 'gh project list --owner', 'gh project field-list', '`project`', 'gh auth refresh -s project', 'do not try another way', 'Bash(gh project item-edit *)']) assert.ok(c.includes(p), `configure.md: "${p}" missing`);
+  const pub = ref('task-publication.md');
+  for (const p of ['### Project board', 'gh project item-add', 'baco board ENT-NNN', '--applied', 'never stops the delivery', '`## Pendências`', 'Issue mãe', 'nothing ever reads the board']) assert.ok(pub.includes(p), `task-publication.md: "${p}" missing`);
+  const impl = ref('implementation.md');
+  for (const p of ['**Project board.**', 'baco board ENT-NNN', 'never read the board to decide', 'never stops or delays the run', 'gh auth refresh -s project']) assert.ok(impl.includes(p), `implementation.md: "${p}" missing`);
+  assert.ok(ref('delivery.md').includes('`baco board ENT-NNN` sees the delivery in the integration branch'), 'delivery.md: board after the integration merge');
+  assert.ok(ref('roles/publisher.md').includes('gh project item-add'), 'publisher: adds the issues to the board');
+  assert.ok(read(join(TEMPLATES, 'progresso.md')).includes('- **Issue mãe:**'), 'progresso.md template: parent line');
+  assert.ok(read(join(TEMPLATES, 'config.yaml')).includes('# github:'), 'config.yaml template: board example');
+});

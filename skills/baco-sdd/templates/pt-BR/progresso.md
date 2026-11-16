@@ -11,7 +11,10 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o registro real)
 - Esperando a pessoa: tudo o que a execução deixou para a pessoa ver no fim (tarefa para conferir, decisão tomada pelo agente, pergunta, achado de revisão contestado, ação sem volta, junção na principal). Situação: `esperando` ou `resolvido`.
 - Pendências: o que ficou em aberto na entrega (uma decisão adiada, um limite conhecido, um bloqueio do ambiente, algo para outra entrega). Situação: `aberta` ou `resolvida`. O relatório de aceite lista como risco toda pendência que não está `resolvida`.
 - Decisões tomadas pelo agente que a pessoa precisa confirmar levam no fim a marca "decidido pelo agente, conferir no fim".
+- Issue mãe: só com as tarefas também no GitHub. A publicação grava aqui o endereço da issue da entrega, e o motor (`baco board`) lê desta linha.
 -->
+
+- **Issue mãe:** `<endereço da issue da entrega no GitHub, ou apague a linha se as tarefas ficam só em arquivos>`
 
 ## Retomada
 

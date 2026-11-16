@@ -16,6 +16,7 @@ const summaries = {
   'qa-evidence': ['Coleta evidências de QA', 'Collect QA evidence'],
   'run-tests': ['Roda as camadas de teste (fila na máquina, modo rápido) ou o teste de fumaça', 'Run test layers (machine-wide queue, quick mode) or the smoke check'],
   'queue-status': ['Mostra quem usa a fila de testes desta máquina e quem está esperando', 'Show who is using this machine\'s test queue and who is waiting'],
+  board: ['Diz em que coluna do quadro do GitHub Project cada issue da entrega deve estar', 'Say which GitHub Project board column each issue of the delivery belongs in'],
 };
 
 const messages = { 'pt-BR': {}, en: {} };
@@ -761,4 +762,29 @@ Object.assign(messages.en, {
   'queuestatus.nobody_waiting': 'Nobody waiting.',
   'queuestatus.waiting': 'Waiting ({n}):',
   'queuestatus.waiting_item': '- layer {layer} of project {root}, waiting since {time} (process {pid})',
+});
+
+// 1.2.0: GitHub Project board that mirrors the delivery's tasks.
+Object.assign(messages['pt-BR'], {
+  'board.not_configured': 'Nenhum quadro do GitHub Project configurado (github.project, com github em tracker): nada a espelhar.',
+  'board.summary': 'Quadro {owner}/{number}, entrega {ent}: {total} issue(s), {changes} para atualizar.',
+  'board.parent_missing': 'Aviso: o progresso.md não tem a linha "Issue mãe" com o endereço da issue da entrega; ela fica fora do quadro.',
+  'board.tasks_missing': 'Aviso: tarefa(s) sem a linha "Issue" no arquivo da tarefa, fora do quadro: {tasks}.',
+  'board.change': '- {item} -> {status}: {command}',
+  'board.recorded': '{n} atualização(ões) registrada(s) em {path}.',
+  'board.next': 'Depois de cada mudança conferida, registre com: baco board {ent} --applied "<endereço da issue>=<coluna>".',
+  'board.applied_unknown_issue': 'A issue {url} não é desta entrega (não está nos arquivos das tarefas nem na linha "Issue mãe"); nada foi registrado.',
+  'board.applied_unknown_status': 'A coluna "{status}" não está na configuração do quadro ({columns}); nada foi registrado.',
+});
+
+Object.assign(messages.en, {
+  'board.not_configured': 'No GitHub Project board configured (github.project, with github in tracker): nothing to mirror.',
+  'board.summary': 'Board {owner}/{number}, delivery {ent}: {total} issue(s), {changes} to update.',
+  'board.parent_missing': 'Warning: progresso.md has no "Issue mãe" line with the delivery issue URL; it stays off the board.',
+  'board.tasks_missing': 'Warning: task(s) with no "Issue" row in the task file, off the board: {tasks}.',
+  'board.change': '- {item} -> {status}: {command}',
+  'board.recorded': '{n} update(s) recorded in {path}.',
+  'board.next': 'After each change is read back, record it with: baco board {ent} --applied "<issue URL>=<column>".',
+  'board.applied_unknown_issue': 'Issue {url} is not part of this delivery (not in the task files nor in the "Issue mãe" line); nothing was recorded.',
+  'board.applied_unknown_status': 'Column "{status}" is not in the board configuration ({columns}); nothing was recorded.',
 });

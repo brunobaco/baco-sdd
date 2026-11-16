@@ -50,7 +50,15 @@ export const DEFAULTS = {
   // Conversation size (input + cache tokens of the last answer) from which the conductor suggests,
   // or with auto_handoff makes during construction, the switch to a new conversation.
   context: { handoff_at: 400000, auto_handoff: false },
+  // github.project: the GitHub Project board that mirrors the delivery's tasks (owner, number,
+  // field, status). Unset by default; used only with `github` in `tracker`. See githubProject().
+  github: {},
 };
+
+// Status options of the board, by event: published (phase 5), started (building), review (task
+// review or human check) and merged (task merged into the delivery branch; the parent issue, the
+// delivery merged into the integration branch).
+export const BOARD_STATUS_DEFAULTS = { published: 'Backlog', started: 'In progress', review: 'In review', merged: 'Done' };
 
 export const MANDATORY_GATES = ['spec_approval', 'irreversible_action', 'merge_main'];
 
@@ -198,7 +206,7 @@ function deepMerge(base, over) {
 }
 
 // Sections that must be maps; any other non-null value is ignored (defaults kept) with a warning.
-const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses'];
+const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github'];
 // List settings where a single scalar is accepted as a one-element list.
 const LIST_SETTINGS = [['branches', 'protected'], ['tests', 'patterns'], ['tests', 'queue']];
 
@@ -276,6 +284,47 @@ function normalizeHarnesses(harnesses, warnings) {
     out[name] = { ...entry, models, implementers, sandbox };
   }
   return out;
+}
+
+// `github.project`: a map with `owner` (non-empty text) and `number` (positive integer), plus an
+// optional `field` (non-empty text) and `status` (a map whose keys are the BOARD_STATUS_DEFAULTS
+// keys, each a non-empty option name). A project without a valid owner and number is dropped with
+// `config.invalid_section`; a bad field or status entry keeps its default with the same warning.
+function normalizeGithub(github, warnings) {
+  const warn = (section) => warnings.push({ key: 'config.invalid_section', params: { section: `github.${section}` } });
+  const text = (v) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '');
+  const out = { ...github };
+  const p = github.project;
+  if (p === undefined || p === null) return out;
+  delete out.project;
+  if (!isPlainObject(p) || !text(p.owner) || !Number.isInteger(p.number) || p.number <= 0) { warn('project'); return out; }
+  const project = { owner: text(p.owner), number: p.number };
+  if (p.field !== undefined && p.field !== null) {
+    if (text(p.field)) project.field = text(p.field);
+    else warn('project.field');
+  }
+  if (p.status !== undefined && p.status !== null) {
+    if (!isPlainObject(p.status)) warn('project.status');
+    else {
+      const status = {};
+      for (const [key, value] of Object.entries(p.status)) {
+        if (Object.hasOwn(BOARD_STATUS_DEFAULTS, key) && text(value)) status[key] = text(value);
+        else warn(`project.status.${key}`);
+      }
+      project.status = status;
+    }
+  }
+  out.project = project;
+  return out;
+}
+
+// The board to mirror, or null when there is none: `github` must be in `tracker` and
+// `github.project` valid. Field and status names come filled with their defaults.
+export function githubProject(config) {
+  const tracker = Array.isArray(config.tracker) ? config.tracker : [config.tracker];
+  const p = config.github?.project;
+  if (!tracker.includes('github') || !isPlainObject(p)) return null;
+  return { owner: p.owner, number: p.number, field: p.field ?? 'Status', status: { ...BOARD_STATUS_DEFAULTS, ...(p.status ?? {}) } };
 }
 
 // `review.pr`: reviewer agente|pessoa|ambos, auto_fix boolean. A bad reviewer (or a `pr` that is
@@ -402,6 +451,7 @@ export function resolveConfig(parsed) {
   if (isPlainObject(user.models)) user = { ...user, models: normalizeModels(user.models, warnings) };
   if (isPlainObject(user.harnesses)) user = { ...user, harnesses: normalizeHarnesses(user.harnesses, warnings) };
   if (isPlainObject(user.review)) user = { ...user, review: normalizeReview(user.review, warnings) };
+  if (isPlainObject(user.github)) user = { ...user, github: normalizeGithub(user.github, warnings) };
   for (const [section, key] of LIST_SETTINGS) {
     const v = user[section]?.[key];
     if (v === undefined || v === null) continue;

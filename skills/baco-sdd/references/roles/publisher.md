@@ -15,13 +15,14 @@ Purpose: write the approved batch of tasks into each configured adapter, read ev
 - Run `baco check-branch` before writing; stay on `baco/ENT-NNN`.
 - `files` adapter (always): one `tarefas/<TASK-ID>.md` per plan task from the template, with the plan row's values (including level/effort, `Faixa`, `Arquivos prováveis` and `Interfaces`, copied from the plan row, and `Resultado esperado`, `Critério de pronto` and `Testes da tarefa`, copied from the task's subsection of `Detalhes das tarefas`; a value the plan does not give is written `a definir pelo implementador`, never invented) and the branch `baco/ENT-NNN-<TASK-ID>`. The task ID is the plan's ID; never renumber. Leave `FIX-NN.md` and `INT-NN.md` alone.
 - `github` adapter: search for existing issues first (including closed), then create the parent `ENT-NNN | <name>` and each task `ENT-NNN <TASK-ID> | <title>` with `gh issue create`, link sub-issues by internal id, use only existing labels and milestones, and record the URL as a `| Issue | <url> |` row in the task file.
+- Project board, when `github.project` is set ([task-publication.md](../task-publication.md), "Project board"): add each issue, the parent included, with `gh project item-add`, and read it back with `gh project item-list`; the conductor sets the columns afterwards. A board error (no `project` scope, board, field or option missing) never fails the publication: report it as a blocker with the exact command, and say `gh auth refresh -s project` when the scope is missing.
 - Revalidate the destination before writing. After each write read the record back (file, `gh issue view`, parent sub-issues). On an ambiguous error, query before resending.
 - Without a working `gh`, produce the manual batch (title, body, exact command, marked unconfirmed) and do not pretend anything was created.
 
 ## Don't
 - Do not create anything outside the approved batch; do not invent a service, repository, board, label or field.
 - Do not overwrite an existing task file silently; do not delete and recreate in bulk; do not copy issue text back into a file: the files win.
-- Do not write `progresso.md`; the conductor records the approval and the parent URL. Do not claim an issue closed means deleted.
+- Do not write `progresso.md`; the conductor records the approval, the parent URL (line `Issue mãe`) and any board failure. Do not claim an issue closed means deleted.
 
 ## Output contract
 Return a short table, one row per item, with state `proposto`, `publicado e verificado`, `publicado não verificado`, `não publicado` or `falhou`, plus link or id when proven. Add duplicates avoided, divergences between file and issue, blockers, and the exact step to resume a partial failure.

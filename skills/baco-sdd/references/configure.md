@@ -14,9 +14,9 @@ If the user declines or ignores it, proceed on defaults and never block, delay o
 
 ## Existing config without the new keys
 
-A project configured with an older version lacks keys this version brought: `harnesses`, `review.pr` (inside `review`) and `context`. At startup (SKILL.md, "Startup checks"), when `.baco/config.yaml` exists and any of them is missing, offer once, before building (phase 6), to ask only the questions of the missing keys: 8 for `context`, 9 for `harnesses`, 10 for `review.pr`. In these words:
+A project configured with an older version lacks keys this version brought: `harnesses`, `review.pr` (inside `review`), `context` and, when `tracker` lists `github`, `github.project`. At startup (SKILL.md, "Startup checks"), when `.baco/config.yaml` exists and any of them is missing, offer once, before building (phase 6), to ask only the questions of the missing keys: 8 for `context`, 9 for `harnesses`, 10 for `review.pr`, 2B for `github.project`. In these words:
 
-> Esta versão do método trouxe ajustes novos que este projeto ainda não tem: [quais, em palavras simples: tamanho da conversa, ferramentas de IA, revisão do pedido de junção (PR)]. Posso fazer só essas perguntas agora, antes de construir? Se preferir, uso os padrões e você ajusta depois.
+> Esta versão do método trouxe ajustes novos que este projeto ainda não tem: [quais, em palavras simples: tamanho da conversa, ferramentas de IA, revisão do pedido de junção (PR), quadro do GitHub em dia com as tarefas]. Posso fazer só essas perguntas agora, antes de construir? Se preferir, uso os padrões e você ajusta depois.
 
 If the user declines, go on with the defaults and do not ask again in that session. With a yes, ask only those questions and add only those keys, keeping every other line of the file as it is.
 
@@ -42,7 +42,37 @@ When `review.pr` is missing, also say once, as a statement, whether they answere
 
 > Onde você quer registrar as tarefas? (a) só em arquivos dentro do projeto, na pasta de documentos; (b) em arquivos e também no GitHub, como itens de acompanhamento (issues). O padrão é só arquivos.
 
-(a) -> `[files]`; (b) -> `[files, github]`. Do not test GitHub access here; phase 5 checks it when it publishes.
+(a) -> `[files]`; (b) -> `[files, github]`. Do not test the permission to create issues here; phase 5 checks it when it publishes.
+
+**2B. Project board** (`github.project`: `owner`, `number`, optional `field` and `status`; only when the answer to 2 included GitHub)
+
+A GitHub Project board can mirror the delivery: each issue moves through the columns of its `Status` field as the task is published, built, reviewed and merged. The files stay the source of truth; the board only receives updates and is never read to decide anything ([task-publication.md](task-publication.md), "Project board").
+
+1. Find the owner: the user or organization of the git remote (`git remote get-url origin`). Without a GitHub remote, skip this question and say the board can be set later.
+2. Check the login: `gh auth status`. Its `Token scopes` line must list `project` (reading and writing boards). When `gh` is missing or not logged in, skip the question and say the board can be set later with `/baco:configurar`. When the scope is missing, do not try another way: tell the user, and ask the question again after they say it is done:
+
+> Para eu mover os cards no quadro do GitHub, o login do GitHub nesta máquina precisa da permissão de quadros (project), que ele ainda não tem. Rode no terminal `gh auth refresh -s project` e me avise quando terminar. Se preferir, sigo sem o quadro e você liga depois.
+
+3. List the boards: `gh project list --owner <owner> --format json` (title and number of each). Then ask:
+
+> Encontrei estes quadros (GitHub Projects) de [owner]: [lista: número e título]. Quer que eu mantenha um deles em dia com as tarefas, movendo cada card conforme o trabalho anda (publicada, em construção, em revisão, juntada)? Qual? O padrão é nenhum.
+
+With no board found, say so and ask whether to go on without one (the user creates it on GitHub and runs the configuration again).
+
+4. With a board chosen, read its fields: `gh project field-list <number> --owner <owner> --format json`. Find the single-select field named `Status` and its options. When its options include `Backlog`, `In progress`, `In review` and `Done`, write only `owner` and `number`: the defaults match. Otherwise ask which option fits each moment, offering the closest names you found:
+
+> O campo de etapa desse quadro tem estas opções: [lista]. Qual delas uso para: tarefa publicada, construção começou, em revisão e juntada na entrega?
+
+Write the answers under `status` (`published`, `started`, `review`, `merged`); a field with another name than `Status` goes in `field`. Invent no option: when a moment has none, the user creates it on GitHub, or picks the nearest. The parent issue of the delivery uses the same options: `started` when phase 6 begins and `merged` only when the delivery is merged into the integration branch.
+
+```yaml
+github:
+  project:
+    owner: <dono>
+    number: <n>
+    # field: Status
+    # status: {published: Backlog, started: In progress, review: In review, merged: Done}
+```
 
 **3. Branch roles** (`branches.main`, `branches.integration`)
 
@@ -200,7 +230,7 @@ Autonomous execution ([implementation.md](implementation.md)) runs many commands
 
 Build the list from what you know of the project: its test commands (`tests`, `tests_quick`, `app.smoke`), the `baco` engine, and git on the delivery and task branches (`baco/ENT-*`).
 
-- Allow: the test commands above; `baco` engine commands (except what "Ask" below names); `git status`, `git diff`, `git log`, `git add`, `git commit`, `git branch`, `git switch`, `git checkout`, `git merge` and `git push`, each only with a `baco/*` or `docs/*` branch (the delivery branch `baco/ENT-NNN`, the task branches `baco/ENT-NNN-<TASK-ID>`, `baco/configuracao` and the document branches `docs/<nome>` of phases 1 to 3); `git worktree add` and `git worktree list` (every task uses them), and removing only the scratch copies made to prove a command in a clean folder (`Bash(git worktree remove --force .worktrees/copia-*)`), and, with Claude Code's sandbox in `rede`, the task folders that `baco cleanup-branches` lists as merged, removed before `--apply` because the cleanup cannot remove them inside the sandbox (`Bash(git worktree remove --force .worktrees/*)`; ambientes.md, section 2); when the project has a GitHub remote, opening the delivery's PR as a draft and reading it (`Bash(gh pr create --draft --base * --head baco/*)`, `Bash(gh pr view *)`, `Bash(gh pr diff *)`, `Bash(gh pr checks *)`); when `review.pr.reviewer` is `agente` or `ambos`, importing the agent reviewer's answer with the one command that takes no file and only accepts the latest round's answer (`Bash(node *baco.mjs import-pr-verdict ENT-*)`); and, for each harness in `harnesses` other than the one in use that has a real read-only sandbox, its read-only call only ([ambientes.md](ambientes.md), section 5; for Codex, `Bash(codex exec * -s read-only *)`, with the Codex asks and denies below; the call is made without a prefix such as `timeout <n>`, which would not match: the time limit is the Bash tool's own `timeout` setting, as in ambientes.md, section 5). Write the git allows with the branch in the pattern (for example `Bash(git switch baco/*)`, `Bash(git switch docs/*)`, `Bash(git switch -c docs/*)`, `Bash(git merge --no-ff baco/*)`), never a bare `git switch *` or `git push *`, which would also catch the main and integration branches.
+- Allow: the test commands above; `baco` engine commands (except what "Ask" below names); `git status`, `git diff`, `git log`, `git add`, `git commit`, `git branch`, `git switch`, `git checkout`, `git merge` and `git push`, each only with a `baco/*` or `docs/*` branch (the delivery branch `baco/ENT-NNN`, the task branches `baco/ENT-NNN-<TASK-ID>`, `baco/configuracao` and the document branches `docs/<nome>` of phases 1 to 3); `git worktree add` and `git worktree list` (every task uses them), and removing only the scratch copies made to prove a command in a clean folder (`Bash(git worktree remove --force .worktrees/copia-*)`), and, with Claude Code's sandbox in `rede`, the task folders that `baco cleanup-branches` lists as merged, removed before `--apply` because the cleanup cannot remove them inside the sandbox (`Bash(git worktree remove --force .worktrees/*)`; ambientes.md, section 2); when the project has a GitHub remote, opening the delivery's PR as a draft and reading it (`Bash(gh pr create --draft --base * --head baco/*)`, `Bash(gh pr view *)`, `Bash(gh pr diff *)`, `Bash(gh pr checks *)`); when `github.project` is set, reading the board and moving its cards (`Bash(gh project view *)`, `Bash(gh project field-list *)`, `Bash(gh project item-add *)`, `Bash(gh project item-edit *)`, `Bash(gh project item-list *)`); when `review.pr.reviewer` is `agente` or `ambos`, importing the agent reviewer's answer with the one command that takes no file and only accepts the latest round's answer (`Bash(node *baco.mjs import-pr-verdict ENT-*)`); and, for each harness in `harnesses` other than the one in use that has a real read-only sandbox, its read-only call only ([ambientes.md](ambientes.md), section 5; for Codex, `Bash(codex exec * -s read-only *)`, with the Codex asks and denies below; the call is made without a prefix such as `timeout <n>`, which would not match: the time limit is the Bash tool's own `timeout` setting, as in ambientes.md, section 5). Write the git allows with the branch in the pattern (for example `Bash(git switch baco/*)`, `Bash(git switch docs/*)`, `Bash(git switch -c docs/*)`, `Bash(git merge --no-ff baco/*)`), never a bare `git switch *` or `git push *`, which would also catch the main and integration branches.
 - Ask (the human decides, even when the user chose to skip confirmations). Use the configured names (`branches.main`, `branches.integration`), not the literal `main` and `develop`; `<m>` and `<i>` below stand for them:
   - moving onto or pushing into the main or the integration branch, which is what backs the never-off gate `merge_main` ([gates.md](gates.md)): `git checkout <m>*`, `git switch <m>*`, `git checkout <i>*`, `git switch <i>*`, `git push * <m>*`, `git push *:<m>*`, `git push * <i>*`, `git push *:<i>*`;
   - merging the delivery's PR on GitHub, which is the same move (`Bash(gh pr merge*)`);
@@ -253,4 +283,4 @@ Run `baco check-branch`. It loads the config, so a bad file shows up here.
 
 Then close with:
 
-> Pronto: a configuração está salva em `.baco/config.yaml` e conferida. Resumo: [idioma, tarefas em arquivos/GitHub, branch principal e de integração, quantas tarefas em paralelo, paradas ligadas, comandos de teste completos e rápidos e se foram conferidos, comando de subir o sistema, tamanho da conversa para continuar numa nova e se a troca na construção pode ser sem perguntar, ferramentas de IA e o modelo de cada nível, quem revisa o PR e se as correções são automáticas, regras de execução salvas ou não]. Você pode pedir para mudar qualquer item quando quiser.
+> Pronto: a configuração está salva em `.baco/config.yaml` e conferida. Resumo: [idioma, tarefas em arquivos/GitHub e o quadro do GitHub mantido em dia (qual, ou nenhum), branch principal e de integração, quantas tarefas em paralelo, paradas ligadas, comandos de teste completos e rápidos e se foram conferidos, comando de subir o sistema, tamanho da conversa para continuar numa nova e se a troca na construção pode ser sem perguntar, ferramentas de IA e o modelo de cada nível, quem revisa o PR e se as correções são automáticas, regras de execução salvas ou não]. Você pode pedir para mudar qualquer item quando quiser.

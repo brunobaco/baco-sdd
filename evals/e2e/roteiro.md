@@ -34,6 +34,19 @@ Em cada parada: confira o que está escrito, aprove ou peça ajuste, e anote.
 
 Em qualquer ponto, `/baco:status` deve dizer onde você está e qual é o próximo passo.
 
+## Variante com GitHub e quadro do Project
+
+Rode quando a mudança mexer na publicação no GitHub ou no quadro. Precisa de um repositório de teste no GitHub, descartável e privado, ligado como remoto do projeto, e de um GitHub Project do mesmo dono com o campo `Status` nas opções `Backlog`, `In progress`, `In review` e `Done`.
+
+1. **Antes do passo 1**, tire do login a permissão de quadros: `gh auth refresh -r project`. No `/baco:configurar`, escolha registrar também no GitHub. Confira que ele pede `gh auth refresh -s project`, em linguagem simples, sem tentar outro caminho. Rode o comando, avise, e confira que ele lista os quadros do dono com número e título e grava `github.project` com o quadro escolhido (só `owner` e `number`, já que as opções batem com o padrão).
+2. **No passo 7**, confira no GitHub que a issue mãe e uma issue por tarefa entraram no quadro, todas em `Backlog`, que o `progresso.md` tem a linha `Issue mãe` e que `baco board ENT-001` não lista nenhuma mudança depois da publicação.
+3. **No passo 8**, acompanhe o quadro: a issue mãe vai para `In progress` quando a construção começa, e cada tarefa passa por `In progress`, `In review` e `Done` conforme a tabela "Tarefas em andamento" e o registro das tarefas do `progresso.md`. Compare uma vez o quadro com `baco board ENT-001 --all --json`: os dois têm de dizer a mesma coluna para cada issue.
+4. **Falha no quadro.** Com a construção andando, renomeie no GitHub a opção `In review` (por exemplo para `Revisando`). Confira que a próxima tarefa que vai para revisão não para a entrega: aparece uma linha em `## Pendências` com o comando que falhou, o resumo do fim cita o quadro, e as tarefas seguem. Volte o nome para `In review`, peça "continuar" se a execução já tiver parado, e confira que `baco board ENT-001 --all` põe todos os cards no lugar e a pendência fica `resolvida`.
+5. **No passo 10**, depois da junção na branch de integração, a issue mãe vai para `Done`. Antes disso ela nunca fica em `Done`, mesmo com todas as tarefas juntadas.
+6. Em nenhum momento o condutor lê o quadro para decidir o estado de uma tarefa: o estado sai dos arquivos da entrega.
+
+Ao terminar, apague o repositório e o quadro de teste.
+
 ## Conferir em toda parada
 
 - **Linhas "Motor:":** o relatório da fase lista os comandos do motor que rodaram de verdade (`comando → saída N`) e, em "Não rodado", o que ficou de fora e por quê. Compare com o que você viu rodar na tela. Comando listado que não rodou é falha grave.

@@ -36,9 +36,26 @@ The adapter comes from `tracker`: a list, default `files`. Write to every adapte
 1. Check `gh auth status` and that the repository comes from the git remote. Without a working login, use the manual batch below.
 2. The delivery becomes a **parent issue** titled `ENT-NNN | <delivery name>`, body with the plan summary and the path of `plano.md`. Each task becomes an issue titled `ENT-NNN <TASK-ID> | <title>`, created with `gh issue create --title ... --body ...`, and linked as a **sub-issue** of the parent. Create the relation with `gh api` on the sub-issues endpoint of the parent, using the issue's internal id (`gh api repos/<owner>/<repo>/issues/<number> --jq .id`), not its visible number. If sub-issues are unavailable, list the tasks as a checklist (`- [ ] #<number>`) in the parent body and report that limitation.
 3. Use only labels and milestones that already exist (`gh label list`); create none without authorization. The body states the outcome, CAs, done criteria and the repository path of the task file; the file stays canonical.
-4. After creating, record the mapping: the issue URL as a new row `| Issue | <url> |` in the task file's table, and the parent URL in `progresso.md` under `Decisões registradas`.
+4. After creating, record the mapping: the issue URL as a new row `| Issue | <url> |` in the task file's table, and the parent URL in `progresso.md` as the line `- **Issue mãe:** <url>` right under its title (the engine reads it there), also noted under `Decisões registradas`.
+5. **Project board**, when `github.project` is set ("Project board" below): add the parent and every task issue to the board and set each one's column to the `published` option.
 
-**One-way sync: the files are the source of truth** (the task files and `progresso.md`). GitHub only receives the publication and then status updates (a comment or label as the project uses). Closing comes from the PR of the delivery (`Closes #N`), not from hand-editing issues. If an issue differs from its file, **the file wins**: report the divergence and never copy issue text back into the file or derive a task's state from it.
+**One-way sync: the files are the source of truth** (the task files and `progresso.md`). GitHub only receives the publication and then status updates: the board column when `github.project` is set, otherwise a comment or label as the project uses. Closing comes from the PR of the delivery (`Closes #N`), not from hand-editing issues. If an issue or a board card differs from its file, **the file wins**: report the divergence and never copy issue text back into the file or derive a task's state from the issue or the board.
+
+### Project board (`github.project`)
+
+A GitHub Project board mirrors the delivery, one way: the conductor moves each card when its task changes, and nothing ever reads the board to decide a state. The columns are the options of the board's single-select field (`github.project.field`, default `Status`), one per moment (`github.project.status`): `published` (default `Backlog`), `started` (`In progress`), `review` (`In review`) and `merged` (`Done`). The login needs the `project` scope ([configure.md](configure.md), question 2B).
+
+**What goes where is the engine's answer, never yours.** `baco board ENT-NNN` reads the task files (`| Issue |` rows), the `Issue mãe` line and `progresso.md`, and lists each issue whose column must change, with the exact command. A task in `Tarefas em andamento` is `started` (building, a fix round) or `review` (its review, or waiting for the person's check); out of the table, its last row in `Registro das tarefas` makes it `merged` (`FEITO`, `FEITO_COM_RESSALVAS`) or `started` (any other state); with neither, `published`. The parent is `started` once phase 6 begins (Retomada filled, or any task started) and `merged` only when the delivery branch (or its `entrega/ENT-NNN` tag) is in the integration branch; then every task is `merged` too.
+
+**At publication**, after the issues are created and read back (the publisher does steps 1 and 2; you do step 3, after writing the `Issue mãe` line):
+
+1. Add each issue (the parent included) with `gh project item-add <number> --owner <owner> --url <issue-url>`. Adding an issue already on the board changes nothing, so a retry is safe.
+2. Read it back: `gh project item-list <number> --owner <owner> --format json --limit <enough>` lists the issue's URL among the items.
+3. Run `baco board ENT-NNN` and run each command it lists (they set `published`). After each one, read the card back (same `item-list`, the item's field value) and record it: `baco board ENT-NNN --applied "<issue-url>=<column>"`. The record lives in `.baco/logs/` (not versioned); when it is lost, the next run lists everything again, which is harmless.
+
+The command it lists sets the column by name (`gh project item-edit <number> --owner <owner> --url <issue-url> --field "<field>" --value "<column>"`). When the installed `gh` does not have `--field` and `--value` (`gh project item-edit --help`), use the ids: `gh project view <number> --owner <owner> --format json --jq .id` (project id), `gh project field-list <number> --owner <owner> --format json` (the field's `id` and the option's `id` by name), the item id from `gh project item-add ... --format json --jq .id`, then `gh project item-edit --id <item> --project-id <project> --field-id <field> --single-select-option-id <option>`.
+
+**A board failure never stops the delivery.** Without the `project` scope, with a board, field or option that does not exist, or any other `gh project` error: do not retry blindly and do not get around it (no other token, no other tool). Record one row in `## Pendências` of `progresso.md` (what failed, "o quadro do GitHub não acompanha a entrega", owner the person, the command to re-run, `aberta`), tell the person in one plain line, and go on. Missing scope: say to run `gh auth refresh -s project`. Once fixed, `baco board ENT-NNN --all` lists every card again and the pending row is closed as `resolvida`.
 
 ## Prepare and approve the batch
 
@@ -69,7 +86,7 @@ When `gh` is missing, has no login, or the permission to write is denied, or the
 
 ## Output and state
 
-Report each batch item as one of: **proposto**, **aprovado para publicação**, **publicado e verificado**, **publicado não verificado**, **não publicado**, **falhou**, with the returned link or id when proven. Include verified relations, duplicates avoided, blockers, unavailable tools, and the exact step to resume a partial failure.
+Report each batch item as one of: **proposto**, **aprovado para publicação**, **publicado e verificado**, **publicado não verificado**, **não publicado**, **falhou**, with the returned link or id when proven. With a board, also report each card as added and in its column, or the board failure recorded in `## Pendências`. Include verified relations, duplicates avoided, blockers, unavailable tools, and the exact step to resume a partial failure.
 
 Commit the task files and `progresso.md` on `baco/ENT-NNN`: task branches start from its tip, so implementation needs them committed.
 

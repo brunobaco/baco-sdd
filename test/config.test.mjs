@@ -480,3 +480,66 @@ test('the pt-BR template documents harnesses and review.pr and loads without war
   assert.deepEqual(cfg.review.pr, DEFAULTS.review.pr);
   assert.equal(cfg.harnesses['claude-code'].implementers, true);
 });
+
+// 1.2.0: github.project, the GitHub Project board that mirrors the delivery's tasks.
+test('github.project: unset by default; a full entry resolves with the default columns', async () => {
+  const { githubProject, BOARD_STATUS_DEFAULTS } = await import('../skills/baco-sdd/scripts/lib/config.mjs');
+  assert.deepEqual(BOARD_STATUS_DEFAULTS, { published: 'Backlog', started: 'In progress', review: 'In review', merged: 'Done' });
+  assert.equal(githubProject(loadConfig(rootWith())), null);
+  const cfg = loadConfig(rootWith('tracker: [files, github]\ngithub:\n  project: {owner: acme, number: 7}\n'));
+  assert.deepEqual(cfg.warnings, []);
+  assert.deepEqual(githubProject(cfg), { owner: 'acme', number: 7, field: 'Status', status: BOARD_STATUS_DEFAULTS });
+  // Without the github tracker the board is not used.
+  assert.equal(githubProject(loadConfig(rootWith('github:\n  project: {owner: acme, number: 7}\n'))), null);
+});
+
+test('github.project: own field and columns; a partial status map keeps the other defaults', async () => {
+  const { githubProject } = await import('../skills/baco-sdd/scripts/lib/config.mjs');
+  const cfg = loadConfig(rootWith([
+    'tracker: [files, github]',
+    'github:',
+    '  project:',
+    '    owner: "@me"',
+    '    number: 3',
+    '    field: Etapa',
+    '    status:',
+    '      started: Fazendo',
+    '      merged: "Feito"',
+    '',
+  ].join('\n')));
+  assert.deepEqual(cfg.warnings, []);
+  assert.deepEqual(githubProject(cfg), {
+    owner: '@me', number: 3, field: 'Etapa',
+    status: { published: 'Backlog', started: 'Fazendo', review: 'In review', merged: 'Feito' },
+  });
+});
+
+test('github.project: bad values warn and fall back', async () => {
+  const { githubProject } = await import('../skills/baco-sdd/scripts/lib/config.mjs');
+  const scalar = loadConfig(rootWith('tracker: [files, github]\ngithub: sim\n'));
+  assert.equal(githubProject(scalar), null);
+  assert.deepEqual(scalar.warnings.map((w) => w.params.section), ['github']);
+  for (const project of ['{owner: acme}', '{owner: "", number: 7}', '{owner: acme, number: 0}', '{owner: acme, number: 2.5}', 'sete']) {
+    const cfg = loadConfig(rootWith(`tracker: [files, github]\ngithub:\n  project: ${project}\n`));
+    assert.equal(githubProject(cfg), null, project);
+    assert.deepEqual(cfg.warnings.map((w) => w.params.section), ['github.project'], project);
+  }
+  const cfg = loadConfig(rootWith([
+    'tracker: [files, github]',
+    'github:',
+    '  project:',
+    '    owner: acme',
+    '    number: 7',
+    '    field: ""',
+    '    status: {started: "", talvez: X, review: Revisando}',
+    '',
+  ].join('\n')));
+  assert.deepEqual(githubProject(cfg), {
+    owner: 'acme', number: 7, field: 'Status',
+    status: { published: 'Backlog', started: 'In progress', review: 'Revisando', merged: 'Done' },
+  });
+  assert.deepEqual(cfg.warnings.map((w) => w.params.section), ['github.project.field', 'github.project.status.started', 'github.project.status.talvez']);
+  const listStatus = loadConfig(rootWith('tracker: [files, github]\ngithub:\n  project: {owner: acme, number: 7, status: [a]}\n'));
+  assert.deepEqual(listStatus.warnings.map((w) => w.params.section), ['github.project.status']);
+  assert.equal(githubProject(listStatus).status.published, 'Backlog');
+});

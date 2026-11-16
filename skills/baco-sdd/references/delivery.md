@@ -121,7 +121,7 @@ When the human approves:
 - Local: from a clean checkout of the target, `git merge --no-ff baco/ENT-NNN`.
 - If the project later promotes from integration to main, follow section 6b.
 
-Then update the local target branch (`git fetch`, fast-forward only). Never record the approval anywhere that touches a protected branch: it goes into `progresso.md` with the post-merge documents ([reconciliation.md](reconciliation.md)): date, target, who approved, accepted blockers. Note the merge for the catalog: later `git rev-parse entrega/ENT-NNN` gives its sha once cleanup tagged it; before that, the merge commit.
+Then update the local target branch (`git fetch`, fast-forward only). With `github.project` set, sync the board now ([implementation.md](implementation.md), section 10, "Project board"): `baco board ENT-NNN` sees the delivery in the integration branch and moves the parent issue, and any task still behind, to `merged`; a failure is a pending item, never a reason to hold the merge. Never record the approval anywhere that touches a protected branch: it goes into `progresso.md` with the post-merge documents ([reconciliation.md](reconciliation.md)): date, target, who approved, accepted blockers. Note the merge for the catalog: later `git rev-parse entrega/ENT-NNN` gives its sha once cleanup tagged it; before that, the merge commit.
 
 ## 6b. Promotion from integration to main
 

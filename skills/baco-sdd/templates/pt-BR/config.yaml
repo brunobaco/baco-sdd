@@ -7,6 +7,16 @@ language: pt-BR           # idioma dos documentos e das perguntas
 tracker: [files]          # onde ficam registradas as tarefas: "files" = arquivos em docs/
                           # para registrar também no GitHub, escreva: tracker: [files, github]
 
+# Quadro do GitHub (GitHub Project) mantido em dia com as tarefas, só com github em tracker.
+# Cada card muda de coluna quando a tarefa é publicada, começa, vai para revisão e é juntada.
+# Os arquivos da entrega continuam valendo; o quadro só recebe as mudanças.
+# github:
+#   project:
+#     owner: <dono do quadro, usuário ou organização>
+#     number: <número do quadro>
+#     field: Status           # nome do campo de etapa do quadro
+#     status: {published: Backlog, started: In progress, review: In review, merged: Done}
+
 branches:
   main: main              # a branch principal, onde só entra o que foi aprovado
   integration: develop    # a branch onde as entregas se juntam antes da principal
