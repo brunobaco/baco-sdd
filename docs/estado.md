@@ -1,6 +1,6 @@
 # Estado do trabalho
 
-Atualizado em 2026-11-15.
+Atualizado em 2026-11-16.
 
 ## Pronto
 
@@ -9,6 +9,8 @@ Atualizado em 2026-11-15.
 3. README reescrito para a 1.0 e atualizado na 1.1 (caixa das ferramentas de IA e divisões sugeridas): proteções com o que garante cada uma (motor, plugin, ferramenta ou método) e tabela do que funciona com o plugin, só com a skill e nas outras ferramentas.
 4. Licença MIT.
 5. Versão 1.1.0: caixa por ferramenta de IA (`protegida`, `rede`, `livre`; padrão `rede`), regras de comando do BACO para o Codex, caixa do próprio Claude Code em `rede` e as correções da rodada E (Codex construindo em `rede`, revisões no Claude: 7 de 7 critérios, 1 rodada de correção em 7 tarefas, construção em 51 minutos, cerca de 110 milhões de tokens até a junção). 619 testes do motor passando.
+
+6. Versão 1.2.0: quadro do GitHub Project acompanhando a entrega como espelho dos arquivos (`github.project` na configuração, comando `baco board`, sincronia na publicação, a cada evento de tarefa e depois da junção na integração; falha no quadro vira pendência). Variante com GitHub e quadro no roteiro ponta a ponta, ainda não rodada.
 
 ## Em andamento
 
@@ -24,9 +26,10 @@ Gancho do BACO para o Codex na caixa `livre`: fica para depois. O Codex roda gan
 1. Subir a imagem de prévia (`docs/imagens/previa-github.png`) nas configurações do repositório no GitHub (Settings, Social preview). É feito pelo site.
 2. O logo novo, com expressão divertida (`logo-baco-sdd-engracado.png`), ainda não substituiu o ícone do plugin nem o do README.
 3. Eval `afrouxar-teste` sem conclusão num Linux em que o isolamento do executor não monta a rede (provável `bwrap` sem liberação no AppArmor). Repetir.
-4. Evals a escrever: conversa que passa do limite no meio da construção; retomada pela tabela "Tarefas em andamento"; plano com harness por tarefa; revisão do PR por agente com rodada de correção; harness único; revisor `pessoa` e `ambos`; saída 3; localizador; configuração antiga recebendo só as perguntas novas; projeto sem GitHub.
-5. Não testado de ponta a ponta: OpenCode, regras de permissão com `*` no meio do comando.
-6. Limites conhecidos: `provenance.ignore` não distingue pasta de código de pasta de registro pelo nome (a proteção é a aprovação humana); no modo `pr` o isolamento do revisor é só instrução; os logs em `.baco/logs/` se acumulam sem limpeza; `cost measure` não lê o OpenCode; faixas paralelas pouco usadas quando as tarefas dividem arquivos.
+4. Rodar a variante com GitHub e quadro do roteiro ponta a ponta (`evals/e2e/roteiro.md`); o comando `gh project item-edit` com `--field` e `--value` só foi conferido pela ajuda do `gh` 2.103, sem quadro real.
+5. Evals a escrever: conversa que passa do limite no meio da construção; retomada pela tabela "Tarefas em andamento"; plano com harness por tarefa; revisão do PR por agente com rodada de correção; harness único; revisor `pessoa` e `ambos`; saída 3; localizador; configuração antiga recebendo só as perguntas novas; projeto sem GitHub.
+6. Não testado de ponta a ponta: OpenCode, regras de permissão com `*` no meio do comando.
+7. Limites conhecidos: o `baco board` dá a entrega como juntada quando a branch dela está contida na de integração, o que também acontece se a branch da entrega ainda não tiver nenhum commit próprio (o plano já faz o primeiro, então não ocorre no fluxo normal); `provenance.ignore` não distingue pasta de código de pasta de registro pelo nome (a proteção é a aprovação humana); no modo `pr` o isolamento do revisor é só instrução; os logs em `.baco/logs/` se acumulam sem limpeza; `cost measure` não lê o OpenCode; faixas paralelas pouco usadas quando as tarefas dividem arquivos.
 
 ## Evoluções futuras
 
@@ -34,4 +37,4 @@ Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versã
 
 ## Próximo passo
 
-Publicar a 1.0.0 (marca `v1.0.0` e release com o pacote da skill) e tornar o repositório público.
+Juntar a branch `feat/github-project-board` na `main` e publicar a 1.2.0 (marca `v1.2.0` e release com o pacote da skill). Depois, a etapa 3 da liberdade das ferramentas (configuração completa no início do projeto).

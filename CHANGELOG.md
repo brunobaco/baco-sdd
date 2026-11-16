@@ -1,5 +1,15 @@
 # Histórico de mudanças
 
+## 1.2.0 (2026-11-16)
+
+O quadro de um GitHub Project passa a acompanhar a entrega. Antes, a publicação criava as issues e o quadro ficava parado em Backlog a entrega inteira, mesmo com tarefas já juntadas. Agora cada card muda de coluna quando a tarefa é publicada, começa, vai para revisão e é juntada, sempre como espelho dos arquivos da entrega, que continuam valendo.
+
+- Configuração: chave opcional `github.project` (`owner`, `number`, `field` com padrão `Status` e `status` com as colunas `published`, `started`, `review` e `merged`, padrão `Backlog`, `In progress`, `In review` e `Done`), usada só com `github` em `tracker`. A pergunta lista os quadros do dono (`gh project list`), lê as opções do campo e confere a permissão `project` do login; sem ela, pede `gh auth refresh -s project`, sem contornar. Projeto antigo com GitHub recebe só essa pergunta.
+- Novo comando `baco board ENT-NNN`: lê os arquivos das tarefas (linha `Issue`), a linha `Issue mãe` e o `progresso.md` e diz em que coluna cada issue deve estar, com o comando `gh project item-edit` exato. Não chama o `gh` e nunca lê o quadro. `--applied` registra o que foi aplicado e conferido (em `.baco/logs/`), para listar só o que mudou; `--all` lista tudo de novo.
+- Publicação: a issue mãe e as tarefas entram no quadro (`gh project item-add`) e são lidas de volta; o endereço da issue mãe ganha linha própria no `progresso.md`.
+- Construção: a cada evento da tarefa (despachada, de volta, em revisão, em correção, esperando a pessoa, juntada), junto com a Retomada, o condutor sincroniza o quadro pelo motor. A issue mãe vai para `In progress` quando a construção começa e para `Done` só quando a entrega é juntada na branch de integração. Falha no quadro vira pendência e o trabalho segue.
+- Roteiro ponta a ponta: variante com GitHub e quadro, com a permissão faltando na configuração e uma coluna renomeada no meio da construção.
+
 ## 1.1.0 (2026-11-15)
 
 As ferramentas de IA ganham caixa própria, e o Codex passa a poder construir com a mesma liberdade prática do Claude: instala, abre porta e roda os testes de navegador sozinho, dentro de uma caixa que grava só na pasta da tarefa e com regras de comando do BACO. O próprio Claude Code também passa a trabalhar numa caixa, com a internet limitada aos endereços aprovados. Tudo foi conferido numa entrega inteira de teste com o Codex construindo, e os problemas que ela mostrou foram corrigidos nesta versão.

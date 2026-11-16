@@ -6,7 +6,7 @@ O BACO-SDD leva uma necessidade de produto da ideia até a entrega verificada, c
 
 É uma skill no formato aberto Agent Skills, com um motor de verificação em Node, e um plugin do Claude Code que acrescenta comandos, agentes próprios e travas automáticas. A experiência completa é a do plugin no Claude Code; em outras ferramentas (Codex, Antigravity e outras que leiam Agent Skills) roda a skill, com as mesmas fases e o mesmo motor, mas sem as travas do plugin. A seção [Onde funciona](#onde-funciona) mostra recurso por recurso.
 
-Versão 1.1.0 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.1.0), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
+Versão 1.2.0 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.2.0), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
 
 ## A ideia em uma frase
 
@@ -27,7 +27,7 @@ O trabalho anda em fases. Cada uma termina com arquivos salvos no projeto, entã
 | 2. Spec | `/baco:spec` | Escreve o contrato de uma capacidade: regras de negócio e critérios de aceite (o que precisa acontecer para estar certo), com cenários de teste. Um leitor sem contexto procura lacunas; um revisor de simplicidade corta o que sobra. Também audita ou evolui uma spec já aprovada. | Você aprova a spec (sempre) |
 | 3. Arquitetura | `/baco:arquitetura` | Depois da primeira spec aprovada, propõe a tecnologia (ou confere a que você já tem), com custo, risco e dificuldade de voltar atrás, e registra cada decisão (ADR). Um advogado do diabo ataca a proposta antes de você ver. | Você aprova |
 | 4. Plano | `/baco:plano` | Corta uma entrega (normalmente uma spec), divide em tarefas, define o nível de cuidado, as paradas e quem roda cada tarefa e cada papel: ferramenta de IA, modelo e esforço. | Você aprova o plano |
-| 5. Publicar | `/baco:publicar` | Grava as tarefas em arquivos do projeto (e no GitHub, se configurado) e confere o que gravou. | Você aprova o lote |
+| 5. Publicar | `/baco:publicar` | Grava as tarefas em arquivos do projeto (e no GitHub, se configurado, com o quadro do GitHub Project acompanhando cada tarefa até a junção) e confere o que gravou. | Você aprova o lote |
 | 6. Executar | `/baco:executar` | Constrói as tarefas sozinho, com teste primeiro, cada uma numa linha de trabalho própria, revisada por outro agente antes de juntar. Segue sozinho pela revisão do PR até a entrega ficar pronta para você testar. | Só o que está marcado para você conferir |
 | 7. Revisar | `/baco:revisar` | Bateria completa de testes, revisão final independente da entrega inteira e revisão de simplicidade. Depois abre o pedido de junção (PR) da entrega como rascunho e pede a revisão de fora: outra IA, de preferência em outra ferramenta, uma pessoa ou as duas. Os achados viram correções no mesmo PR, e o mesmo revisor confere só elas. | A revisão de pessoa e a dispensa são suas |
 | 8. Entregar | `/baco:entregar` | Gera o relatório de aceite em linguagem de negócio, com cada critério e sua prova, riscos e pendências, e deixa a entrega pronta para você testar. Depois do seu "pode juntar", conduz a junção na linha principal. | Você aprova a junção (sempre) |
