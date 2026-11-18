@@ -18,7 +18,7 @@ Atualizado em 2026-11-18.
 
 9. Versão 1.4.0: gravidade dos achados com a chance de acontecer (caso atípico nunca é "crítico") e rodada 5 só com "importante" aberto juntando a tarefa, com os achados como pendências decididas pela pessoa numa lista antes da revisão final. Chave `review.round5_importante` (`seguir` padrão, ou `parar`). 642 testes do motor passando. Publicada (marca `v1.4.0` e release com o pacote da skill).
 
-10. Versão 1.5.0: limite de rodadas de correção por tipo de tarefa (`review.task_rounds`, padrão mecânica 2, padrão 3, arriscada 4), sugerido no plano e ajustável por entrega; só a última rodada sobe o nível de IA; `round5_importante` renomeada para `last_round_importante`, com o nome antigo aceito.
+10. Versão 1.5.0: limite de rodadas de correção por tipo de tarefa (`review.task_rounds`, padrão mecânica 2, padrão 3, arriscada 4), sugerido no plano e ajustável por entrega; só a última rodada sobe o nível de IA; `round5_importante` renomeada para `last_round_importante`, com o nome antigo aceito. 644 testes do motor passando. Publicada (marca `v1.5.0` e release com o pacote da skill).
 
 ## Em andamento
 
