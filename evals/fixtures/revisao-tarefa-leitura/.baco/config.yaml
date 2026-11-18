@@ -1,0 +1,14 @@
+language: pt-BR
+tracker: [files]
+tests:
+  unit: "mkdir -p .baco/junit && node --test --test-reporter=junit --test-reporter-destination=.baco/junit/unit.xml"
+  e2e_web: "mkdir -p .baco/junit && node --test --test-reporter=junit --test-reporter-destination=.baco/junit/e2e-web.xml 'tests/e2e/*.test.mjs'"
+tests_quick:
+  e2e_web: "mkdir -p .baco/junit && node --test --test-reporter=junit --test-reporter-destination=.baco/junit/e2e-web.xml 'tests/e2e/*.test.mjs'"
+harnesses:
+  claude-code:
+    models: { forte: opus, medio: sonnet, leve: haiku }
+    implementers: on
+  codex:
+    models: { forte: gpt-5.5, medio: gpt-5.5, leve: gpt-5.5-mini }
+    implementers: off

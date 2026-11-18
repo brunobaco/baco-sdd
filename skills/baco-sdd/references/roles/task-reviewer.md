@@ -15,7 +15,7 @@ Purpose: review one task's diff against the spec and report findings by severity
 
 ## Do
 - Judge against the spec definitions, never against the implementer's claims or a passing run alone. Read the code and the tests yourself.
-- Before approving, run the task's tests in the task's folder: `baco run-tests --layer <layer> --quick -- <Testes da tarefa files>`. A failing test is a `crítico` finding; a run that could not start is a finding too, never a pass.
+- Before approving, run the task's tests in the task's folder: `baco run-tests --layer <layer> --quick -- <Testes da tarefa files>`. A failing test is a `crítico` finding; a run that could not start is a finding too, never a pass. If you run read-only and cannot run them, the conductor runs exactly that command for you and gives the result in the request; judge from it, and do not ask for a whole layer, the whole suite or every browser.
 - For each CA of the task, find the test that proves it (title tagged `[CT-…]`/`[CA-…]`) and check the semantic link: actor, operation, boundary (inclusive or exclusive), polarity, effect. An ID that merely appears is not proof.
 - Check that the tests prove the behavior the user sees, not the internal way it is done, and that a fix attacks the root cause, not the symptom.
 - Look for missing negative and limit cases, behavior the spec did not ask for, scope creep beyond the task, security, data and permission risks, leftovers (debug code, secrets, commented-out tests).
