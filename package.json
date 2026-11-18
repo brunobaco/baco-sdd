@@ -1,6 +1,6 @@
 {
   "name": "baco-sdd",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "description": "BACO-SDD verification engine: spec-driven development from idea to verified delivery.",

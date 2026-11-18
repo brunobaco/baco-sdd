@@ -447,8 +447,9 @@ test('harnesses: an invalid sandbox falls back to protegida (the strictest) with
 
 // review.pr: who reviews the delivery's pull request, and whether findings are fixed on their own.
 test('review.pr: defaults are agente and auto_fix true; valid values load', () => {
-  assert.deepEqual(DEFAULTS.review, { external_rounds_max: 3, round5_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true } });
-  assert.deepEqual(loadConfig(rootWith('review:\n  external_rounds_max: 2\n')).review, { external_rounds_max: 2, round5_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true } });
+  const rest = { task_rounds: { mechanical: 2, standard: 3, risky: 4 }, last_round_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true } };
+  assert.deepEqual(DEFAULTS.review, { external_rounds_max: 3, ...rest });
+  assert.deepEqual(loadConfig(rootWith('review:\n  external_rounds_max: 2\n')).review, { external_rounds_max: 2, ...rest });
   for (const reviewer of ['agente', 'pessoa', 'ambos']) {
     const cfg = loadConfig(rootWith(`review:\n  pr:\n    reviewer: ${reviewer}\n    auto_fix: off\n`));
     assert.deepEqual(cfg.review.pr, { reviewer, auto_fix: false }, reviewer);
@@ -469,17 +470,47 @@ test('review.pr: an invalid reviewer falls back to pessoa (the most human) with 
   for (const lang of ['pt-BR', 'en']) assert.match(t(lang, 'config.pr_reviewer_invalid', { value: 'robo' }), /robo.*pessoa/s);
 });
 
-// review.round5_importante: what happens to a task whose 5th fix round ends with only `importante` open.
-test('review.round5_importante: default seguir; seguir and parar load; anything else falls back to parar with a warning', () => {
+// review.last_round_importante: what happens to a task whose last fix round ends with only `importante` open.
+test('review.last_round_importante: default seguir; seguir and parar load; anything else falls back to parar with a warning', () => {
   for (const value of ['seguir', 'parar']) {
-    const cfg = loadConfig(rootWith(`review:\n  round5_importante: ${value}\n`));
-    assert.equal(cfg.review.round5_importante, value);
+    const cfg = loadConfig(rootWith(`review:\n  last_round_importante: ${value}\n`));
+    assert.equal(cfg.review.last_round_importante, value);
     assert.deepEqual(cfg.warnings, [], value);
   }
-  const bad = loadConfig(rootWith('review:\n  round5_importante: talvez\n'));
-  assert.equal(bad.review.round5_importante, 'parar');
-  assert.deepEqual(bad.warnings, [{ key: 'config.round5_importante_invalid', params: { value: 'talvez' } }]);
-  for (const lang of ['pt-BR', 'en']) assert.match(t(lang, 'config.round5_importante_invalid', { value: 'talvez' }), /talvez.*parar/s);
+  const bad = loadConfig(rootWith('review:\n  last_round_importante: talvez\n'));
+  assert.equal(bad.review.last_round_importante, 'parar');
+  assert.deepEqual(bad.warnings, [{ key: 'config.last_round_importante_invalid', params: { value: 'talvez' } }]);
+  for (const lang of ['pt-BR', 'en']) assert.match(t(lang, 'config.last_round_importante_invalid', { value: 'talvez' }), /talvez.*parar/s);
+});
+
+test('review.round5_importante (1.4.0 name) still works as last_round_importante; the new name wins when both are set', () => {
+  const old = loadConfig(rootWith('review:\n  round5_importante: parar\n'));
+  assert.equal(old.review.last_round_importante, 'parar');
+  assert.equal(old.review.round5_importante, undefined);
+  assert.deepEqual(old.warnings, []);
+  const both = loadConfig(rootWith('review:\n  round5_importante: parar\n  last_round_importante: seguir\n'));
+  assert.equal(both.review.last_round_importante, 'seguir');
+  assert.equal(both.review.round5_importante, undefined);
+  const badOld = loadConfig(rootWith('review:\n  round5_importante: talvez\n'));
+  assert.equal(badOld.review.last_round_importante, 'parar');
+  assert.deepEqual(badOld.warnings, [{ key: 'config.last_round_importante_invalid', params: { value: 'talvez' } }]);
+});
+
+// review.task_rounds: the project's default maximum of fix rounds per task class; the plan may change it per delivery.
+test('review.task_rounds: defaults 2, 3 and 4; a class set alone keeps the others; a bad value keeps that class default with a warning', () => {
+  assert.deepEqual(DEFAULTS.review.task_rounds, { mechanical: 2, standard: 3, risky: 4 });
+  const one = loadConfig(rootWith('review:\n  task_rounds: { risky: 5 }\n'));
+  assert.deepEqual(one.review.task_rounds, { mechanical: 2, standard: 3, risky: 5 });
+  assert.deepEqual(one.warnings, []);
+  const bad = loadConfig(rootWith('review:\n  task_rounds: { mechanical: 0, standard: tres, risky: 4 }\n'));
+  assert.deepEqual(bad.review.task_rounds, { mechanical: 2, standard: 3, risky: 4 });
+  assert.deepEqual(bad.warnings, [
+    { key: 'config.invalid_section', params: { section: 'review.task_rounds.mechanical' } },
+    { key: 'config.invalid_section', params: { section: 'review.task_rounds.standard' } },
+  ]);
+  const scalar = loadConfig(rootWith('review:\n  task_rounds: 3\n'));
+  assert.deepEqual(scalar.review.task_rounds, { mechanical: 2, standard: 3, risky: 4 });
+  assert.deepEqual(scalar.warnings, [{ key: 'config.invalid_section', params: { section: 'review.task_rounds' } }]);
 });
 
 test('the pt-BR template documents harnesses and review.pr and loads without warnings', () => {
@@ -488,7 +519,8 @@ test('the pt-BR template documents harnesses and review.pr and loads without war
   assert.match(text, /^ {2}pr:/m);
   assert.match(text, /reviewer: agente/);
   assert.match(text, /auto_fix: on/);
-  assert.match(text, /round5_importante: seguir/);
+  assert.match(text, /last_round_importante: seguir/);
+  assert.match(text, /task_rounds: \{ mechanical: 2, standard: 3, risky: 4 \}/);
   const cfg = loadConfig(rootWith(text));
   assert.deepEqual(cfg.warnings, []);
   assert.deepEqual(cfg.review.pr, DEFAULTS.review.pr);

@@ -1,5 +1,15 @@
 # Histórico de mudanças
 
+## 1.5.0 (2026-11-18)
+
+O limite de rodadas de correção de cada tarefa deixa de ser 5 fixo. Cinco rodadas custavam caro e demoravam, e as duas últimas, no nível de IA acima, eram as mais caras.
+
+- Configuração: chave nova `review.task_rounds`, com o máximo de rodadas por tipo de tarefa (padrão `mechanical: 2`, `standard: 3`, `risky: 4`). Valor que não é número inteiro positivo volta ao padrão daquele tipo, com aviso.
+- Plano da entrega: a tabela de agentes traz o máximo de cada tipo como sugestão, tirada da configuração, com o motivo quando muda para aquela entrega. A pessoa pode mudar ao aprovar o plano, e a construção segue o número da tabela.
+- Só a última rodada usa o nível de IA acima; as outras usam o nível da tarefa. Antes eram as rodadas 4 e 5.
+- A chave `review.round5_importante` da 1.4.0 passa a se chamar `review.last_round_importante` e vale para a última rodada, qualquer que seja o limite. O nome antigo continua aceito. A pendência aceita assim fica como `aberta (aceita na última rodada)`, e a lista antes da revisão final também lê a marca da 1.4.0.
+- A pergunta 12B da configuração cobre o limite por tipo e o que fazer com "importante" aberto na última rodada.
+
 ## 1.4.0 (2026-11-18)
 
 A gravidade dos achados de revisão passa a considerar a chance de o problema acontecer, e uma tarefa que termina a quinta rodada de correção só com achado "importante" deixa de parar a construção. Num projeto real, três tarefas pararam depois de 5 rodadas só por casos de concorrência que a pessoa comum não provoca, e a decisão foi juntar as três.

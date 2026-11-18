@@ -59,7 +59,7 @@ Tarefa com parada humana leva a palavra `PARADA` ao lado do código na coluna `T
 
 | Papel | O que faz | Nível | Harness | Modelo e esforço | Máximo de rodadas de correção |
 |---|---|---|---|---|---|
-| `<ex.: implementador padrão>` | `<o que faz>` | `<leve, medio ou forte>` | `<ferramenta de IA, de harnesses>` | `<modelo e esforço reais>` | `<número>` |
+| `<ex.: implementador padrão>` | `<o que faz>` | `<leve, medio ou forte>` | `<ferramenta de IA, de harnesses>` | `<modelo e esforço reais>` | `<número, de review.task_rounds (mecânica 2, padrão 3, arriscada 4) ou outro com o motivo; só a última rodada usa um nível acima>` |
 | `<revisor do PR>` | `revisa o PR da entrega, só leitura, sem ver docs/entregas/` | `forte` | `<de preferência outro que não o de quem construiu>` | `<modelo e esforço reais>` | `<review.external_rounds_max>` |
 | `<localizador, se for usado>` | `acha onde está a informação e devolve o trecho literal` | `leve` | `<ferramenta>` | `<modelo e esforço reais>` | `não se aplica` |
 

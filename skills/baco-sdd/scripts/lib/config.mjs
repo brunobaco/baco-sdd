@@ -37,9 +37,13 @@ export const DEFAULTS = {
   },
   // pr.reviewer: who reviews the delivery's pull request (agente, pessoa or ambos: agent first, then
   // the person); pr.auto_fix: whether the findings become fix tasks that run on their own;
-  // round5_importante: a task whose 5th fix round ends with only `importante` open is merged with
-  // the findings as pending items (seguir) or waits for the person (parar).
-  review: { external_rounds_max: 3, round5_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true } },
+  // task_rounds: the project's default maximum of fix rounds of a task, per risk class (the plan of a
+  // delivery may change it); last_round_importante: a task whose last fix round ends with only
+  // `importante` open is merged with the findings as pending items (seguir) or waits for the person (parar).
+  review: {
+    external_rounds_max: 3, task_rounds: { mechanical: 2, standard: 3, risky: 4 },
+    last_round_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true },
+  },
   // AI tools (harnesses) available to the project, by name: `models` maps the BACO levels (forte,
   // medio, leve) to that tool's model names; `implementers` allows it to run implementers when it is
   // not the conductor's own tool (default false: only read-only roles run there); `sandbox` says how
@@ -248,7 +252,7 @@ function normalizeModels(models, warnings) {
 const HARNESS_LEVELS = ['forte', 'medio', 'leve'];
 const HARNESS_SANDBOXES = ['protegida', 'rede', 'livre'];
 const PR_REVIEWERS = ['agente', 'pessoa', 'ambos'];
-const ROUND5_IMPORTANTE = ['seguir', 'parar'];
+const LAST_ROUND_IMPORTANTE = ['seguir', 'parar'];
 
 // `harnesses.<name>`: a map with `models` (level -> non-empty model name), `implementers`
 // (boolean, default false) and `sandbox` (protegida, rede or livre, default rede). An entry that is
@@ -332,13 +336,33 @@ export function githubProject(config) {
 
 // `review.pr`: reviewer agente|pessoa|ambos, auto_fix boolean. A bad reviewer (or a `pr` that is
 // not a map) falls back to `pessoa`, the most human review, with a warning; a bad auto_fix keeps
-// the default. A bad `round5_importante` falls back to `parar`, the choice that waits for the person.
+// the default. `last_round_importante` (1.4.0 name: `round5_importante`, read when the new one is
+// absent) falls back to `parar`, the choice that waits for the person. `task_rounds`: a class whose
+// value is not a positive whole number keeps its default, with a warning.
 function normalizeReview(review, warnings) {
   const out = { ...review };
-  const r5 = review.round5_importante;
-  if (r5 !== undefined && r5 !== null && !ROUND5_IMPORTANTE.includes(r5)) {
-    warnings.push({ key: 'config.round5_importante_invalid', params: { value: String(r5) } });
-    out.round5_importante = 'parar';
+  delete out.round5_importante;
+  const last = review.last_round_importante ?? review.round5_importante;
+  if (last !== undefined && last !== null) {
+    if (LAST_ROUND_IMPORTANTE.includes(last)) out.last_round_importante = last;
+    else {
+      warnings.push({ key: 'config.last_round_importante_invalid', params: { value: String(last) } });
+      out.last_round_importante = 'parar';
+    }
+  }
+  if (review.task_rounds !== undefined && review.task_rounds !== null) {
+    if (!isPlainObject(review.task_rounds)) {
+      delete out.task_rounds;
+      warnings.push({ key: 'config.invalid_section', params: { section: 'review.task_rounds' } });
+    } else {
+      const rounds = { ...review.task_rounds };
+      for (const [cls, n] of Object.entries(rounds)) {
+        if (Number.isInteger(n) && n >= 1) continue;
+        delete rounds[cls];
+        warnings.push({ key: 'config.invalid_section', params: { section: `review.task_rounds.${cls}` } });
+      }
+      out.task_rounds = rounds;
+    }
   }
   const pr = review.pr;
   if (pr === undefined || pr === null) return out;
