@@ -6,7 +6,7 @@ O BACO-SDD leva uma necessidade de produto da ideia até a entrega verificada, c
 
 É uma skill no formato aberto Agent Skills, com um motor de verificação em Node, e um plugin do Claude Code que acrescenta comandos, agentes próprios e travas automáticas. A experiência completa é a do plugin no Claude Code; em outras ferramentas (Codex, Antigravity e outras que leiam Agent Skills) roda a skill, com as mesmas fases e o mesmo motor, mas sem as travas do plugin. A seção [Onde funciona](#onde-funciona) mostra recurso por recurso.
 
-Versão 1.2.0 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.2.0), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
+Versão 1.3.0 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.3.0), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
 
 ## A ideia em uma frase
 

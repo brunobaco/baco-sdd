@@ -12,9 +12,11 @@ Atualizado em 2026-11-18.
 
 6. Versão 1.2.0: quadro do GitHub Project acompanhando a entrega como espelho dos arquivos (`github.project` na configuração, comando `baco board`, sincronia na publicação, a cada evento de tarefa e depois da junção na integração; falha no quadro vira pendência). Publicada (marca `v1.2.0` e release com o pacote da skill). Variante com GitHub e quadro no roteiro ponta a ponta, ainda não rodada.
 
+7. Versão 1.3.0: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa (cenário manual pendente, nível de IA por tipo de tarefa, rodadas da revisão externa, pasta de documentos quando já existe outra), e continua opcional. Instruções de relatório JUnit e de `.baco/local.env` em `references/test-commands.md`. 641 testes do motor passando. Publicada (marca `v1.3.0` e release com o pacote da skill).
+
 ## Em andamento
 
-Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. A etapa 3 está pronta na branch `feat/config-explicada`, esperando juntar na `main`, sem versão nova por enquanto: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa, e continua opcional (decisão de 2026-11-18). Falta:
+Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. A etapa 3 saiu na 1.3.0: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa, e continua opcional (decisão de 2026-11-18). Falta:
 
 4. Configuração de um projeto real já em andamento como teste. É o próximo passo, e serve também para conferir as perguntas novas da etapa 3.
 
@@ -36,4 +38,4 @@ Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versã
 
 ## Próximo passo
 
-Juntar a branch `feat/config-explicada` na `main` (com o ok da pessoa) e fazer a etapa 4: configurar um projeto real já em andamento com a fase 0 nova.
+Etapa 4: configurar um projeto real já em andamento com a fase 0 nova.

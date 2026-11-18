@@ -1,6 +1,6 @@
 # Histórico de mudanças
 
-## Não lançado
+## 1.3.0 (2026-11-18)
 
 A configuração passa a explicar o que cada opção muda e a cobrir todos os ajustes que dependem da pessoa. Continua opcional: sem ela, vale o padrão.
 
