@@ -34,6 +34,10 @@ O envio automático da Ratoeira fica desligado para este projeto. O envio ao Git
 - Pacote da skill: `node tools/package.mjs`.
 - Depois de mudar o código do plugin: `claude plugin update baco@baco-sdd` e abrir conversa nova.
 
+## Rodada de teste ponta a ponta
+
+Ao fim de cada rodada (`evals/e2e/roteiro.md`), depois de levar os problemas e os números para o `docs/estado.md` e o CHANGELOG, a pasta do projeto de teste é apagada inteira, com o relatório e os arquivos dela, e a entrada da pasta sai da configuração do Codex (`~/.codex/config.toml`) quando existir. Nenhuma pasta de rodada fica na pasta de trabalho.
+
 ## Convenções
 
 - Arquivos da skill em inglês; tudo o que o agente diz à pessoa em pt-BR simples, sem travessão.

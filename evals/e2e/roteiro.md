@@ -67,4 +67,6 @@ Anote, fora deste repositório (o resultado de uma rodada é registro de trabalh
 
 ## Ao terminar
 
-`claude plugin enable baco@baco-sdd` para religar o plugin do marketplace.
+1. `claude plugin enable baco@baco-sdd` para religar o plugin do marketplace (ou volte o marketplace para o GitHub, se ele foi apontado para a pasta local).
+2. Leve o que a rodada ensinou para o projeto do BACO: cada problema vira correção ou pendência no estado, e os números que importam entram no resumo do estado. O relatório da rodada não fica guardado.
+3. Apague a pasta do projeto de teste inteira, com o relatório, as pastas de tarefa e as dependências instaladas. Se a rodada marcou essa pasta como confiável na configuração do Codex, tire também essa entrada. Nenhuma pasta de rodada fica para a seguinte.
