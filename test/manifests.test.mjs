@@ -39,7 +39,8 @@ test('plugin validates with the Claude Code CLI', { skip: !hasClaude() && 'claud
   // The only accepted warning: the root CLAUDE.md guides the developers of this repo and is
   // deliberately not plugin context. Any other warning or error still fails.
   const out = r.stdout + r.stderr;
-  const warnings = out.split('\n').filter((l) => /^\s*❯ /.test(l));
+  // Newer CLIs (2.1.326) list what the plugin provides after the warnings, with the same marker.
+  const warnings = out.split(/^Provides:/m)[0].split('\n').filter((l) => /^\s*❯ /.test(l));
   const plugin = warnings.filter((l) => !/plugin directory|ICON_MISSING/.test(l));
   assert.deepEqual(plugin.map((l) => l.trim()).filter((l) => !/CLAUDE\.md at the plugin root/.test(l)), [], out);
   assert.match(out, /Found 1 warning/, out);
