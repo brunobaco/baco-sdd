@@ -17,7 +17,7 @@ Purpose: review the whole delivery (plan `Base` to HEAD) before the external rev
 - Check every CA and RF/RN/INV of the plan's cut against the code and a test that really proves it: actor, operation, boundary, polarity, effect. Not against an ID that merely appears.
 - Look for missing negative and limit cases, behavior the spec does not ask for, security, data and permission risks, inconsistency across tasks, and leftovers (debug code, disabled tests, secrets).
 - Check that no tagged test was weakened or removed in the delivery and that the `Foco de revisão` got the most attention.
-- Give each finding a severity and `file:line`, in plain pt-BR.
+- Give each finding a severity by [review-protocol.md](../review-protocol.md), "Severity of code findings" (how likely it is in normal use and what it does), and `file:line`, in plain pt-BR. An atypical case (a race of milliseconds, a rare mix of tabs, a volume nobody reaches, an input the screen already prevents) is never `crítico`, unless the spec asks for that case.
 - Never say a command works or fails (for example whether a clean `npm ci` passes) from reading alone: run it in a scratch copy and cite the output, or list it under `Não verificado:` ([review-protocol.md](../review-protocol.md), "Claims about commands").
 
 ## Don't

@@ -36,8 +36,10 @@ export const DEFAULTS = {
     risky: { level: 'forte', effort: 'medio' },
   },
   // pr.reviewer: who reviews the delivery's pull request (agente, pessoa or ambos: agent first, then
-  // the person); pr.auto_fix: whether the findings become fix tasks that run on their own.
-  review: { external_rounds_max: 3, pr: { reviewer: 'agente', auto_fix: true } },
+  // the person); pr.auto_fix: whether the findings become fix tasks that run on their own;
+  // round5_importante: a task whose 5th fix round ends with only `importante` open is merged with
+  // the findings as pending items (seguir) or waits for the person (parar).
+  review: { external_rounds_max: 3, round5_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true } },
   // AI tools (harnesses) available to the project, by name: `models` maps the BACO levels (forte,
   // medio, leve) to that tool's model names; `implementers` allows it to run implementers when it is
   // not the conductor's own tool (default false: only read-only roles run there); `sandbox` says how
@@ -246,6 +248,7 @@ function normalizeModels(models, warnings) {
 const HARNESS_LEVELS = ['forte', 'medio', 'leve'];
 const HARNESS_SANDBOXES = ['protegida', 'rede', 'livre'];
 const PR_REVIEWERS = ['agente', 'pessoa', 'ambos'];
+const ROUND5_IMPORTANTE = ['seguir', 'parar'];
 
 // `harnesses.<name>`: a map with `models` (level -> non-empty model name), `implementers`
 // (boolean, default false) and `sandbox` (protegida, rede or livre, default rede). An entry that is
@@ -329,9 +332,14 @@ export function githubProject(config) {
 
 // `review.pr`: reviewer agente|pessoa|ambos, auto_fix boolean. A bad reviewer (or a `pr` that is
 // not a map) falls back to `pessoa`, the most human review, with a warning; a bad auto_fix keeps
-// the default.
+// the default. A bad `round5_importante` falls back to `parar`, the choice that waits for the person.
 function normalizeReview(review, warnings) {
   const out = { ...review };
+  const r5 = review.round5_importante;
+  if (r5 !== undefined && r5 !== null && !ROUND5_IMPORTANTE.includes(r5)) {
+    warnings.push({ key: 'config.round5_importante_invalid', params: { value: String(r5) } });
+    out.round5_importante = 'parar';
+  }
   const pr = review.pr;
   if (pr === undefined || pr === null) return out;
   if (!isPlainObject(pr)) {

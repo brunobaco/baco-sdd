@@ -11,9 +11,13 @@ Você é um revisor de código independente. Este pacote tem tudo o que você pr
 
 ## Gravidade dos achados
 
-- `crítico`: viola a especificação, perde dados ou abre uma falha de segurança.
-- `importante`: é um bug ou falta um teste que deveria existir.
-- `sugestão`: qualquer outra melhoria.
+A gravidade depende de duas coisas juntas: a chance de acontecer e o que acontece quando acontece.
+
+- `crítico`: acontece no uso normal, com qualquer pessoa usando a tela do jeito comum, e deixa dado errado gravado, mostra dado restrito a quem não pode ver ou deixa uma permissão valendo sem dever. Também é crítico um critério de aceite que o código não cumpre no uso normal.
+- `importante`: um erro no uso normal com efeito menor (mensagem errada, tela que não atualiza, filtro perdido), um teste que deveria existir e falta ou não prova o que diz, ou um caso atípico que expõe dado ou permissão.
+- `sugestão`: qualquer outra melhoria, inclusive um caso atípico que não expõe dado nem permissão.
+
+Caso atípico é o que depende de algo que a pessoa comum não faz: disputa de milissegundos entre duas requisições, combinação rara de abas ou janelas, volume que ninguém atinge, entrada que a tela já impede. Caso atípico nunca é crítico: no máximo importante quando expõe dado ou permissão, e sugestão nos demais casos. Diga no achado por que o caso é ou não é uso normal. Se a especificação pede exatamente aquele caso (uma regra, um critério ou um cenário de concorrência ou de volume), ele conta como uso normal.
 
 ## Formato obrigatório da resposta
 

@@ -447,8 +447,8 @@ test('harnesses: an invalid sandbox falls back to protegida (the strictest) with
 
 // review.pr: who reviews the delivery's pull request, and whether findings are fixed on their own.
 test('review.pr: defaults are agente and auto_fix true; valid values load', () => {
-  assert.deepEqual(DEFAULTS.review, { external_rounds_max: 3, pr: { reviewer: 'agente', auto_fix: true } });
-  assert.deepEqual(loadConfig(rootWith('review:\n  external_rounds_max: 2\n')).review, { external_rounds_max: 2, pr: { reviewer: 'agente', auto_fix: true } });
+  assert.deepEqual(DEFAULTS.review, { external_rounds_max: 3, round5_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true } });
+  assert.deepEqual(loadConfig(rootWith('review:\n  external_rounds_max: 2\n')).review, { external_rounds_max: 2, round5_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true } });
   for (const reviewer of ['agente', 'pessoa', 'ambos']) {
     const cfg = loadConfig(rootWith(`review:\n  pr:\n    reviewer: ${reviewer}\n    auto_fix: off\n`));
     assert.deepEqual(cfg.review.pr, { reviewer, auto_fix: false }, reviewer);
@@ -469,12 +469,26 @@ test('review.pr: an invalid reviewer falls back to pessoa (the most human) with 
   for (const lang of ['pt-BR', 'en']) assert.match(t(lang, 'config.pr_reviewer_invalid', { value: 'robo' }), /robo.*pessoa/s);
 });
 
+// review.round5_importante: what happens to a task whose 5th fix round ends with only `importante` open.
+test('review.round5_importante: default seguir; seguir and parar load; anything else falls back to parar with a warning', () => {
+  for (const value of ['seguir', 'parar']) {
+    const cfg = loadConfig(rootWith(`review:\n  round5_importante: ${value}\n`));
+    assert.equal(cfg.review.round5_importante, value);
+    assert.deepEqual(cfg.warnings, [], value);
+  }
+  const bad = loadConfig(rootWith('review:\n  round5_importante: talvez\n'));
+  assert.equal(bad.review.round5_importante, 'parar');
+  assert.deepEqual(bad.warnings, [{ key: 'config.round5_importante_invalid', params: { value: 'talvez' } }]);
+  for (const lang of ['pt-BR', 'en']) assert.match(t(lang, 'config.round5_importante_invalid', { value: 'talvez' }), /talvez.*parar/s);
+});
+
 test('the pt-BR template documents harnesses and review.pr and loads without warnings', () => {
   const text = readFileSync(new URL('../skills/baco-sdd/templates/pt-BR/config.yaml', import.meta.url), 'utf8');
   assert.match(text, /^harnesses:/m);
   assert.match(text, /^ {2}pr:/m);
   assert.match(text, /reviewer: agente/);
   assert.match(text, /auto_fix: on/);
+  assert.match(text, /round5_importante: seguir/);
   const cfg = loadConfig(rootWith(text));
   assert.deepEqual(cfg.warnings, []);
   assert.deepEqual(cfg.review.pr, DEFAULTS.review.pr);

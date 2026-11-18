@@ -55,6 +55,16 @@ The severity of a **wrong QA count** depends on the claim attached to it: an iso
 
 Do not treat a future topic explicitly excluded as a V1 defect. Do not promote a technical choice to a human decision when the verifiable behavior is already defined. A finding may be high and have localized reach; severity and reach are different dimensions.
 
+## Severity of code findings
+
+The code reviews (task review in phase 6, final review and PR review in phase 7) grade each finding `crítico`, `importante` or `sugestão` by two things together: how likely it is to happen and what it does when it happens.
+
+- **`crítico`:** it happens in normal use, with any person using the screen the ordinary way, and it leaves wrong data saved, shows restricted data to someone who may not see it, or leaves a permission in force that should not be. A failing test of the task, or a CA that the code does not meet in normal use, is also `crítico`.
+- **`importante`:** a bug in normal use with a smaller effect (a wrong message, a screen that does not refresh, a lost filter), a missing or weak test that should exist (a test that cannot prove what its scenario or rule says), or an atypical case that exposes data or a permission.
+- **`sugestão`:** everything else, including an atypical case that exposes neither data nor a permission.
+
+An **atypical case** is one that needs something the ordinary user does not do: a race of milliseconds between two requests, an unusual combination of tabs or windows, a volume nobody reaches, an input the screen already prevents. An atypical case is never `crítico`: at most `importante` when it exposes data or a permission, otherwise `sugestão`. The finding says why it is or is not normal use. A spec item that asks for that exact case (an INV, an RN, a CA, a QA scenario about concurrency or volume) makes it normal use for that delivery.
+
 ## Handling review findings
 
 These rules apply to every review of the method: spec reviews (phase 2), task and final reviews (phase 6 and 7) and the external review. Other references point here.

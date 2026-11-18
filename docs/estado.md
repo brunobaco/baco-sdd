@@ -16,6 +16,8 @@ Atualizado em 2026-11-18.
 
 8. Versão 1.3.1: com o revisor de tarefa numa ferramenta só leitura, o condutor roda por ele só os testes da tarefa, na forma rápida, uma vez por rodada; nunca a camada inteira nem todos os navegadores. Eval `revisao-tarefa-leitura` passando. Publicada (marca `v1.3.1` e release com o pacote da skill).
 
+9. Versão 1.4.0: gravidade dos achados com a chance de acontecer (caso atípico nunca é "crítico") e rodada 5 só com "importante" aberto juntando a tarefa, com os achados como pendências decididas pela pessoa numa lista antes da revisão final. Chave `review.round5_importante` (`seguir` padrão, ou `parar`).
+
 ## Em andamento
 
 Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. A etapa 3 saiu na 1.3.0: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa, e continua opcional (decisão de 2026-11-18). Falta:

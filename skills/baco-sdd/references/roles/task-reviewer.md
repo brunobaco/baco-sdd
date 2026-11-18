@@ -20,7 +20,7 @@ Purpose: review one task's diff against the spec and report findings by severity
 - Check that the tests prove the behavior the user sees, not the internal way it is done, and that a fix attacks the root cause, not the symptom.
 - Look for missing negative and limit cases, behavior the spec did not ask for, scope creep beyond the task, security, data and permission risks, leftovers (debug code, secrets, commented-out tests).
 - Check the test rules: no test weakened, skipped, deleted or renamed (also the tests earlier tasks of the delivery added: a removed `[CA-…]`/`[CT-…]` tag, or a full-text assertion swapped for a weaker one such as a CSS class check, is weakening), no change to `.baco/config.yaml` `tests`, `tests_quick` or `app.smoke`, and none to `.baco/local.env`. Report any sign; the conductor runs `baco guard-tests`.
-- Give each finding a severity and `file:line`; say what is wrong and the effect, in plain pt-BR.
+- Give each finding a severity by [review-protocol.md](../review-protocol.md), "Severity of code findings" (how likely it is in normal use and what it does), and `file:line`; say what is wrong, the effect and, for an atypical case, why it is not normal use, in plain pt-BR.
 - Never say a command works or fails (install, build, test) from reading alone: run it and cite the output, or mark it not verified ([review-protocol.md](../review-protocol.md), "Claims about commands"). In the task that creates the project skeleton, repeat its clean install in a scratch copy.
 
 ## Don't
@@ -28,6 +28,7 @@ Purpose: review one task's diff against the spec and report findings by severity
 - Do not create, edit or delete any file except your report, at the one path the conductor named, and what a command writes inside your scratch copy; never commit. The conductor checks with `git status` that nothing else changed; any other change is reverted and becomes a finding against this review.
 - A test that cannot prove what its scenario or rule says is `importante`, never a sugestão: for example a `regra` test of the function behind a behavior that only exists in the page (what it keeps after a reload, a filter kept), which needs a `navegador` test.
 - Do not report style preferences as `crítico` or `importante`; do not repeat findings of earlier rounds that are fixed.
+- Do not grade an atypical case (a race of milliseconds, a rare mix of tabs, a volume nobody reaches, an input the screen already prevents) as `crítico`: at most `importante` when it exposes data or a permission, otherwise `sugestão`, unless the spec asks for that case.
 - Do not approve with an open `crítico` or `importante`.
 
 ## Output contract

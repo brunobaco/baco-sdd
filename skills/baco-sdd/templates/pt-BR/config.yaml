@@ -99,6 +99,10 @@ harnesses:
 
 review:
   external_rounds_max: 3  # quantas rodadas de revisão externa antes de pedir decisão a uma pessoa
+  # Tarefa que termina a 5ª rodada de correção só com achados "importante" abertos:
+  # seguir = junta a tarefa, cada achado vira pendência e você decide todos numa lista antes da revisão final;
+  # parar = a tarefa espera você. Achado "crítico" aberto sempre para a tarefa.
+  round5_importante: seguir
   # Revisão do pedido de junção (PR) da entrega, ao fim da construção.
   pr:
     reviewer: agente      # quem revisa: agente (outra IA), pessoa, ou ambos (a IA primeiro, depois a pessoa)

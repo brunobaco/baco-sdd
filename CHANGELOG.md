@@ -1,5 +1,14 @@
 # Histórico de mudanças
 
+## 1.4.0 (2026-11-18)
+
+A gravidade dos achados de revisão passa a considerar a chance de o problema acontecer, e uma tarefa que termina a quinta rodada de correção só com achado "importante" deixa de parar a construção. Num projeto real, três tarefas pararam depois de 5 rodadas só por casos de concorrência que a pessoa comum não provoca, e a decisão foi juntar as três.
+
+- Gravidade (`review-protocol.md`, seção nova "Severity of code findings"): "crítico" é o que acontece no uso normal e deixa dado errado gravado, mostra dado restrito a quem não pode ver ou deixa permissão valendo sem dever. Caso atípico (disputa de milissegundos, combinação rara de abas, volume que ninguém atinge, entrada que a tela já impede) é no máximo "importante" quando expõe dado ou permissão, e "sugestão" nos demais casos, a menos que a spec peça aquele caso. Os papéis de revisão de tarefa, revisão final e revisão do PR e os três modelos de pedido da revisão externa trazem o critério, então o condutor não precisa repeti-lo em cada pedido.
+- Rodada 5 da correção (`implementation.md`, seções 6, 7 e 11): só com "importante" aberto, a tarefa é juntada, cada achado vira uma linha de `## Pendências` com a recomendação do agente e a construção segue. "Crítico" aberto continua parando a tarefa.
+- Antes da revisão final (`review.md`, seção 1): as pendências aceitas na rodada 5 vão à pessoa numa lista só, com a recomendação para cada uma (corrigir agora numa tarefa INT, deixar para outra entrega ou descartar). É a única parada por esses itens.
+- Configuração: chave nova `review.round5_importante` (`seguir`, padrão, ou `parar`, que mantém o comportamento anterior). Valor inválido vira `parar`, com aviso. Pergunta 12B na configuração; projeto já configurado fica com o padrão sem precisar responder nada.
+
 ## 1.3.1 (2026-11-18)
 
 A revisão de cada tarefa volta a rodar só os testes da tarefa quando o revisor não pode rodar teste. Com o revisor de tarefa numa ferramenta em modo só leitura (o Codex com `-s read-only`), o condutor rodava os testes por ele e escolhia as camadas inteiras, com todos os navegadores, a cada rodada de revisão. Num projeto real, isso custava uns 20 minutos por rodada.
