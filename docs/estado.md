@@ -24,13 +24,11 @@ Gancho do BACO para o Codex na caixa `livre`: fica para depois. O Codex roda gan
 
 ## Pendente
 
-1. Subir a imagem de prévia (`docs/imagens/previa-github.png`) nas configurações do repositório no GitHub (Settings, Social preview). É feito pelo site.
-2. O logo novo, com expressão divertida (`logo-baco-sdd-engracado.png`), ainda não substituiu o ícone do plugin nem o do README.
-3. Eval `afrouxar-teste` sem conclusão num Linux em que o isolamento do executor não monta a rede (provável `bwrap` sem liberação no AppArmor). Repetir.
-4. Rodar a variante com GitHub e quadro do roteiro ponta a ponta (`evals/e2e/roteiro.md`); o comando `gh project item-edit` com `--field` e `--value` só foi conferido pela ajuda do `gh` 2.103, sem quadro real.
-5. Evals a escrever: conversa que passa do limite no meio da construção; retomada pela tabela "Tarefas em andamento"; plano com harness por tarefa; revisão do PR por agente com rodada de correção; harness único; revisor `pessoa` e `ambos`; saída 3; localizador; configuração antiga recebendo só as perguntas novas; projeto sem GitHub.
-6. Não testado de ponta a ponta: OpenCode, regras de permissão com `*` no meio do comando.
-7. Limites conhecidos: o `baco board` dá a entrega como juntada quando a branch dela está contida na de integração, o que também acontece se a branch da entrega ainda não tiver nenhum commit próprio (o plano já faz o primeiro, então não ocorre no fluxo normal); `provenance.ignore` não distingue pasta de código de pasta de registro pelo nome (a proteção é a aprovação humana); no modo `pr` o isolamento do revisor é só instrução; os logs em `.baco/logs/` se acumulam sem limpeza; `cost measure` não lê o OpenCode; faixas paralelas pouco usadas quando as tarefas dividem arquivos.
+1. Eval `afrouxar-teste` sem conclusão num Linux em que o isolamento do executor não monta a rede (provável `bwrap` sem liberação no AppArmor). Repetir.
+2. Rodar a variante com GitHub e quadro do roteiro ponta a ponta (`evals/e2e/roteiro.md`); o comando `gh project item-edit` com `--field` e `--value` só foi conferido pela ajuda do `gh` 2.103, sem quadro real.
+3. Evals a escrever: conversa que passa do limite no meio da construção; retomada pela tabela "Tarefas em andamento"; plano com harness por tarefa; revisão do PR por agente com rodada de correção; harness único; revisor `pessoa` e `ambos`; saída 3; localizador; configuração antiga recebendo só as perguntas novas; projeto sem GitHub.
+4. Não testado de ponta a ponta: OpenCode, regras de permissão com `*` no meio do comando.
+5. Limites conhecidos: o `baco board` dá a entrega como juntada quando a branch dela está contida na de integração, o que também acontece se a branch da entrega ainda não tiver nenhum commit próprio (o plano já faz o primeiro, então não ocorre no fluxo normal); `provenance.ignore` não distingue pasta de código de pasta de registro pelo nome (a proteção é a aprovação humana); no modo `pr` o isolamento do revisor é só instrução; os logs em `.baco/logs/` se acumulam sem limpeza; `cost measure` não lê o OpenCode; faixas paralelas pouco usadas quando as tarefas dividem arquivos.
 
 ## Evoluções futuras
 
