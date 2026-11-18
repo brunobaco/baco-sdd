@@ -1,5 +1,5 @@
 ---
-description: Configura o BACO neste projeto: idioma, paradas para aprovação, testes e modelos.
+description: Configura o BACO neste projeto, explicando cada opção: idioma, branches, paradas para aprovação, testes, ferramentas e modelos de IA, revisão.
 argument-hint: "[o que você quer ajustar]"
 disable-model-invocation: true
 ---

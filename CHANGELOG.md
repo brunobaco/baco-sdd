@@ -1,5 +1,15 @@
 # Histórico de mudanças
 
+## Não lançado
+
+A configuração passa a explicar o que cada opção muda e a cobrir todos os ajustes que dependem da pessoa. Continua opcional: sem ela, vale o padrão.
+
+- Cada pergunta da fase 0 diz, em uma frase por alternativa, o que ela muda no trabalho e o que custa (tempo, gasto, interrupções, risco).
+- Perguntas novas: o que fazer com cenário manual pendente na hora de juntar (`manual_pending`, travar ou avisar na principal e nas outras branches), o nível de IA e o esforço por tipo de tarefa (`models`, em níveis, com os modelos reais do ambiente só como exemplo) e o limite de rodadas da revisão externa (`review.external_rounds_max`). A pasta de documentos (`docs_root`) vira pergunta só quando o projeto já tem documentos fora de `docs/`.
+- As instruções sobre o relatório JUnit de cada comando de teste e sobre o `.baco/local.env` saem do `configure.md` para a referência própria `test-commands.md`, usada também na arquitetura e na construção.
+- Teste da validação do plugin: lê só o bloco de avisos, porque o Claude Code 2.1.326 passou a listar o que o plugin oferece com o mesmo marcador.
+- "O resto pode ser o padrão" encerra as perguntas e mantém o padrão no que faltava. Os ajustes técnicos (padrões de arquivo de teste, pasta do JUnit, fila dos testes de navegador, arquivos ignorados na conferência de origem) continuam preenchidos pelo agente a partir do que ele detecta.
+
 ## 1.2.0 (2026-11-16)
 
 O quadro de um GitHub Project passa a acompanhar a entrega. Antes, a publicação criava as issues e o quadro ficava parado em Backlog a entrega inteira, mesmo com tarefas já juntadas. Agora cada card muda de coluna quando a tarefa é publicada, começa, vai para revisão e é juntada, sempre como espelho dos arquivos da entrega, que continuam valendo.

@@ -680,7 +680,7 @@ test('review fixes: resume guards, execution rules, waiver entry, tests-settings
   for (const p of ['**Dono da execução:**', 'mais de 6 horas']) assert.ok(prog.includes(p), `progresso.md: "${p}" missing`);
   const conf = ref('configure.md');
   for (const p of ['git worktree add', 'git worktree list', '`permissions.ask`','git checkout <m>*', 'git push *:<i>*', 'Bash(node *baco.mjs waive-review*)', 'Bash(node *baco.mjs import-verdict*)', 'Bash(node *baco.mjs import-pr-verdict ENT-*)', 'Bash(opencode run*)', 'Bash(codex exec *--dangerously-bypass-approvals-and-sandbox*)', 'Bash(codex exec *sandbox_mode*)', 'Bash(codex exec *--approve-for-me*)', 'Bash(codex exec *--ignore-rules*)', 'Bash(codex exec *--dangerously-bypass-hook-trust*)', 'Bash(codex exec *workspace-write*)', 'Bash(gh pr merge*)', 'Bash(gh pr create --draft --base * --head baco/*)', 'Bash(codex exec * -s read-only *)', 'deny, then ask, then allow', '<projeto>-revisao-ENT-NNN-rNN', 'a cópia para o revisor, ao lado do projeto', 'onde fica o que já foi aprovado']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
-  assert.ok(conf.includes('\n\n### Machine settings: `.baco/local.env`'), 'configure.md: heading on its own line');
+  assert.ok(ref('test-commands.md').includes('\n\n## Machine settings: `.baco/local.env`'), 'test-commands.md: heading on its own line');
   const waiver = 'a current waiver recorded by the human (`baco waive-review`)';
   assert.ok(read(join(SKILL_ROOT, 'SKILL.md')).includes(waiver), 'SKILL.md: row 8 accepts the waiver');
   assert.ok(ref('delivery.md').includes('a current waiver recorded by the human exists (`baco waive-review`'), 'delivery.md: entry accepts the waiver');

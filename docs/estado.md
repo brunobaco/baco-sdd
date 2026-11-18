@@ -1,6 +1,6 @@
 # Estado do trabalho
 
-Atualizado em 2026-11-16.
+Atualizado em 2026-11-18.
 
 ## Pronto
 
@@ -14,10 +14,9 @@ Atualizado em 2026-11-16.
 
 ## Em andamento
 
-Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. Faltam:
+Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. A etapa 3 está pronta na branch `feat/config-explicada`, esperando juntar na `main`, sem versão nova por enquanto: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa, e continua opcional (decisão de 2026-11-18). Falta:
 
-3. Configuração completa e obrigatória no início do projeto, passando por todos os parâmetros e explicando cada opção. É o próximo passo.
-4. Configuração de um projeto real já em andamento como teste.
+4. Configuração de um projeto real já em andamento como teste. É o próximo passo, e serve também para conferir as perguntas novas da etapa 3.
 
 Gancho do BACO para o Codex na caixa `livre`: fica para depois. O Codex roda gancho antes de cada comando (`PreToolUse`, mesmo formato do Claude Code), mas gancho de projeto só roda aprovado pela pessoa ou com `--dangerously-bypass-hook-trust`, e o comando do gancho precisaria de um caminho que sirva em qualquer máquina.
 
@@ -37,4 +36,4 @@ Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versã
 
 ## Próximo passo
 
-Etapa 3 da liberdade das ferramentas: configuração completa e obrigatória no início do projeto.
+Juntar a branch `feat/config-explicada` na `main` (com o ok da pessoa) e fazer a etapa 4: configurar um projeto real já em andamento com a fase 0 nova.

@@ -8,7 +8,7 @@ Without `.baco/config.yaml` the engine uses its defaults (pt-BR, `docs/`, tracke
 
 So: offer phase 0 once, at the start of the first phase you run in a project without config, in these words:
 
-> Antes de começar: posso fazer umas 7 perguntas rápidas para ajustar o método ao seu projeto (idioma, onde registrar as tarefas, branches ou linhas de trabalho do código, paradas e testes). Se preferir, uso os valores padrão e você ajusta depois. O que prefere?
+> Antes de começar: posso fazer algumas perguntas para ajustar o método ao seu projeto (idioma, onde registrar as tarefas, branches ou linhas de trabalho do código, paradas, testes, ferramentas e modelos de IA, revisão). Em cada uma eu explico o que cada opção muda e digo o padrão, então "pode ser o padrão" sempre vale como resposta. Se preferir, uso os valores padrão em tudo e você ajusta depois. O que prefere?
 
 If the user declines or ignores it, proceed on defaults and never block, delay or re-ask in that session. If `.baco/config.yaml` already exists, read it, summarize it in plain words, and ask only what the user wants to change; never overwrite it wholesale.
 
@@ -27,6 +27,9 @@ When `review.pr` is missing, also say once, as a statement, whether they answere
 ## How to ask
 
 - One question at a time; wait for the answer. Offer the default so "pode ser o padrão" is a valid answer.
+- Explain every option before asking: for each alternative, one plain sentence on what it changes in the work and what it costs (time, money, interruptions, risk). The wordings below already do it; keep that when you adapt them to what you detected. Never offer an option without saying what it does.
+- Ask every question below whose condition holds, including the ones about models (11), review rounds (12) and pending manual scenarios (6B). The configuration is still optional (see "Missing config"); once the person accepts it, cover all of it, unless they say "o resto pode ser o padrão", which keeps the defaults for everything not yet asked.
+- Technical keys are not questions: `tests.patterns`, `tests.junit_dir`, `tests.queue` and `provenance.ignore` are set by you from what you detect, as the sections below say, and named in the final summary only when they differ from the default.
 - Use the pt-BR wording below as written. Fill brackets from what you detected (git branches, existing `docs/`, `package.json` scripts, CI files). Never invent facts about the project; if you did not detect something, say so.
 - Do not explain config keys to the user; map the answers yourself.
 
@@ -34,13 +37,21 @@ When `review.pr` is missing, also say once, as a statement, whether they answere
 
 **1. Language** (`language`; accepted `pt-BR` or `en`)
 
-> Em que idioma você quer os documentos e as mensagens? O padrão é português do Brasil.
+> Em que idioma você quer os documentos e as mensagens? (a) português do Brasil: os modelos de documento e as mensagens do método já vêm nele; (b) inglês: as mensagens do método passam a sair em inglês, mas os modelos de documento só existem em português, então os documentos novos começam com títulos em português. O padrão é português do Brasil.
 
-`en` makes the engine's messages English. The document templates shipped with the skill are pt-BR only; tell the user so if they choose English.
+`en` makes the engine's messages English. The document templates shipped with the skill are pt-BR only.
+
+**1B. Documents folder** (`docs_root`; only when the project's documents already live outside `docs/`)
+
+Ask only when you detected a documents folder other than `docs/` (for example `documentacao/` or `doc/`); otherwise keep the default and do not ask.
+
+> Os documentos deste projeto ficam em [pasta detectada], e o método usa `docs/` por padrão. (a) uso [pasta detectada]: specs, plano e entregas ficam junto do que já existe; (b) uso `docs/`: os documentos do método ficam separados dos que vocês já têm. O padrão é `docs/`.
+
+(a) -> `docs_root: <folder>`; (b) -> no key.
 
 **2. Tracker** (`tracker`: a list of `files`, `github`)
 
-> Onde você quer registrar as tarefas? (a) só em arquivos dentro do projeto, na pasta de documentos; (b) em arquivos e também no GitHub, como itens de acompanhamento (issues). O padrão é só arquivos.
+> Onde você quer registrar as tarefas? (a) só em arquivos dentro do projeto, na pasta de documentos: ficam versionadas junto com o código e não dependem de nenhum serviço de fora; (b) em arquivos e também no GitHub, como itens de acompanhamento (issues): o time acompanha e comenta pelo GitHub, cada tarefa ganha um link, e precisa do login do GitHub nesta máquina com permissão de criar issues. Nas duas, os arquivos continuam valendo como registro oficial. O padrão é só arquivos.
 
 (a) -> `[files]`; (b) -> `[files, github]`. Do not test the permission to create issues here; phase 5 checks it when it publishes.
 
@@ -76,25 +87,31 @@ github:
 
 **3. Branch roles** (`branches.main`, `branches.integration`)
 
-> Detectei estas branches (linhas de trabalho do código) no projeto: [lista]. Qual é a principal, onde só entra o que foi aprovado? [padrão: main] E qual é a de integração, onde as entregas se juntam antes da principal? [padrão: develop]
+> Detectei estas branches (linhas de trabalho do código) no projeto: [lista]. O método usa duas com papéis fixos. A principal é a que vale: só entra nela o que você aprovou, sempre com a sua confirmação. A de integração é onde cada entrega se junta primeiro, depois das revisões; ali dá para testar várias entregas juntas antes de levar para a principal. Qual é a principal? [padrão: main] E qual é a de integração? [padrão: develop]
 
-If the project has no integration branch, keep `develop` as the name and say that nothing is created now.
+If the project has no integration branch, keep `develop` as the name and say that nothing is created now; it is created from the main branch when the setup is written ("Write the file", step 0).
 
 **4. Protected branches** (`branches.protected`)
 
-> Quais branches (linhas de trabalho do código) ninguém deve editar direto? [padrão: main, master e develop]. A principal e a de integração ficam protegidas sempre.
+> Quais branches (linhas de trabalho do código) ninguém deve editar direto? Numa branch protegida, eu não mudo arquivo nenhum: toda mudança nasce numa branch da entrega e chega por junção, depois das revisões. Proteger mais branches evita mudança sem revisão; uma branch fora da lista pode ser editada direto. O padrão é main, master e develop. A principal e a de integração ficam protegidas sempre, mesmo fora da lista.
 
 **5. Parallelism** (`parallel`; 0 = one task at a time)
 
-> Quantas tarefas podem andar ao mesmo tempo? Mais tarefas juntas termina mais rápido, mas gasta mais e dá mais conflitos. O padrão é 3; 0 significa uma de cada vez.
+> Quantas tarefas podem andar ao mesmo tempo? Mais tarefas juntas termina mais rápido, mas gasta mais do limite de uso de uma vez e dá mais conflitos quando duas tarefas mexem nos mesmos arquivos. Menos tarefas é mais lento e mais previsível. O padrão é 3; 0 significa uma de cada vez.
 
 **6. Gates to adjust** (`gates`)
 
 Name each adjustable stop in plain words and ask which to change:
 
-> Por padrão, o trabalho para e espera sua aprovação nestes pontos: início do projeto, arquitetura, plano da entrega, lote de tarefas e o pedido de junção (PR) pronto para juntar, depois da revisão. Entre eles, as tarefas rodam sozinhas. Quer mudar algum? Dá também para pedir uma parada depois de cada tarefa. Três paradas nunca desligam: aprovação da spec, ação sem volta (apagar dados, publicar em produção) e junção na branch principal.
+> Por padrão, o trabalho para e espera sua aprovação nestes pontos: (1) início do projeto, em que você confirma a visão e o escopo antes de qualquer spec; (2) arquitetura, em que você aprova as tecnologias e as decisões técnicas propostas; (3) plano da entrega, em que você aprova o que entra, as tarefas e quem faz cada uma; (4) lote de tarefas, em que você confere as tarefas publicadas antes de a construção começar; (5) pedido de junção (PR) pronto para juntar, em que você vê a entrega já revisada. Entre essas paradas, as tarefas rodam sozinhas. Desligar uma parada deixa o trabalho andar sem esperar você, mas aquele ponto passa sem o seu olhar. Dá também para ligar uma parada depois de cada tarefa: você acompanha tudo de perto, e a construção fica bem mais lenta, porque cada tarefa espera você. Três paradas nunca desligam: aprovação da spec, ação sem volta (apagar dados, publicar em produção) e junção na branch principal. Quer mudar alguma?
 
-Map: início do projeto `project_start`; arquitetura `architecture`; plano `plan`; lote `task_batch`; depois de cada tarefa `each_task`; pedido de junção `before_pr`. Write `on` or `off`. If the user asks to turn off a never-off gate, refuse as in `gates.md` and leave it out of the file or `on`. Ask also, only if the user brings it up, how pending manual scenarios are treated (`manual_pending`: `block` or `warn`; role keys `main` and `integration`, a literal branch name wins, `"*"` is the fallback).
+Map: início do projeto `project_start`; arquitetura `architecture`; plano `plan`; lote `task_batch`; depois de cada tarefa `each_task`; pedido de junção `before_pr`. Write `on` or `off`. If the user asks to turn off a never-off gate, refuse as in `gates.md` and leave it out of the file or `on`.
+
+**6B. Pending manual scenarios** (`manual_pending`: `block` or `warn` per target branch; role keys `main` and `integration`, a literal branch name wins, `"*"` is the fallback)
+
+> Alguns cenários de teste só uma pessoa consegue executar, como conferir um e-mail que chegou ou testar no celular. Se um deles ainda não foi feito quando a entrega vai ser juntada, o que eu faço? Para cada lugar, há duas opções: (a) travar: a junção espera até alguém executar e registrar o resultado, o que é mais seguro e pode segurar a entrega; (b) avisar: eu mostro o que falta e deixo juntar, o que é mais rápido e deixa o teste para depois. O padrão é travar na branch principal e só avisar nas outras, inclusive na de integração. Quer mudar?
+
+Ask first about the main branch, then about the others. Main -> `main`; others -> `"*"`. Write `integration` only when the person wants the integration branch different from the rest. Never edit this key later to make a merge pass ([gates.md](gates.md)).
 
 **7. Test commands per layer** (`tests.<layer>`, for example `unit`, `e2e_web`; quick version in `tests_quick.<layer>`)
 
@@ -112,7 +129,7 @@ Every command of the project must run without asking anything: a command that wa
 
 **7B. Start the app** (`app.smoke`)
 
-> Existe um comando que sobe o sistema do jeito que o usuário usa, confere que ele responde e termina? Se não existir, deixo marcado para a fase de arquitetura criar.
+> Existe um comando que sobe o sistema do jeito que o usuário usa, confere que ele responde e termina? Ele é a prova de que o sistema liga de verdade, não só de que os testes passam. Se não existir, deixo marcado para a fase de arquitetura criar.
 
 `app.smoke` is a command that starts the app as the user does, checks it answers, and exits 0, with no interactive prompt. If the project has no app yet, or no such command, write nothing under `app` and note in the summary that phase 3 creates it. Run it with `baco run-tests --smoke` to check it, with the user's consent.
 
@@ -182,43 +199,35 @@ When the user later says they added a subscription, come back to this question f
 
 Ask the two questions one at a time:
 
-> No fim de cada entrega, o pedido de junção (PR) passa por uma revisão de fora, além das revisões internas. Quem faz essa revisão: (a) outra IA, de preferência uma ferramenta diferente da que construiu, sem você precisar fazer nada; (b) uma pessoa do time; (c) as duas, primeiro a IA e depois a pessoa. O padrão é a IA.
+> No fim de cada entrega, o pedido de junção (PR) passa por uma revisão de fora, além das revisões internas. Quem faz essa revisão: (a) outra IA, de preferência uma ferramenta diferente da que construiu: a revisão acontece na hora, sem você precisar fazer nada; (b) uma pessoa do time: traz o olhar de quem conhece o negócio, e a entrega espera essa pessoa revisar; (c) as duas, primeiro a IA e depois a pessoa: a pessoa recebe a entrega já com os problemas óbvios corrigidos, e é o caminho mais lento. O padrão é a IA.
 
-> Quando a revisão apontar problemas, posso corrigir sozinho, no mesmo pedido de junção, e pedir para o mesmo revisor conferir só as correções, até ele aprovar ou chegar ao limite de rodadas? O padrão é sim.
+> Quando a revisão apontar problemas, posso corrigir sozinho, no mesmo pedido de junção, e pedir para o mesmo revisor conferir só as correções, até ele aprovar ou chegar ao limite de rodadas? Com sim, a entrega anda sem esperar você. Com não, cada rodada de problemas espera você ler e decidir o que corrigir. O padrão é sim.
 
 (a) -> `agente`; (b) -> `pessoa`; (c) -> `ambos`. Yes to the second -> `auto_fix: on`; no -> `off` (then each round of findings waits for the person before fixing). Then say once, as a statement, what the PR review changes in the run:
 
 > Para essa revisão, durante a construção eu envio a linha de trabalho da entrega para o GitHub e abro o pedido de junção (PR) como rascunho, sem perguntar. Um rascunho não pede para juntar nada. A parada "pedido de junção" passa a valer para o momento de marcar esse rascunho como pronto para juntar, e juntar a entrega na linha principal continua esperando você, sempre.
 
-### Known gap: each command must write its own JUnit file
+**11. AI level per task type** (`models.mechanical`, `models.standard`, `models.risky`; each a `level` `forte`, `medio` or `leve` and an `effort` `alto`, `medio` or `baixo`)
 
-The engine reads every `*.xml` in `tests.junit_dir` (default `.baco/junit`). It does not turn the command's output into a report (`baco run-tests` only saves that output to `.baco/logs/` for reading). So each test command must itself write its JUnit XML into `.baco/junit/`, for example with an output-file flag or variable. A bare `--reporter=junit` often prints to the terminal and writes nothing.
+> Na construção, cada tarefa recebe um tipo conforme o risco, e cada tipo usa um nível de IA e um esforço (quanto a IA pensa antes de agir). O padrão é: tarefa mecânica (troca simples, sem decisão) com o modelo mais leve e esforço baixo, o mais rápido e barato; tarefa padrão (o trabalho comum) com o intermediário e esforço médio; tarefa arriscada (dados, login, dinheiro ou algo difícil de desfazer) com o mais capaz e esforço médio. Subir o nível ou o esforço deixa a tarefa mais cuidadosa, mais cara e mais lenta; descer faz o contrário e aumenta a chance de a revisão pedir correção. Neste ambiente, os níveis são: [forte = modelo, médio = modelo, leve = modelo, de `harnesses` da ferramenta em que você está]. O plano de cada entrega mostra o modelo de cada tarefa para você aprovar. Quer mudar algum?
 
-Examples (verify against the project's tool and version before using):
-- Vitest: `npx vitest run --reporter=junit --outputFile=.baco/junit/unit.xml`
-- Node test runner: `node --test --test-reporter=junit --test-reporter-destination=.baco/junit/unit.xml`
-- Playwright: `PLAYWRIGHT_JUNIT_OUTPUT_FILE=.baco/junit/e2e.xml npx playwright test --reporter=junit`
-- Jest (with `jest-junit`): `JEST_JUNIT_OUTPUT_DIR=.baco/junit npx jest --reporters=jest-junit`
+Talk in levels and efforts, never ask the person to pick a model name; name the real models only to make the levels concrete ([ambientes.md](ambientes.md)). Write only the classes the person changed; keep the others as in the template.
 
-Verify, do not assume: with the user's consent, run each command once and check that a new `.xml` appeared under `.baco/junit/` and that it lists the tests. If it did not, fix the command (flag or variable) and run again. In a project with no code yet the command cannot run; it stays unverified until the plan's skeleton task proves it with a clean install ([planning.md](planning.md), section 4, "Skeleton task"). If the user declines to run it, write the command and tell them it is unverified:
+**12. External review rounds** (`review.external_rounds_max`, default 3)
 
-> Ainda não conferi se esse comando gera o relatório de testes na pasta certa. Sem isso, a conferência dos critérios de aceite não enxerga os testes. Posso rodar uma vez para checar?
+> Quando a revisão de fora acha problemas e eles são corrigidos, o revisor confere de novo; cada conferência é uma rodada. Quantas rodadas posso fazer antes de parar e pedir a sua decisão? Mais rodadas deixam a entrega se resolver sozinha por mais tempo, gastando mais a cada volta; menos rodadas te chamam mais cedo, quando a revisão e a correção não convergem. O padrão é 3.
 
-Test titles must carry the criterion ID (`[CA-…]` or `[CT-…]`); that matters in phase 6, not here.
+A positive whole number -> `review.external_rounds_max`. Every verdict counts as a round, from an agent or a person ([review.md](review.md), section 4).
 
-### Machine settings: `.baco/local.env`
-
-Things that differ per machine (for example `PLAYWRIGHT_BROWSERS_PATH`, a local database URL for tests) go in `.baco/local.env`, one `KEY=VALUE` per line. `baco run-tests` loads it before each command. It is never versioned: add `.baco/local.env` to `.gitignore` and create the file only when there is something to put in it. If a test command only works with a path or variable specific to this machine, put it here, not in the command.
-
-Do not change `tests.patterns` unless the project's tests live outside the defaults (`*.test.*`, `*.spec.*`, `e2e/`, `.maestro/`).
+Each command must write its own JUnit report, and machine-specific paths and variables go in `.baco/local.env`: follow [test-commands.md](test-commands.md) when you confirm the commands. Do not change `tests.patterns` unless the project's tests live outside the defaults (`*.test.*`, `*.spec.*`, `e2e/`, `.maestro/`).
 
 ## Write the file
 
 0. **Branches first.** Before writing any file (`.baco/config.yaml`, `.gitignore`, `.claude/settings.local.json`), the repository must be past the startup check on git (SKILL.md, "Startup checks", step 1): the initial commit exists on the main branch and the integration branch (`branches.integration`) exists. In a brand-new project, with the user's consent, make the initial commit and create the integration branch from it first. Then write the setup on a short-lived branch cut from the integration branch, `git switch -c baco/configuracao <integration>`: the main and the integration branches are both protected, and once `.baco/config.yaml` exists the branch guard blocks every write on them outside `.baco/` (`.gitignore`, `.claude/settings.local.json`). The same holds for a later change of the setup: cut `baco/configuracao` again.
 
 1. Start from [config.yaml](../templates/pt-BR/config.yaml) (the pt-BR template, with its comments).
-2. Change only the values the user answered; keep untouched keys at the template value (the user may delete any key to get the default). Keep `models` and `review.external_rounds_max` as in the template unless asked; write `harnesses` and `review.pr` from questions 9 and 10 (delete the template's example harness lines the project does not use). `models` holds levels, not model names: `forte`, `medio` or `leve`, each with an effort `alto`, `medio` or `baixo`; the real model comes from the environment in use (see [ambientes.md](ambientes.md)). If the user asks to change it, talk in levels and say what each costs and gives in plain words; never ask them to pick a model name.
-3. Add `docs_root: <folder>` only when the project's documents live somewhere other than `docs/`.
+2. Change only the values the user answered; keep untouched keys at the template value (the user may delete any key to get the default). Write `manual_pending` from question 6B, `harnesses` and `review.pr` from questions 9 and 10 (delete the template's example harness lines the project does not use), `models` from question 11 and `review.external_rounds_max` from question 12. `models` holds levels, not model names: `forte`, `medio` or `leve`, each with an effort `alto`, `medio` or `baixo`; the real model comes from the environment in use (see [ambientes.md](ambientes.md)).
+3. Add `docs_root: <folder>` only when the person chose it in question 1B.
 4. Use spaces only (no tabs), `on`/`off` for gates, comments with `#`. Replace the template's example test commands with the confirmed ones; delete example layers the project lacks.
 5. Add `.baco/junit/`, `.baco/logs/` and `.baco/local.env` to `.gitignore` (create the file if needed): test reports and the full test output that `baco run-tests` writes to `.baco/logs/` are regenerated by every run, and machine settings are never committed.
 6. Save as `.baco/config.yaml`, creating `.baco/` if needed, on `baco/configuracao` from step 0.
