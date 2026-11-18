@@ -1,5 +1,13 @@
 # Histórico de mudanças
 
+## 1.3.1 (2026-11-18)
+
+A revisão de cada tarefa volta a rodar só os testes da tarefa quando o revisor não pode rodar teste. Com o revisor de tarefa numa ferramenta em modo só leitura (o Codex com `-s read-only`), o condutor rodava os testes por ele e escolhia as camadas inteiras, com todos os navegadores, a cada rodada de revisão. Num projeto real, isso custava uns 20 minutos por rodada.
+
+- Construção: nesse caso, o condutor roda por ele exatamente `baco run-tests --layer <camada> --quick -- <Testes da tarefa>`, na pasta da tarefa e no último commit dela. Roda uma vez por rodada, sem repetir o que já rodou no mesmo commit, e o pedido de revisão traz o comando, o código de saída e as contagens. A bateria completa continua rodando uma vez quando todas as tarefas estão juntadas e antes de cada rodada da revisão externa.
+- Papel do revisor de tarefa: quando roda só leitura, ele julga pelo resultado que o condutor deu e não pede camada inteira, bateria completa nem todos os navegadores.
+- Eval novo `revisao-tarefa-leitura`: revisor de tarefa no Codex só leitura; confere que nenhum comando roda a bateria completa ou uma camada inteira e que o pedido traz o resultado dos testes da tarefa.
+
 ## 1.3.0 (2026-11-18)
 
 A configuração passa a explicar o que cada opção muda e a cobrir todos os ajustes que dependem da pessoa. Continua opcional: sem ela, vale o padrão.

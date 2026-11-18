@@ -14,6 +14,8 @@ Atualizado em 2026-11-18.
 
 7. Versão 1.3.0: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa (cenário manual pendente, nível de IA por tipo de tarefa, rodadas da revisão externa, pasta de documentos quando já existe outra), e continua opcional. Instruções de relatório JUnit e de `.baco/local.env` em `references/test-commands.md`. 641 testes do motor passando. Publicada (marca `v1.3.0` e release com o pacote da skill).
 
+8. Versão 1.3.1: com o revisor de tarefa numa ferramenta só leitura, o condutor roda por ele só os testes da tarefa, na forma rápida, uma vez por rodada; nunca a camada inteira nem todos os navegadores. Eval `revisao-tarefa-leitura` passando. Publicada (marca `v1.3.1` e release com o pacote da skill).
+
 ## Em andamento
 
 Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. A etapa 3 saiu na 1.3.0: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa, e continua opcional (decisão de 2026-11-18). Falta:
