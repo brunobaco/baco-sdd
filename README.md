@@ -6,7 +6,7 @@ O BACO-SDD leva uma necessidade de produto da ideia até a entrega verificada, c
 
 É uma skill no formato aberto Agent Skills, com um motor de verificação em Node, e um plugin do Claude Code que acrescenta comandos, agentes próprios e travas automáticas. A experiência completa é a do plugin no Claude Code; em outras ferramentas (Codex, Antigravity e outras que leiam Agent Skills) roda a skill, com as mesmas fases e o mesmo motor, mas sem as travas do plugin. A seção [Onde funciona](#onde-funciona) mostra recurso por recurso.
 
-Versão 1.5.0 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.5.0), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
+Versão 1.6.0 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.6.0), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
 
 ## A ideia em uma frase
 
@@ -66,7 +66,7 @@ Opcionais:
 
 Depois do plano aprovado, o `/baco:executar` trabalha sem parar até a entrega ficar pronta para você testar (revisada, corrigida e com o relatório de aceite), a não ser que a revisão do PR espere por uma pessoa. Nesse caminho ele:
 
-1. constrói e testa cada tarefa, com revisão por outro agente e um limite de rodadas de correção por tipo de tarefa (padrão 2, 3 e 4, ajustável no plano de cada entrega);
+1. constrói e testa cada tarefa, com revisão por outro agente, correção só do que quebra o que a tarefa promete e um limite de revisões por tipo de tarefa (padrão 2, 3 e 4, ajustável no plano de cada entrega);
 2. roda tarefas independentes ao mesmo tempo;
 3. confere se o app sobe como o usuário faz antes de juntar cada tarefa de tela ou servidor;
 4. decide dúvidas pequenas e reversíveis pela recomendação dele e registra "decidido pelo agente, conferir no fim";

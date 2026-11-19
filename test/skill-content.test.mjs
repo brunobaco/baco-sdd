@@ -610,9 +610,15 @@ test('resume without a BACO routine: no file of the plugin or the skill mentions
 test('Retomada carries the addresses of the tasks in progress, and git wins', () => {
   const prog = read(join(TEMPLATES, 'progresso.md'));
   assert.ok(prog.includes('### Tarefas em andamento'), 'progresso.md: table heading');
-  assert.ok(prog.includes('| Tarefa | Ramo | Pasta de trabalho | Relatório | Último commit | Etapa e rodada |'), 'progresso.md: table columns');
-  assert.ok(prog.indexOf('### Tarefas em andamento') < prog.indexOf('## Registro das tarefas'), 'progresso.md: table inside Retomada');
+  assert.ok(prog.includes('| Tarefa | Ramo | Pasta de trabalho | Relatório | Último commit | Etapa | Revisões |'), 'progresso.md: table columns');
+  // 1.6.0: the review rules that keep fix rounds short live in the method, not in each request.
+  const proto = ref('review-protocol.md');
+  for (const p of ['## Promise and class of a code finding', '`Promessa: fora`', 'aberta (fora da promessa)']) assert.ok(proto.includes(p), `review-protocol.md: "${p}" missing`);
   const impl = ref('implementation.md');
+  for (const p of ['**The limit counts reviews.**', '`revisão N de M`', '**Recurring class.**', 'only what the fix changed']) assert.ok(impl.includes(p), `implementation.md: "${p}" missing`);
+  const tr = ref('roles/task-reviewer.md');
+  for (const p of ['From the second review on, the review is of the fix only', 'Promessa: <ID ou fora>. Classe: <classe>.', '`Achados anteriores`']) assert.ok(tr.includes(p), `task-reviewer.md: "${p}" missing`);
+  assert.ok(prog.indexOf('### Tarefas em andamento') < prog.indexOf('## Registro das tarefas'), 'progresso.md: table inside Retomada');
   for (const p of ['`Tarefas em andamento`', 'git wins and you correct the table', 'add the task\'s row to `Tarefas em andamento`']) assert.ok(impl.includes(p), `implementation.md: "${p}" missing`);
 });
 

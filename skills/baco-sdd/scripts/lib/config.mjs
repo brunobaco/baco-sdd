@@ -37,8 +37,8 @@ export const DEFAULTS = {
   },
   // pr.reviewer: who reviews the delivery's pull request (agente, pessoa or ambos: agent first, then
   // the person); pr.auto_fix: whether the findings become fix tasks that run on their own;
-  // task_rounds: the project's default maximum of fix rounds of a task, per risk class (the plan of a
-  // delivery may change it); last_round_importante: a task whose last fix round ends with only
+  // task_rounds: the project's default maximum of reviews of a task, counting the first, per risk
+  // class (the plan of a delivery may change it); last_round_importante: a task whose last review has only
   // `importante` open is merged with the findings as pending items (seguir) or waits for the person (parar).
   review: {
     external_rounds_max: 3, task_rounds: { mechanical: 2, standard: 3, risky: 4 },

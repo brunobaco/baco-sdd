@@ -65,6 +65,14 @@ The code reviews (task review in phase 6, final review and PR review in phase 7)
 
 An **atypical case** is one that needs something the ordinary user does not do: a race of milliseconds between two requests, an unusual combination of tabs or windows, a volume nobody reaches, an input the screen already prevents. An atypical case is never `crítico`: at most `importante` when it exposes data or a permission, otherwise `sugestão`. The finding says why it is or is not normal use. A spec item that asks for that exact case (an INV, an RN, a CA, a QA scenario about concurrency or volume) makes it normal use for that delivery.
 
+## Promise and class of a code finding
+
+The **promise** of a task is what it is written to deliver: its CAs, the RF, RN and INV they cover, the QA scenarios of those CAs and the plan's `Restrições globais`. The promise of the whole delivery (final review) is the plan's cut plus the same restrictions. Every task and final review finding names the promise it breaks (`Promessa: CA-064`, `Promessa: RN-017`, `Promessa: Restrições globais`) or says `Promessa: fora`.
+
+Only a finding that breaks a promise in normal use opens a fix round: every `crítico`, and an `importante` that names a promise. Everything else (an `importante` with `Promessa: fora`, an atypical case, robustness nobody asked for, every `sugestão`) never opens a round: the conductor records it right away in `## Pendências` of `progresso.md`, state `aberta (fora da promessa)`, and it goes to the person in the list before the final review ([review.md](review.md), section 1). A failing test of the task always breaks the promise.
+
+Every finding also names its **class**: the kind of problem in a few words, the same words each time the same kind shows up (`Classe: leitura de planilha maliciosa`, `Classe: permissão no servidor`). The class is how the conductor sees a fix that only treats symptoms ([implementation.md](implementation.md), section 6, "Recurring class").
+
 ## Handling review findings
 
 These rules apply to every review of the method: spec reviews (phase 2), task and final reviews (phase 6 and 7) and the external review. Other references point here.

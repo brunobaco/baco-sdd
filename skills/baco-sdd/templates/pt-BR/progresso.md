@@ -31,9 +31,9 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o registro real)
 
 Uma linha por tarefa começada e ainda não juntada na entrega. Atualizada junto com o resto da Retomada. Na retomada, o git é conferido e vence quando discorda desta tabela.
 
-| Tarefa | Ramo | Pasta de trabalho | Relatório | Último commit | Etapa e rodada |
-|---|---|---|---|---|---|
-| `<T-002>` | `<baco/ENT-NNN-T-002>` | `<caminho da pasta da tarefa>` | `<docs/entregas/ENT-NNN-<nome>/relatorios/T-002.md>` | `<sha curto>` | `<construção, revisão, correção ou esperando a pessoa; rodada N>` |
+| Tarefa | Ramo | Pasta de trabalho | Relatório | Último commit | Etapa | Revisões |
+|---|---|---|---|---|---|---|
+| `<T-002>` | `<baco/ENT-NNN-T-002>` | `<caminho da pasta da tarefa>` | `<docs/entregas/ENT-NNN-<nome>/relatorios/T-002.md>` | `<sha curto>` | `<construção, revisão, correção ou esperando a pessoa>` | `<revisão N de M, com M da tabela de agentes do plano>` |
 
 ## Registro das tarefas
 

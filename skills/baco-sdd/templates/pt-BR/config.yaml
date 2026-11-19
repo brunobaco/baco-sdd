@@ -99,10 +99,11 @@ harnesses:
 
 review:
   external_rounds_max: 3  # quantas rodadas de revisão externa antes de pedir decisão a uma pessoa
-  # Máximo de rodadas de correção de cada tarefa, por tipo. É a sugestão do plano de cada entrega,
-  # que você pode mudar ao aprovar o plano. Só a última rodada usa um nível de IA acima.
+  # Máximo de revisões de cada tarefa, por tipo, contando a primeira (3 = a primeira e mais duas,
+  # depois de cada correção). É a sugestão do plano de cada entrega, que você pode mudar ao aprovar
+  # o plano. Só a correção antes da última revisão usa um nível de IA acima.
   task_rounds: { mechanical: 2, standard: 3, risky: 4 }
-  # Tarefa que termina a última rodada de correção só com achados "importante" abertos:
+  # Tarefa que chega à última revisão ainda com achados "importante" abertos:
   # seguir = junta a tarefa, cada achado vira pendência e você decide todos numa lista antes da revisão final;
   # parar = a tarefa espera você. Achado "crítico" aberto sempre para a tarefa.
   last_round_importante: seguir

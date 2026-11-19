@@ -1,5 +1,15 @@
 # Histórico de mudanças
 
+## 1.6.0 (2026-11-19)
+
+A revisão de tarefa passa a gastar menos rodadas. Num projeto real, as tarefas chegavam ao limite porque cada revisão relia a tarefa inteira e achava algo novo, quase sempre fora do que a tarefa prometia, e porque a contagem das rodadas não estava escrita onde uma conversa retomada a lesse.
+
+- O limite conta revisões, contando a primeira: limite 3 é a primeira revisão e mais duas, cada uma depois de uma correção. A coluna do plano passa a se chamar `Máximo de revisões`; num plano mais antigo, o número da coluna `Máximo de rodadas de correção` vale do mesmo jeito. Cada tarefa leva `revisão N de M` na tabela "Tarefas em andamento" do `progresso.md`, em coluna própria (`Revisões`), e a conversa retomada lê o limite dali. Só a correção antes da última revisão usa o nível de IA acima.
+- Promessa: todo achado da revisão de tarefa e da revisão final diz qual promessa quebra (critério, regra da spec ou restrição global do plano) ou `Promessa: fora`. Só abre correção o "crítico" e o "importante" que quebra uma promessa; o resto vai na hora para as pendências, como `aberta (fora da promessa)`.
+- Da segunda revisão em diante, o revisor confere só o que a correção mudou e diz, para cada achado anterior, se fechou. Código que não mudou não recebe achado novo. A revisão final roda inteira uma vez e, depois das tarefas INT, confere só o que elas mudaram.
+- Classe repetida: cada achado diz a sua classe (o tipo de problema). Quando uma classe já foi corrigida duas vezes e volta, não há terceira correção dela: o condutor refaz a parte pela raiz ou simplifica, quando isso não muda a spec; se a saída for estreitar a promessa, decide a pessoa. "Importante" vira pendência `aberta (classe repetida)` e a tarefa é juntada; "crítico" faz só aquela tarefa esperar, e as outras seguem.
+- Antes da revisão final, a pessoa recebe numa lista só as pendências dos três tipos (última revisão, fora da promessa, classe repetida), com a recomendação para cada uma.
+
 ## 1.5.0 (2026-11-18)
 
 O limite de rodadas de correção de cada tarefa deixa de ser 5 fixo. Cinco rodadas custavam caro e demoravam, e as duas últimas, no nível de IA acima, eram as mais caras.

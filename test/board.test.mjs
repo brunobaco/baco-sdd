@@ -111,6 +111,14 @@ test('board: fix round is back in progress, a human check waits in review, a blo
   assert.deepEqual(statusOf(r.data), { 'mãe': 'In progress', 'T-001': 'In progress', 'T-002': 'In review', 'T-003': 'In progress' });
 });
 
+test('board: the Revisões column (1.6.0 table) does not count as the step; Etapa alone decides', async () => {
+  const { readProgress } = await import('../skills/baco-sdd/scripts/commands/board.mjs');
+  const md = `## Retomada\n\n- **Situação:** rodando\n\n### Tarefas em andamento\n\n| Tarefa | Ramo | Pasta de trabalho | Relatório | Último commit | Etapa | Revisões |\n|---|---|---|---|---|---|---|\n| \`T-001\` | b | p | r | c | correção | revisão 2 de 3 |\n| \`T-002\` | b | p | r | c | revisão | revisão 1 de 3 |\n`;
+  const { andamento } = readProgress(md);
+  assert.equal(andamento.get('T-001'), 'correcao');
+  assert.equal(andamento.get('T-002'), 'revisao');
+});
+
 test('board: the last log row of a task wins', async () => {
   const dir = await repo({ prog: progress({ situacao: '`rodando`', registro: [['T-001', 'PRECISA_CONTEXTO'], ['T-001', 'FEITO_COM_RESSALVAS']] }) });
   const r = await run(dir, 'ENT-001', '--json');
