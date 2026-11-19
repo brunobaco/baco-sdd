@@ -20,7 +20,7 @@ Atualizado em 2026-11-18.
 
 10. Versão 1.5.0: limite de rodadas de correção por tipo de tarefa (`review.task_rounds`, padrão mecânica 2, padrão 3, arriscada 4), sugerido no plano e ajustável por entrega; só a última rodada sobe o nível de IA; `round5_importante` renomeada para `last_round_importante`, com o nome antigo aceito. 644 testes do motor passando. Publicada (marca `v1.5.0` e release com o pacote da skill).
 
-11. Versão 1.6.0: o limite conta revisões (com "revisão N de M" na tabela de tarefas em andamento); só abre correção o achado que quebra uma promessa da tarefa; da segunda revisão em diante, só o que a correção mudou; classe de problema que volta depois de duas correções muda a pergunta (refazer, simplificar ou estreitar a promessa).
+11. Versão 1.6.0: o limite conta revisões (com "revisão N de M" na tabela de tarefas em andamento); só abre correção o achado que quebra uma promessa da tarefa; da segunda revisão em diante, só o que a correção mudou; classe de problema que volta depois de duas correções muda a pergunta (refazer, simplificar ou estreitar a promessa). 645 testes do motor passando. Publicada (marca `v1.6.0` e release com o pacote da skill).
 
 ## Em andamento
 
