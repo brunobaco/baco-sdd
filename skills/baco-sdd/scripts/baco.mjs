@@ -11,7 +11,7 @@ export const COMMANDS = [
   'validate-spec', 'spec-diff', 'catalog', 'trace', 'plan-freshness', 'check-branch',
   'guard-tests', 'cleanup-branches', 'build-handoff', 'import-verdict', 'import-pr-verdict',
   'acceptance-report', 'cost', 'qa-evidence', 'waive-review', 'run-tests', 'queue-status', 'board',
-  'harness-answer',
+  'harness-answer', 'antigravity-task',
 ];
 
 export function parseArgs(argv) {

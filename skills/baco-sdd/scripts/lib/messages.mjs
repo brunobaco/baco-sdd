@@ -17,6 +17,7 @@ const summaries = {
   'run-tests': ['Roda as camadas de teste (fila na máquina, modo rápido) ou o teste de fumaça', 'Run test layers (machine-wide queue, quick mode) or the smoke check'],
   'queue-status': ['Mostra quem usa a fila de testes desta máquina e quem está esperando', 'Show who is using this machine\'s test queue and who is waiting'],
   'harness-answer': ['Lê a resposta em JSON de outra ferramenta de IA, grava a resposta e diz se é preciso retomar', 'Read another AI tool\'s JSON answer, write the response and say whether to resume'],
+  'antigravity-task': ['Prepara a pasta de uma tarefa para o Antigravity construir (trava de gravação e regras de comando) ou tira o preparo (--clean)', 'Prepare a task folder for an Antigravity implementer (write guard and command rules) or take it out (--clean)'],
   board: ['Diz em que coluna do quadro do GitHub Project cada issue da entrega deve estar', 'Say which GitHub Project board column each issue of the delivery belongs in'],
 };
 
@@ -809,4 +810,21 @@ Object.assign(messages.en, {
   'answer.failed': 'The tool ended with status {status}{error}; nothing was written.',
   'answer.empty': 'The tool ended with no answer and no denied action; nothing was written.',
   'answer.invalid_json': 'File {path} is not the tool\'s JSON answer (--output-format json): {message}.',
+});
+
+// 1.7.0: task folder of an Antigravity implementer.
+Object.assign(messages['pt-BR'], {
+  'agytask.ready': 'Pasta {folder} pronta para o Antigravity construir: trava de gravação em .agents/hooks.json e regras em {settings}, fora do git. Chame com --settings {settings} a partir dessa pasta; os testes rodam com {runTests}. Depois, rode de novo com --clean.',
+  'agytask.cleaned': 'Preparo do Antigravity removido de {folder}.',
+  'agytask.not_task_folder': '{folder} não é a raiz de uma pasta git (a pasta de uma tarefa); nada foi gravado.',
+  'agytask.protected': 'A pasta {folder} está no ramo protegido {branch}; o Antigravity só constrói na pasta de uma tarefa. Nada foi gravado.',
+  'agytask.foreign_hooks': 'O projeto já tem {file}, que não foi gravado pelo BACO ou está no git; nada foi gravado nem apagado. Mostre à pessoa: com ele, o Antigravity não constrói neste projeto.',
+});
+
+Object.assign(messages.en, {
+  'agytask.ready': 'Folder {folder} is ready for an Antigravity implementer: write guard in .agents/hooks.json and rules in {settings}, outside git. Call it with --settings {settings} from that folder; tests run with {runTests}. Afterwards, run this again with --clean.',
+  'agytask.cleaned': 'Antigravity preparation removed from {folder}.',
+  'agytask.not_task_folder': '{folder} is not the top of a git folder (a task folder); nothing was written.',
+  'agytask.protected': 'Folder {folder} is on the protected branch {branch}; Antigravity only builds in a task folder. Nothing was written.',
+  'agytask.foreign_hooks': 'The project already has {file}, which BACO did not write or which is in git; nothing was written or removed. Show it to the person: with it, Antigravity does not build in this project.',
 });
