@@ -858,6 +858,16 @@ test('antigravity: read-only reviewer call, resume, check with refusal, cost and
     'antigravity-regra.txt', '`regra: sim` when `harness-answer` says `denied`', '--harness antigravity --tokens', '`antigravity -p *` (or `agy -p *`',
     'Você só lê: use suas ferramentas de ler e buscar arquivos']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   for (const p of ['`agy` or `antigravity` on the PATH', '`.baco/antigravity/leitura.json`', '`Bash(antigravity -p * --settings .baco/antigravity/leitura.json *)`',
-    '`Bash(antigravity *--dangerously-skip-permissions*)`', '`Bash(antigravity * --settings * --settings *)`', 'Antigravity takes only read-only roles for now',
+    '`Bash(antigravity *--dangerously-skip-permissions*)`', '`Bash(antigravity * --settings * --settings *)`',
     'as regras de leitura do BACO no Antigravity']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+});
+
+test('antigravity implementer: task folder prepared by the engine, guard hook, protegida only, checks and commit line', () => {
+  const amb = read('skills/baco-sdd/references/ambientes.md');
+  const conf = read('skills/baco-sdd/references/configure.md');
+  for (const p of ['baco antigravity-task <task folder>', 'baco antigravity-task <task folder> --clean', '--settings .agents/baco-construcao.json',
+    'Antigravity builds only in `protegida`', '`trava: sim`', 'antigravity-fora.txt', 'Implementado por: antigravity, <model>',
+    'the tests it runs are code', 'git init -q -b baco/verificacao']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
+  for (const p of ['`Bash(antigravity -p * --settings .agents/baco-construcao.json *)`', 'Antigravity builds only in `protegida`']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  assert.ok(!conf.includes('Antigravity takes only read-only roles for now'), 'configure.md: the read-only-only rule is gone');
 });
