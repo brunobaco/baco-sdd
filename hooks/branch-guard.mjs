@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// PreToolUse guard: denies Edit/Write/NotebookEdit on a protected branch of a BACO project.
+// PreToolUse guard: denies a file edit (Claude Code: Edit/Write/NotebookEdit; Antigravity: write_file,
+// edit_file and the other file-writing tools) on a protected branch of a BACO project.
 // Fails open: on any error it allows the edit and writes one line to stderr.
 import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, isAbsolute, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { repoRoot, currentBranch, git } from '../skills/baco-sdd/scripts/lib/git.mjs';
 import { loadConfig, resolveConfig, protectedBranches, ConfigError } from '../skills/baco-sdd/scripts/lib/config.mjs';
+import { readHookInput, preToolAnswer } from './host.mjs';
 
 const ALLOW = { deny: false };
 
@@ -53,8 +55,9 @@ function branchName(root) {
   }
 }
 
-export function decide(input) {
-  const path = input?.tool_input?.file_path ?? input?.tool_input?.notebook_path;
+// `hook` is the normalized input of host.mjs.
+export function decide(hook) {
+  const path = hook.filePath;
   if (typeof path !== 'string' || !isAbsolute(path)) return ALLOW;
   const dir = nearestExistingDir(path);
   const root = dir && repoRoot(dir);
@@ -75,15 +78,14 @@ export function decide(input) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  let hook = readHookInput(null);
+  let result = ALLOW;
   try {
-    const result = decide(JSON.parse(readFileSync(0, 'utf8')));
-    if (result.deny) {
-      process.stdout.write(JSON.stringify({
-        hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: result.reason },
-      }));
-    }
+    hook = readHookInput(JSON.parse(readFileSync(0, 'utf8')));
+    result = decide(hook);
   } catch (err) {
     process.stderr.write(`baco branch-guard: ${err.message} (permitido)\n`);
   }
+  process.stdout.write(preToolAnswer(hook.host, result));
   process.exit(0);
 }
