@@ -644,7 +644,10 @@ test('briefs pass paths and IDs instead of copied text; the diff still goes as a
 test('review roles write only their own report and return verdict, counts and path; the conductor checks git status', () => {
   const skill = read(join(SKILL_ROOT, 'SKILL.md'));
   assert.ok(!skill.includes('a read-only role cannot write'), 'SKILL.md: old inline-detail rule gone');
-  for (const p of ['writes only its own report, at the one path you name in the brief', 'the count of findings per severity and the path', 'in every folder the role worked in: before dispatching it, note the output', 'becomes a finding against that review', '`.baco/logs/revisoes/`']) assert.ok(skill.includes(p), `SKILL.md: "${p}" missing`);
+  for (const p of ['writes only its own report, at the one path you name in the brief', 'the count of findings per severity and the path', '[dispatch.md](references/dispatch.md), section 1']) assert.ok(skill.includes(p), `SKILL.md: "${p}" missing`);
+  // The detail lives in dispatch.md, so SKILL.md fits the 24 KB Antigravity loads.
+  const dispatch = ref('dispatch.md');
+  for (const p of ['in every folder the role worked in: before dispatching it, note the output', 'becomes a finding against that review', '`.baco/logs/revisoes/`']) assert.ok(dispatch.includes(p), `dispatch.md: "${p}" missing`);
   for (const r of ['cold-reader', 'spec-auditor', 'simplifier', 'devils-advocate', 'task-reviewer', 'final-reviewer', 'acceptance-validator', 'ci-triage', 'pr-reviewer']) {
     const s = ref(`roles/${r}.md`);
     assert.ok(/^- Tools: report$/m.test(s), `${r}: Tools: report`);
@@ -659,7 +662,8 @@ test('review roles write only their own report and return verdict, counts and pa
 
 test('conversation size: threshold, asking, auto switch in construction, title sequence, short request', () => {
   const skill = read(join(SKILL_ROOT, 'SKILL.md'));
-  for (const p of ['## Conversation size', '`context.handoff_at`', 'default 400000', 'again every further 100000 tokens', 'Never stop a step halfway', 'ask whether to continue in a new conversation', '`context.auto_handoff` is true', '"Spec XYZ Desenvolvimento 02", then "03"', 'Outside the Ratoeira you cannot open or name a conversation', 'by search, never whole', 'Human stops', 'even below the threshold']) assert.ok(skill.includes(p), `SKILL.md: "${p}" missing`);
+  for (const p of ['## Conversation size', '`context.handoff_at`', 'default 400000', 'again every further 100000 tokens', 'Never stop a step halfway', 'ask whether to continue in a new conversation', '`context.auto_handoff` is true', 'Human stops', 'even below the threshold', '[dispatch.md](references/dispatch.md), section 3']) assert.ok(skill.includes(p), `SKILL.md: "${p}" missing`);
+  for (const p of ['"Spec XYZ Desenvolvimento 02", then "03"', 'Outside the Ratoeira you cannot open or name a conversation', 'by search, never whole']) assert.ok(ref('dispatch.md').includes(p), `dispatch.md: "${p}" missing`);
   const impl = ref('implementation.md');
   for (const p of ['**Conversation size.**', '`context.auto_handoff` on, in the Ratoeira.** Do not ask and do not dispatch a new task', '`context.auto_handoff` on, outside the Ratoeira.**', 'keep going with the run in this conversation, dispatching tasks as usual', '`context.auto_handoff` off or missing.** Finish the task you are running', 'Keep going with the run while you wait', '`parado para conversa nova`', '`Trocas de conversa`', 'Conversa anterior: <identificador>', 'Never stop a run only to wait for a person to paste it', 'switches to a new conversation']) assert.ok(impl.includes(p), `implementation.md: "${p}" missing`);
   // The hook only points to the rule; it never prescribes stopping by itself.
@@ -738,7 +742,8 @@ test('the plan decides harness, model and effort per task and role; the conducto
   assert.ok(amb.includes('No `--ephemeral`'), 'ambientes.md: says why the Codex session is kept');
   for (const p of ['## 5. Harnesses of the project', 'decided in the plan, never at run time', 'only read-only roles', '`implementers: on`', 'codex exec -m <model> -c model_reasoning_effort=<high|medium|low> -s read-only', '-o <answer file>', 'opencode run -m <provider/model>', '--harness', '## 8. Running a role in a fresh session', 'The pr-reviewer never runs in this conversation']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   const skill = read(join(SKILL_ROOT, 'SKILL.md'));
-  for (const p of ['git status --porcelain --ignored --untracked-files=all -- .baco .worktrees', 'the pr-reviewer never runs inline']) assert.ok(skill.includes(p), `SKILL.md: "${p}" missing`);
+  assert.ok(skill.includes('the pr-reviewer never runs inline'), 'SKILL.md: the pr-reviewer never runs inline');
+  assert.ok(ref('dispatch.md').includes('git status --porcelain --ignored --untracked-files=all -- .baco .worktrees'), 'dispatch.md: ignored paths in the check');
 });
 
 test('PR review: draft PR or local diff, agent verdict straight from its file, person verdict confirmed, ready to test, merge stays human', () => {
@@ -789,7 +794,8 @@ test('harness check before the plan; the conductor commits for an implementer on
 test('cost is measured from the transcripts, for deliveries and for stages outside them', () => {
   const skill = read(join(SKILL_ROOT, 'SKILL.md'));
   const M = 'baco cost measure ENT-NNN --conductor-harness <harness> --write';
-  for (const p of [M, 'docs/custo-projeto.md']) assert.ok(skill.includes(p), `SKILL.md: "${p}" missing`);
+  assert.ok(skill.includes('`baco cost measure`') && skill.includes('[dispatch.md](references/dispatch.md), section 2'), 'SKILL.md: measure rule and pointer');
+  for (const p of [M, 'docs/custo-projeto.md']) assert.ok(ref('dispatch.md').includes(p), `dispatch.md: "${p}" missing`);
   assert.ok(ref('delivery.md').includes(M), 'delivery.md: measure before the report');
   assert.ok(ref('reconciliation.md').includes(M), 'reconciliation.md: measure again');
   assert.ok(ref('common-process.md').includes('baco cost measure --since'), 'common-process.md: stage cost');
@@ -806,7 +812,7 @@ test('clean install proven in the skeleton task; reviewers never judge a command
 // Review: without the flag the engine assumes a Claude Code conductor; a Codex conductor became `avulsa`.
 test('every instruction that measures cost names the conductor harness', () => {
   const files = { 'SKILL.md': read(join(SKILL_ROOT, 'SKILL.md')) };
-  for (const f of ['reconciliation.md', 'common-process.md', 'implementation.md', 'delivery.md']) files[f] = ref(f);
+  for (const f of ['dispatch.md', 'reconciliation.md', 'common-process.md', 'implementation.md', 'delivery.md']) files[f] = ref(f);
   let seen = 0;
   for (const [name, text] of Object.entries(files)) {
     for (const m of text.matchAll(/`baco cost measure[^`]*`/g)) {
@@ -815,7 +821,7 @@ test('every instruction that measures cost names the conductor harness', () => {
     }
   }
   assert.ok(seen >= 5, `measure instructions found: ${seen}`);
-  assert.ok(files['SKILL.md'].includes('`--conductor-harness`'), 'SKILL.md: says what the flag is for');
+  assert.ok(files['dispatch.md'].includes('`--conductor-harness`'), 'dispatch.md: says what the flag is for');
 });
 
 // E2E round C: the validator read only titles; the simplifier called "safe" a cut that reopened a defect.
