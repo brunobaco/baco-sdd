@@ -86,6 +86,13 @@ If you cannot tell which model is which, ask the user once instead of guessing.
 
 Same rule as Codex: read what the environment offers, map most capable, intermediate and fastest to the three levels, tell the user once, and pass model and effort per call when the environment allows it. If it accepts no effort, say so once and go on.
 
+Antigravity (CLI `antigravity` or `agy`, checked with 1.5.10), with the BACO plugin installed by `node tools/antigravity.mjs` from the BACO repository (it writes the plugin to `~/.gemini/config/plugins/baco`, with the role files at absolute paths of that machine; run it again after each BACO update):
+
+- Each role runs as subagent `baco-<role>` (`baco-implementer-<class>` for the implementer). Its model is the conductor's (`inherit`) or the light tier (`flash`) for the locator; Antigravity takes no model or effort per call, and the effort is part of the model name (`-low`, `-medium`, `-high`, `-xhigh`). So the levels collapse to the conductor's model: tell the user once, and record the model the transcript shows.
+- The commands are skills `baco-<name>`, which the person asks for by name (for example, the skill `baco-executar` for "executar ENT-001"): `/name` does not expand plugin skills in this CLI.
+- The plugin's hooks guard the protected branch and writes outside the project, as in Claude Code, and inject the BACO note and the conversation-size warning.
+- `baco cost measure` does not read Antigravity transcripts yet: say so when you measure.
+
 ## 5. Harnesses of the project
 
 `harnesses` in `.baco/config.yaml` lists the AI tools this project uses (for example `claude-code`, `codex`, `opencode`, `antigravity`), each with `models`, its model name for each level, `implementers` (default `off`) and `sandbox` (default `rede`).
