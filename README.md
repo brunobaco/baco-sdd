@@ -4,7 +4,7 @@
 
 O BACO-SDD leva uma necessidade de produto da ideia até a entrega verificada, com a especificação (spec) como contrato. Ele conduz o trabalho em fases, para nas decisões que são da pessoa e prova com testes que o que foi pedido foi construído.
 
-É uma skill no formato aberto Agent Skills, com um motor de verificação em Node, e um plugin do Claude Code que acrescenta comandos, agentes próprios e travas automáticas. A experiência completa é a do plugin no Claude Code; em outras ferramentas (Codex, Antigravity e outras que leiam Agent Skills) roda a skill, com as mesmas fases e o mesmo motor, mas sem as travas do plugin. A seção [Onde funciona](#onde-funciona) mostra recurso por recurso.
+É uma skill no formato aberto Agent Skills, com um motor de verificação em Node, e um plugin do Claude Code que acrescenta comandos, agentes próprios e travas automáticas. A experiência completa é a do plugin no Claude Code. No Antigravity, o BACO gera um plugin próprio, com os subagentes e as travas. Em outras ferramentas (Codex e outras que leiam Agent Skills) roda a skill, com as mesmas fases e o mesmo motor, mas sem as travas do plugin. A seção [Onde funciona](#onde-funciona) mostra recurso por recurso.
 
 Versão 1.6.0 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.6.0), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
 
@@ -95,9 +95,9 @@ A coluna "Garantido por" diz de onde vem cada proteção: **motor** (vale em qua
 | Linhas principais protegidas | Nenhuma edição em `main` ou `develop`: o trabalho acontece na linha da entrega ou da tarefa. | motor (`check-branch`) e plugin (bloqueio automático da edição) |
 | Trava de gravação fora do projeto | Barra um subagente que tenta gravar fora da pasta do projeto por redirecionamento de saída (`>`, `>>`, `tee`). É uma trava contra engano, não uma fronteira de segurança: as lacunas conhecidas estão no [contrato do motor](skills/baco-sdd/scripts/README.md). | plugin |
 | Revisores que não editam | Os papéis de revisão só leem e gravam o próprio relatório. Antes e depois de cada revisão o condutor compara o estado dos arquivos, inclusive os ignorados pelo git; qualquer outra mudança é desfeita e vira achado contra a revisão. | plugin (ferramentas dos agentes) e método (conferência) |
-| Revisão independente e por outra ferramenta | Quem escreveu nunca revisa. O PR da entrega é revisado de preferência por outra ferramenta de IA (por exemplo o Codex, em modo só leitura), sem ver os registros da entrega. A resposta é importada direto do arquivo do revisor, sem passar pela mão do condutor, e é recusada se for antiga, de outra rodada ou não disser o que foi conferido. | motor (importação) e método (isolamento do revisor) |
+| Revisão independente e por outra ferramenta | Quem escreveu nunca revisa. O PR da entrega é revisado de preferência por outra ferramenta de IA (por exemplo o Codex ou o Antigravity, em modo só leitura), sem ver os registros da entrega. A resposta é importada direto do arquivo do revisor, sem passar pela mão do condutor, e é recusada se for antiga, de outra rodada ou não disser o que foi conferido. | motor (importação) e método (isolamento do revisor) |
 | Teste de cada ferramenta antes do plano | Uma ferramenta de IA só entra no plano depois de passar numa chamada curta nesta máquina, no modo e na caixa em que vai trabalhar, conferindo leitura, gravação, rede, porta e se as regras de comando do BACO foram carregadas. Se as regras não carregaram, ela não constrói. | método |
-| Caixa de cada ferramenta de IA | Cada ferramenta trabalha numa caixa escolhida na configuração: `protegida`, `rede` (o padrão) ou `livre`. Na `rede`, o Codex grava só na pasta da tarefa, com internet e porta local, e o Claude Code grava só na pasta do projeto e acessa só os endereços aprovados. Ver [A caixa das ferramentas de IA](#a-caixa-das-ferramentas-de-ia). | ferramenta |
+| Caixa de cada ferramenta de IA | Cada ferramenta trabalha numa caixa escolhida na configuração: `protegida`, `rede` (o padrão) ou `livre`. Na `rede`, o Codex grava só na pasta da tarefa, com internet e porta local, e o Claude Code grava só na pasta do projeto e acessa só os endereços aprovados. O Antigravity constrói só na `protegida`, feita de regras do BACO: uma trava recusa gravar fora da pasta da tarefa, e ele só roda leitura e os testes. Ver [A caixa das ferramentas de IA](#a-caixa-das-ferramentas-de-ia). | ferramenta |
 | Regras de comando do Codex | O BACO instala `.codex/rules/baco.rules`, que recusa ao Codex `sudo`, `git push`, `git commit`, `git reset --hard`, `rm -rf` e `gh`, em qualquer caixa. Só o condutor faz commit e envia. É um filtro de comandos, não uma barreira: um comando escondido num script pode passar. | ferramenta (regras do Codex) |
 | Instalação limpa | A tarefa que cria o esqueleto do projeto prova a instalação e os testes numa cópia nova, para que a falta de um compilador ou de uma biblioteca do sistema apareça na primeira tarefa. O revisor confere rodando, ou marca como não verificado. | método |
 | Validador do aceite | Antes do relatório, um agente confere se a prova de cada critério corresponde ao que o critério diz, lendo o corpo de cada teste e rodando quando há dúvida. | método (papel `acceptance-validator`) |
@@ -171,20 +171,20 @@ Tudo em texto simples, legível por pessoas e por qualquer IA, mesmo sem o BACO 
 
 Requisitos: git e Node 22 ou mais novo na máquina, e uma ferramenta de IA que trabalhe dentro da pasta do projeto, com terminal. O chat do site ou do aplicativo do Claude não serve: lá não há terminal, git nem Node, e o motor não roda.
 
-| Recurso | Claude Code com o plugin | Claude Code só com a skill | Codex, Antigravity e outras |
-|---|---|---|---|
-| Fases, paradas, modelos de documento | sim | sim | sim |
-| Motor de verificação (todas as proteções marcadas "motor") | sim | sim | sim |
-| Comandos `/baco:*` | sim | não, pedir em texto | não, pedir em texto |
-| Agentes próprios, com modelo, esforço e ferramentas definidos (revisores sem permissão de editar) | sim, 18 agentes | não, subagentes genéricos | depende da ferramenta; sem subagentes, os papéis rodam na mesma conversa, com aviso |
-| Bloqueio automático de edição em `main` e `develop` | sim | não, só a instrução e o `check-branch` | não, só a instrução e o `check-branch` |
-| Trava de gravação fora do projeto | sim | não | não |
-| Reconhece sozinho um projeto com BACO ao abrir a conversa | sim | não | não |
-| Aviso de tamanho da conversa e releitura depois de um resumo automático | sim | não | não, usa o indicador de tamanho da própria ferramenta |
-| Medição de custo real (`cost measure`) | sim | sim | Codex sim; outras não |
-| Atualização | `claude plugin update baco@baco-sdd` | copiar a pasta de novo | copiar a pasta de novo |
+| Recurso | Claude Code com o plugin | Claude Code só com a skill | Antigravity com o plugin gerado | Codex e outras |
+|---|---|---|---|---|
+| Fases, paradas, modelos de documento | sim | sim | sim | sim |
+| Motor de verificação (todas as proteções marcadas "motor") | sim | sim | sim | sim |
+| Comandos `/baco:*` | sim | não, pedir em texto | pedir pelo nome ("baco executar ENT-001") | não, pedir em texto |
+| Agentes próprios, com modelo, esforço e ferramentas definidos (revisores sem permissão de editar) | sim, 18 agentes | não, subagentes genéricos | sim, 18 subagentes, todos no modelo do condutor, sem esforço por papel | depende da ferramenta; sem subagentes, os papéis rodam na mesma conversa, com aviso |
+| Bloqueio automático de edição em `main` e `develop` | sim | não, só a instrução e o `check-branch` | sim | não, só a instrução e o `check-branch` |
+| Trava de gravação fora do projeto | sim | não | sim | não |
+| Reconhece sozinho um projeto com BACO ao abrir a conversa | sim | não | sim | não |
+| Aviso de tamanho da conversa e releitura depois de um resumo automático | sim | não | só o aviso | não, usa o indicador de tamanho da própria ferramenta |
+| Medição de custo real (`cost measure`) | sim | sim | não | Codex sim; outras não |
+| Atualização | `claude plugin update baco@baco-sdd` | copiar a pasta de novo | gerar de novo | copiar a pasta de novo |
 
-Testado de ponta a ponta no Claude Code com o plugin em dois arranjos: o Codex revisando o PR em modo só leitura, e o Codex construindo na caixa `rede` com o Claude conduzindo e revisando, também na caixa `rede`. Nas outras ferramentas a skill segue o formato Agent Skills, sem teste de ponta a ponta próprio.
+Testado de ponta a ponta no Claude Code com o plugin em dois arranjos: o Codex revisando o PR em modo só leitura, e o Codex construindo na caixa `rede` com o Claude conduzindo e revisando, também na caixa `rede`. No Antigravity, os ganchos do plugin, a revisão em modo só leitura e a construção de uma tarefa de teste foram conferidos em sessões reais, ainda sem uma entrega de ponta a ponta com ele construindo ou conduzindo. Nas outras ferramentas a skill segue o formato Agent Skills, sem teste de ponta a ponta próprio.
 
 ## Instalação no Claude Code (plugin, recomendado)
 
@@ -207,6 +207,19 @@ Para atualizar: `claude plugin marketplace update baco-sdd` e `claude plugin upd
 
 Use o plugin ou a skill solta, nunca os dois, para não carregar duas cópias.
 
+## Instalação no Antigravity (plugin gerado)
+
+O Antigravity não instala bem um plugin do Claude Code: os agentes ficam de fora e os ganchos não funcionam. Por isso o BACO gera o plugin próprio dele, na máquina onde vai rodar:
+
+```sh
+git clone https://github.com/brunobaco/baco-sdd
+node baco-sdd/tools/antigravity.mjs
+```
+
+O plugin vai para `~/.gemini/config/plugins/baco` (ou para outra pasta, com `--dest <pasta>`), com os 18 papéis como subagentes `baco-<papel>`, os comandos como skills `baco-<nome>` e os ganchos de proteção. Para conferir: `antigravity plugin validate ~/.gemini/config/plugins/baco`. Para atualizar, `git pull` no repositório e o mesmo comando de novo; ele só apaga uma pasta que ele mesmo gerou. Abra uma conversa nova depois de gerar.
+
+No Antigravity, `/baco-executar` não funciona como comando: peça pelo nome, por exemplo "baco executar ENT-001". Os subagentes usam o modelo da conversa principal (o localizador, o mais leve), porque o Antigravity não aceita modelo nem esforço por subagente.
+
 ## Instalação da skill (Codex, Antigravity e outras)
 
 Baixe o `baco-sdd-skill-<versão>.zip` da [release](https://github.com/brunobaco/baco-sdd/releases/latest). O jeito mais simples é pôr o zip na pasta do projeto e pedir à própria IA:
@@ -218,7 +231,7 @@ Instale a skill BACO-SDD a partir do arquivo baco-sdd-skill-<versão>.zip que es
 Ou à mão, descompactando o zip (ou copiando `skills/baco-sdd/` do repositório) para:
 
 - Codex: `~/.codex/skills/baco-sdd/` (todos os projetos) ou `.agents/skills/baco-sdd/` na raiz do projeto. Reinicie o Codex.
-- Antigravity: `.agents/skills/baco-sdd/` na raiz do projeto. A pasta global muda entre versões; confira na documentação de skills dele.
+- Antigravity, só a skill, sem os subagentes e os ganchos do plugin: `.agents/skills/baco-sdd/` na raiz do projeto. A pasta global muda entre versões; confira na documentação de skills dele.
 - Claude Code sem o plugin: `~/.claude/skills/baco-sdd/` ou `.claude/skills/baco-sdd/` dentro do projeto.
 - Outras ferramentas que leiam Agent Skills: a pasta de skills delas.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// PostToolUse hook: in a BACO project, measures the conversation's context from the transcript Claude
+// PostToolUse hook (Antigravity: PreInvocation, since its PostToolUse cannot add context): in a BACO project, measures the conversation's context from the transcript Claude
 // Code hands to the hook and, past `context.handoff_at` (default 400000 tokens, or 30000 tokens before
 // 80% of Claude Code's `autoCompactWindow` setting when that is smaller: Claude Code summarizes the
 // conversation by itself there), tells the conductor to continue in a new conversation. It also reminds the conductor, at most
@@ -19,6 +19,7 @@ import { loadConfig, DEFAULTS } from '../skills/baco-sdd/scripts/lib/config.mjs'
 import { localBranches, isAncestor } from '../skills/baco-sdd/scripts/lib/git.mjs';
 import { deliveryDir } from '../skills/baco-sdd/scripts/lib/delivery.mjs';
 import { effectiveLimit, readAutoCompactWindow, retomadaReminderDue, openTaskDeliveries, RETOMADA_STALE_MS } from '../skills/baco-sdd/scripts/lib/hookrules.mjs';
+import { readHookInput, contextAnswer, quietAnswer } from './host.mjs';
 
 const STEP = 100000;
 const CHUNK = 64 * 1024;
@@ -67,7 +68,21 @@ function lastContextSize(file) {
   }
 }
 
+// Antigravity transcript lines: each model answer is a PLANNER_RESPONSE step of the MODEL with its
+// input_tokens and cache_read_tokens (a subagent writes its own transcript, never this one).
+function antigravitySizeOf(line) {
+  if (!line.includes('"PLANNER_RESPONSE"')) return null;
+  let entry;
+  try { entry = JSON.parse(line); } catch { return null; }
+  if (entry?.type !== 'PLANNER_RESPONSE' || entry.source !== 'MODEL') return null;
+  const num = (v) => (Number.isFinite(v) ? v : 0);
+  if (!Number.isFinite(entry.input_tokens) && !Number.isFinite(entry.cache_read_tokens)) return null;
+  return num(entry.input_tokens) + num(entry.cache_read_tokens);
+}
+
 function sizeOf(line) {
+  const agy = antigravitySizeOf(line);
+  if (agy !== null) return agy;
   if (!line.includes('"assistant"') || !line.includes('usage')) return null;
   let entry;
   try { entry = JSON.parse(line); } catch { return null; }
@@ -145,20 +160,22 @@ function retomadaReminder(root, session, nowMs) {
   return null;
 }
 
+let hook = readHookInput(null);
+let answer = '';
 try {
-  const input = JSON.parse(readFileSync(0, 'utf8'));
-  const cwd = typeof input?.cwd === 'string' && input.cwd ? input.cwd : process.cwd();
-  const transcript = input?.transcript_path;
-  const session = typeof input?.session_id === 'string' && input.session_id ? input.session_id : 'sem-sessao';
-  const inSubagent = input?.agent_id !== undefined && input?.agent_id !== null;
-  if (!inSubagent && typeof transcript === 'string' && transcript && existsSync(transcript)) {
+  hook = readHookInput(JSON.parse(readFileSync(0, 'utf8')));
+  const cwd = hook.cwd ?? process.cwd();
+  const transcript = hook.transcript;
+  const session = hook.session ?? 'sem-sessao';
+  if (transcript && existsSync(transcript) && !hook.subagent()) {
     const root = bacoRoot(cwd);
     if (root) {
       const notes = [];
       const saves = [];
       try {
         const handoffAt = threshold(root);
-        const { limit, source, autoCompactAt } = effectiveLimit(handoffAt, readAutoCompactWindow(root, homedir()));
+        // autoCompactWindow is a Claude Code setting; Antigravity has none BACO can read.
+        const { limit, source, autoCompactAt } = effectiveLimit(handoffAt, hook.host === 'claude' ? readAutoCompactWindow(root, homedir()) : null);
         const size = lastContextSize(transcript);
         if (size !== null) {
           const file = stateFile(session);
@@ -181,11 +198,15 @@ try {
         if (reminder) { notes.push(reminder.text); saves.push(reminder.save); }
       } catch { /* fail open */ }
       // The notes are written before any state is saved, so a state that cannot be saved never swallows them.
-      if (notes.length) process.stdout.write(`${JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: notes.join('\n\n') } })}\n`);
+      if (notes.length) {
+        answer = `${contextAnswer(hook.host, hook.event ?? 'PostToolUse', notes.join('\n\n'))}\n`;
+        process.stdout.write(answer);
+      }
       for (const save of saves) {
         try { save(); } catch { /* state not saved: the warning may repeat, never be lost */ }
       }
     }
   }
 } catch { /* fail open */ }
+if (!answer) process.stdout.write(quietAnswer(hook.host));
 process.exit(0);

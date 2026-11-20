@@ -1,0 +1,22 @@
+{
+  "toolPermission": "request-review",
+  "agentMode": "",
+  "permissions": {
+    "allow": [
+      "command(regex:^git (?:diff|show|log|blame|status|rev-parse)(?: +(?:'[^'\\n]*'|\"[^\"\\n$`\\\\]*\"|[^- \\t\\n;&|<>$`()'\"\\\\][^ \\t\\n;&|<>$`()'\"\\\\]*|-[a-zA-Z0-9][^ \\t\\n;&|<>$`()'\"\\\\]*|--|--(?:stat|cached|staged|name-only|name-status|numstat|shortstat|oneline|short|porcelain|ignored|no-color|patch|summary|follow|reverse|no-merges|first-parent|abbrev-commit|graph|all|merges|show-toplevel|is-inside-work-tree|git-dir|git-common-dir|abbrev-ref|verify|quiet|branch|no-renames|ignore-all-space|ignore-space-change|function-context|minimal|histogram|patience|no-patch|raw|decorate|no-decorate|line-porcelain|incremental|path-format|untracked-files|find-renames|word-diff|date|format|pretty|since|until|after|before|author|grep|max-count|skip|diff-filter|unified|abbrev|relative|color)(?:=[^ \\t\\n;&|<>$`()'\"\\\\]*)?))*$)",
+      "command(regex:^ls(?: +(?:'[^'\\n]*'|\"[^\"\\n$`\\\\]*\"|[^- \\t\\n;&|<>$`()'\"\\\\][^ \\t\\n;&|<>$`()'\"\\\\]*|-[a-zA-Z0-9]+|--[a-z-]+(?:=[^ \\t\\n;&|<>$`()'\"\\\\]*)?))*$)",
+      "command(regex:^cat(?: +(?:'[^'\\n]*'|\"[^\"\\n$`\\\\]*\"|[^- \\t\\n;&|<>$`()'\"\\\\][^ \\t\\n;&|<>$`()'\"\\\\]*|-[a-zA-Z]+))*$)",
+      "command(regex:^head(?: +(?:'[^'\\n]*'|\"[^\"\\n$`\\\\]*\"|[^- \\t\\n;&|<>$`()'\"\\\\][^ \\t\\n;&|<>$`()'\"\\\\]*|-[a-zA-Z0-9]+|--[a-z-]+(?:=[^ \\t\\n;&|<>$`()'\"\\\\]*)?))*$)",
+      "command(regex:^tail(?: +(?:'[^'\\n]*'|\"[^\"\\n$`\\\\]*\"|[^- \\t\\n;&|<>$`()'\"\\\\][^ \\t\\n;&|<>$`()'\"\\\\]*|-[a-eg-zA-EG-Z0-9]+|--lines(?:=[^ \\t\\n;&|<>$`()'\"\\\\]*)?|--bytes(?:=[^ \\t\\n;&|<>$`()'\"\\\\]*)?))*$)",
+      "command(regex:^wc(?: +(?:'[^'\\n]*'|\"[^\"\\n$`\\\\]*\"|[^- \\t\\n;&|<>$`()'\"\\\\][^ \\t\\n;&|<>$`()'\"\\\\]*|-[a-zA-Z]+|--[a-z-]+))*$)",
+      "command(regex:^grep(?: +(?:'[^'\\n]*'|\"[^\"\\n$`\\\\]*\"|[^- \\t\\n;&|<>$`()'\"\\\\][^ \\t\\n;&|<>$`()'\"\\\\]*|-[a-zA-Z0-9]+|--[a-z-]+(?:=[^ \\t\\n;&|<>$`()'\"\\\\]*)?))*$)",
+      "command(regex:^pwd$)"
+    ],
+    "deny": [
+      "write_file(/)",
+      "read_url(*)",
+      "execute_url(*)",
+      "download_url(*)"
+    ]
+  }
+}

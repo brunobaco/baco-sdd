@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// PreToolUse guard on Bash, for BACO subagents only (Claude Code sends `agent_id` only inside a
-// subagent): denies a command that redirects output (`>`, `>>`, `&>`, `<>`, `tee`) to a file outside
+// PreToolUse guard on the shell tool (Claude Code: Bash; Antigravity: run_command), for BACO subagents
+// only (host.mjs tells a subagent in each host): denies a command that redirects output (`>`, `>>`, `&>`, `<>`, `tee`) to a file outside
 // the project. It guards against an agent's accidental writes, not against a hostile agent: it is not
 // a security boundary. The project is the git work tree of the command's folder (with
 // `.baco/config.yaml`) and, from a linked worktree, the main work tree too. The destination is judged
@@ -18,6 +18,7 @@ import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { shellWrites } from '../skills/baco-sdd/scripts/lib/shellwrites.mjs';
+import { readHookInput, preToolAnswer } from './host.mjs';
 
 const ALLOW = { deny: false };
 const gitOut = (args, cwd) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -63,10 +64,11 @@ function physical(base, path, hops = 0) {
 const inside = (path, root) => { const rel = relative(root, path); return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel)); };
 const isDevice = (raw) => /^\/dev\//.test(raw) && !raw.split('/').includes('..');
 
-export function decide(input) {
-  if (input?.agent_id === undefined || input?.agent_id === null) return ALLOW;
-  const command = input?.tool_input?.command;
-  const cwd = typeof input?.cwd === 'string' && input.cwd ? input.cwd : null;
+// `hook` is the normalized input of host.mjs.
+export function decide(hook) {
+  if (!hook.subagent()) return ALLOW;
+  const command = hook.command;
+  const cwd = hook.cwd;
   if (typeof command !== 'string' || !cwd || !existsSync(cwd)) return ALLOW;
   const placed = [];
   for (const t of shellWrites(command).targets) {
@@ -98,15 +100,14 @@ export function decide(input) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  let hook = readHookInput(null);
+  let result = ALLOW;
   try {
-    const result = decide(JSON.parse(readFileSync(0, 'utf8')));
-    if (result.deny) {
-      process.stdout.write(JSON.stringify({
-        hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: result.reason },
-      }));
-    }
+    hook = readHookInput(JSON.parse(readFileSync(0, 'utf8')));
+    result = decide(hook);
   } catch (err) {
     process.stderr.write(`baco write-guard: ${err.message} (permitido)\n`);
   }
+  process.stdout.write(preToolAnswer(hook.host, result));
   process.exit(0);
 }

@@ -16,6 +16,8 @@ const summaries = {
   'qa-evidence': ['Coleta evidências de QA', 'Collect QA evidence'],
   'run-tests': ['Roda as camadas de teste (fila na máquina, modo rápido) ou o teste de fumaça', 'Run test layers (machine-wide queue, quick mode) or the smoke check'],
   'queue-status': ['Mostra quem usa a fila de testes desta máquina e quem está esperando', 'Show who is using this machine\'s test queue and who is waiting'],
+  'harness-answer': ['Lê a resposta em JSON de outra ferramenta de IA, grava a resposta e diz se é preciso retomar', 'Read another AI tool\'s JSON answer, write the response and say whether to resume'],
+  'antigravity-task': ['Prepara a pasta de uma tarefa para o Antigravity construir (trava de gravação e regras de comando) ou tira o preparo (--clean)', 'Prepare a task folder for an Antigravity implementer (write guard and command rules) or take it out (--clean)'],
   board: ['Diz em que coluna do quadro do GitHub Project cada issue da entrega deve estar', 'Say which GitHub Project board column each issue of the delivery belongs in'],
 };
 
@@ -789,4 +791,40 @@ Object.assign(messages.en, {
   'board.next': 'After each change is read back, record it with: baco board {ent} --applied "<issue URL>=<column>".',
   'board.applied_unknown_issue': 'Issue {url} is not part of this delivery (not in the task files nor in the "Issue mãe" line); nothing was recorded.',
   'board.applied_unknown_status': 'Column "{status}" is not in the board configuration ({columns}); nothing was recorded.',
+});
+
+// 1.7.0: answers of AI tools run in non-interactive JSON mode (Antigravity CLI).
+Object.assign(messages['pt-BR'], {
+  'answer.written': 'Resposta gravada em {out} ({chars} caracteres). Uso informado pela ferramenta: {tokens} tokens, {turns} turno(s), {seconds} s; registre com baco cost add ... --tokens {tokens} --seconds {seconds}.',
+  'answer.denied_warning': 'Aviso: a ferramenta negou {n} ação(ões) ({actions}) durante o trabalho e ainda assim respondeu; leia a resposta sabendo disso.',
+  'answer.denied': 'A ferramenta parou sem responder porque uma ação foi negada ({actions}); nada foi gravado. Retome a mesma conversa ({conversation}) com --conversation e a mensagem de retomada (ambientes.md, seção 5).',
+  'answer.failed': 'A ferramenta terminou com o estado {status}{error}; nada foi gravado.',
+  'answer.empty': 'A ferramenta terminou sem resposta e sem ação negada; nada foi gravado.',
+  'answer.invalid_json': 'O arquivo {path} não é a resposta em JSON da ferramenta (--output-format json): {message}.',
+});
+
+Object.assign(messages.en, {
+  'answer.written': 'Answer written to {out} ({chars} characters). Usage reported by the tool: {tokens} tokens, {turns} turn(s), {seconds} s; record it with baco cost add ... --tokens {tokens} --seconds {seconds}.',
+  'answer.denied_warning': 'Warning: the tool denied {n} action(s) ({actions}) while working and still answered; read the answer knowing that.',
+  'answer.denied': 'The tool stopped without answering because an action was denied ({actions}); nothing was written. Resume the same conversation ({conversation}) with --conversation and the resume message (ambientes.md, section 5).',
+  'answer.failed': 'The tool ended with status {status}{error}; nothing was written.',
+  'answer.empty': 'The tool ended with no answer and no denied action; nothing was written.',
+  'answer.invalid_json': 'File {path} is not the tool\'s JSON answer (--output-format json): {message}.',
+});
+
+// 1.7.0: task folder of an Antigravity implementer.
+Object.assign(messages['pt-BR'], {
+  'agytask.ready': 'Pasta {folder} pronta para o Antigravity construir: trava de gravação em .agents/hooks.json e regras em {settings}, fora do git. Chame com --settings {settings} a partir dessa pasta; os testes rodam com {runTests}. Depois, rode de novo com --clean.',
+  'agytask.cleaned': 'Preparo do Antigravity removido de {folder}.',
+  'agytask.not_task_folder': '{folder} não é a raiz de uma pasta git (a pasta de uma tarefa); nada foi gravado.',
+  'agytask.protected': 'A pasta {folder} está no ramo protegido {branch}; o Antigravity só constrói na pasta de uma tarefa. Nada foi gravado.',
+  'agytask.foreign_hooks': 'O projeto já tem {file}, que não foi gravado pelo BACO ou está no git; nada foi gravado nem apagado. Mostre à pessoa: com ele, o Antigravity não constrói neste projeto.',
+});
+
+Object.assign(messages.en, {
+  'agytask.ready': 'Folder {folder} is ready for an Antigravity implementer: write guard in .agents/hooks.json and rules in {settings}, outside git. Call it with --settings {settings} from that folder; tests run with {runTests}. Afterwards, run this again with --clean.',
+  'agytask.cleaned': 'Antigravity preparation removed from {folder}.',
+  'agytask.not_task_folder': '{folder} is not the top of a git folder (a task folder); nothing was written.',
+  'agytask.protected': 'Folder {folder} is on the protected branch {branch}; Antigravity only builds in a task folder. Nothing was written.',
+  'agytask.foreign_hooks': 'The project already has {file}, which BACO did not write or which is in git; nothing was written or removed. Show it to the person: with it, Antigravity does not build in this project.',
 });

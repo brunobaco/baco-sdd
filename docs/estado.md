@@ -1,6 +1,6 @@
 # Estado do trabalho
 
-Atualizado em 2026-11-18.
+Atualizado em 2026-11-20.
 
 ## Pronto
 
@@ -22,6 +22,8 @@ Atualizado em 2026-11-18.
 
 11. Versão 1.6.0: o limite conta revisões (com "revisão N de M" na tabela de tarefas em andamento); só abre correção o achado que quebra uma promessa da tarefa; da segunda revisão em diante, só o que a correção mudou; classe de problema que volta depois de duas correções muda a pergunta (refazer, simplificar ou estreitar a promessa). 645 testes do motor passando. Publicada (marca `v1.6.0` e release com o pacote da skill).
 
+12. Versão 1.7.0: Antigravity como revisor só leitura (regras em `.baco/antigravity/leitura.json`, comando `baco harness-answer`) e como construtor na caixa `protegida` (comando `baco antigravity-task`, gancho `scripts/antigravity-guard.mjs` que prende a gravação na pasta da tarefa), ganchos nos formatos do Claude Code e do Antigravity, gerador do plugin do Antigravity (`tools/antigravity.mjs`) e SKILL.md abaixo de 24 KB, com o detalhe em `references/dispatch.md`. 690 testes do motor passando. Publicada (marca `v1.7.0` e release com o pacote da skill).
+
 ## Em andamento
 
 Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. A etapa 3 saiu na 1.3.0: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa, e continua opcional (decisão de 2026-11-18). Falta:
@@ -38,9 +40,11 @@ Gancho do BACO para o Codex na caixa `livre`: fica para depois. O Codex roda gan
 4. Não testado de ponta a ponta: OpenCode, regras de permissão com `*` no meio do comando.
 5. Limites conhecidos: o `baco board` dá a entrega como juntada quando a branch dela está contida na de integração, o que também acontece se a branch da entrega ainda não tiver nenhum commit próprio (o plano já faz o primeiro, então não ocorre no fluxo normal); `provenance.ignore` não distingue pasta de código de pasta de registro pelo nome (a proteção é a aprovação humana); no modo `pr` o isolamento do revisor é só instrução; os logs em `.baco/logs/` se acumulam sem limpeza; `cost measure` não lê o OpenCode; faixas paralelas pouco usadas quando as tarefas dividem arquivos.
 
+6. Antigravity, conferido na CLI 1.5.10: a chamada do revisor funciona de dentro da caixa `rede` do Claude Code (em segundo plano, sem redirecionamento); as liberações pessoais do Antigravity não se somam às do BACO, e o modo de aprovação pessoal (`always-proceed`) furava as regras até o arquivo do BACO fixar o modo. Construtor conferido ao vivo numa tarefa de teste (escreveu teste e código, rodou `baco run-tests`, gravação fora da pasta recusada pelo gancho) e na verificação de escrita (`regra: sim`, `trava: sim`, `rede: não`). Faltam: uma entrega real com o Antigravity construindo e o Claude conduzindo, e a rodada ponta a ponta com o Antigravity conduzindo (decisão da pessoa). Limites vistos: a caixa de terminal (`--sandbox`) não roda num Linux com `apparmor_restrict_unprivileged_userns=1` e a CLI segue sem ela, sem aviso; `/comando` de plugin não é expandido; os níveis `pro` e `flash` dos subagentes rodaram o mesmo modelo Gemini com condutor Claude; `cost measure` não lê as conversas do Antigravity; as ferramentas de arquivo dele gravam em qualquer lugar no modo sem pessoa, mesmo com regra de caminho (o gancho é o limite); os testes que o construtor roda executam código com o usuário da pessoa.
+
 ## Evoluções futuras
 
-Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versão para o Codex sem perder o que o plugin dá (agentes próprios, bloqueio de edição em `main` e `develop`, reconhecimento automático do projeto, comandos); adaptar para OpenCode e Antigravity; metas numéricas de código na revisão; documentar sistema legado; resultado do CI como gatilho; comando do motor que lista as tarefas prontas para começar; conferência de `Próximos números livres` pelo histórico do Git.
+Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versão para o Codex sem perder o que o plugin dá (agentes próprios, bloqueio de edição em `main` e `develop`, reconhecimento automático do projeto, comandos); adaptar para OpenCode; metas numéricas de código na revisão; documentar sistema legado; resultado do CI como gatilho; comando do motor que lista as tarefas prontas para começar; conferência de `Próximos números livres` pelo histórico do Git.
 
 ## Próximo passo
 
