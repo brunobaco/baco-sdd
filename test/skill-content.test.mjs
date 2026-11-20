@@ -843,3 +843,15 @@ test('GitHub Project board: asked in configuration, filled at publication, synce
   assert.ok(read(join(TEMPLATES, 'progresso.md')).includes('- **Issue mãe:**'), 'progresso.md template: parent line');
   assert.ok(read(join(TEMPLATES, 'config.yaml')).includes('# github:'), 'config.yaml template: board example');
 });
+
+test('antigravity: read-only reviewer call, resume, check with refusal, cost and setup rules', () => {
+  const amb = read('skills/baco-sdd/references/ambientes.md');
+  const conf = read('skills/baco-sdd/references/configure.md');
+  for (const p of ['--settings .baco/antigravity/leitura.json', '--output-format json', 'baco harness-answer <answer file>.json --out <answer file>',
+    'templates/antigravity/leitura.json', 'BACO does not pass `--sandbox`', '--conversation <id>', 'at most twice', 'no `--dangerously-skip-permissions`',
+    'antigravity-regra.txt', '`regra: sim` when `harness-answer` says `denied`', '--harness antigravity --tokens', '`antigravity -p *` (or `agy -p *`',
+    'Você só lê: use suas ferramentas de ler e buscar arquivos']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
+  for (const p of ['`agy` or `antigravity` on the PATH', '`.baco/antigravity/leitura.json`', '`Bash(antigravity -p * --settings .baco/antigravity/leitura.json *)`',
+    '`Bash(antigravity *--dangerously-skip-permissions*)`', '`Bash(antigravity * --settings * --settings *)`', 'Antigravity takes only read-only roles for now',
+    'as regras de leitura do BACO no Antigravity']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+});

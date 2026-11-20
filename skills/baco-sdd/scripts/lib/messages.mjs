@@ -16,6 +16,7 @@ const summaries = {
   'qa-evidence': ['Coleta evidências de QA', 'Collect QA evidence'],
   'run-tests': ['Roda as camadas de teste (fila na máquina, modo rápido) ou o teste de fumaça', 'Run test layers (machine-wide queue, quick mode) or the smoke check'],
   'queue-status': ['Mostra quem usa a fila de testes desta máquina e quem está esperando', 'Show who is using this machine\'s test queue and who is waiting'],
+  'harness-answer': ['Lê a resposta em JSON de outra ferramenta de IA, grava a resposta e diz se é preciso retomar', 'Read another AI tool\'s JSON answer, write the response and say whether to resume'],
   board: ['Diz em que coluna do quadro do GitHub Project cada issue da entrega deve estar', 'Say which GitHub Project board column each issue of the delivery belongs in'],
 };
 
@@ -789,4 +790,23 @@ Object.assign(messages.en, {
   'board.next': 'After each change is read back, record it with: baco board {ent} --applied "<issue URL>=<column>".',
   'board.applied_unknown_issue': 'Issue {url} is not part of this delivery (not in the task files nor in the "Issue mãe" line); nothing was recorded.',
   'board.applied_unknown_status': 'Column "{status}" is not in the board configuration ({columns}); nothing was recorded.',
+});
+
+// 1.7.0: answers of AI tools run in non-interactive JSON mode (Antigravity CLI).
+Object.assign(messages['pt-BR'], {
+  'answer.written': 'Resposta gravada em {out} ({chars} caracteres). Uso informado pela ferramenta: {tokens} tokens, {turns} turno(s), {seconds} s; registre com baco cost add ... --tokens {tokens} --seconds {seconds}.',
+  'answer.denied_warning': 'Aviso: a ferramenta negou {n} ação(ões) ({actions}) durante o trabalho e ainda assim respondeu; leia a resposta sabendo disso.',
+  'answer.denied': 'A ferramenta parou sem responder porque uma ação foi negada ({actions}); nada foi gravado. Retome a mesma conversa ({conversation}) com --conversation e a mensagem de retomada (ambientes.md, seção 5).',
+  'answer.failed': 'A ferramenta terminou com o estado {status}{error}; nada foi gravado.',
+  'answer.empty': 'A ferramenta terminou sem resposta e sem ação negada; nada foi gravado.',
+  'answer.invalid_json': 'O arquivo {path} não é a resposta em JSON da ferramenta (--output-format json): {message}.',
+});
+
+Object.assign(messages.en, {
+  'answer.written': 'Answer written to {out} ({chars} characters). Usage reported by the tool: {tokens} tokens, {turns} turn(s), {seconds} s; record it with baco cost add ... --tokens {tokens} --seconds {seconds}.',
+  'answer.denied_warning': 'Warning: the tool denied {n} action(s) ({actions}) while working and still answered; read the answer knowing that.',
+  'answer.denied': 'The tool stopped without answering because an action was denied ({actions}); nothing was written. Resume the same conversation ({conversation}) with --conversation and the resume message (ambientes.md, section 5).',
+  'answer.failed': 'The tool ended with status {status}{error}; nothing was written.',
+  'answer.empty': 'The tool ended with no answer and no denied action; nothing was written.',
+  'answer.invalid_json': 'File {path} is not the tool\'s JSON answer (--output-format json): {message}.',
 });
