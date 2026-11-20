@@ -21,6 +21,13 @@ test('antigravity read rules: every allow rule is anchored and starts with a lit
   }
 });
 
+// Checked live: a personal `toolPermission: always-proceed` let a command outside the allow list run;
+// the same setting in the session's `--settings` overrides it (permission lists are not merged).
+test('antigravity read rules: the approval mode is pinned, so the person\'s own settings cannot widen it', () => {
+  assert.equal(settings.toolPermission, 'request-review');
+  assert.equal(settings.agentMode, '');
+});
+
 test('antigravity read rules: writing files and the web are denied', () => {
   for (const d of ['write_file(/)', 'read_url(*)', 'execute_url(*)', 'download_url(*)']) {
     assert.ok(settings.permissions.deny.includes(d), d);
