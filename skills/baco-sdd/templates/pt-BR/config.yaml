@@ -96,6 +96,37 @@ harnesses:
   # opencode:
   #   models: { forte: <provedor/modelo>, medio: <provedor/modelo>, leve: <provedor/modelo> }
   #   implementers: off
+  # Uma ferramenta com modelos de outra empresa (o Antigravity tem Gemini e Claude) pode ter um
+  # perfil por família, cada um com os próprios níveis; "tool" diz qual programa o perfil chama.
+  # antigravity-claude:
+  #   tool: antigravity
+  #   models: { forte: claude-opus-5-5, medio: claude-sonnet-5-5, leve: claude-sonnet-5-5 }
+  #   implementers: off
+  #   sandbox: protegida
+
+# Como o plano divide as tarefas.
+#   funcionalidade = cada tarefa entrega uma funcionalidade inteira, servidor e tela juntos (padrão).
+#   front-back = cada funcionalidade vira tarefas separadas de back-end (servidor, banco, API) e de
+#     front-end (telas): primeiro o contrato da API, depois back-end e front-end em paralelo. Serve
+#     para pôr uma ferramenta de IA no back-end e outra no front-end (veja "roles").
+# O plano de cada entrega mostra a divisão, e você pode mudar só para aquela entrega ao aprovar.
+planning:
+  task_split: funcionalidade
+
+# Quem faz cada papel, em ordem de preferência: o nome de uma ferramenta de "harnesses", ou
+# ferramenta/modelo para fixar um modelo. Se a cota de uma acabar, a seguinte continua o trabalho.
+# Sem um papel aqui, o plano decide como sempre (a ferramenta em que o BACO roda, pelo tipo da tarefa).
+# Papéis: implementer (quem constrói, com task_split: funcionalidade), backend e frontend (com
+# front-back), task_reviewer (revisões de tarefa), task_reviewer_last (só a última revisão permitida
+# da tarefa), final_reviewer (revisão final da entrega) e pr_reviewer (revisão do PR).
+# O plano mostra essas listas e você pode mudar qualquer uma, e o modelo de cada papel, ao aprovar.
+# A conversa principal (o condutor) não entra aqui: quando a conta dela acaba, quem continua é a
+# troca de contas do ambiente, como a fila de contas da Ratoeira.
+roles:
+  # backend: [antigravity-claude, claude-code]
+  # frontend: [antigravity]
+  # task_reviewer: [codex, antigravity/gemini-4-argon]
+  # task_reviewer_last: [antigravity/gemini-4-argon]
 
 review:
   external_rounds_max: 3  # quantas rodadas de revisão externa antes de pedir decisão a uma pessoa

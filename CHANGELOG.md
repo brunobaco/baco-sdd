@@ -1,5 +1,16 @@
 # Histórico de mudanças
 
+## 1.8.0 (2026-11-21)
+
+O plano pode separar back-end e front-end, cada papel ganha uma lista de ferramentas em ordem, com reservas para quando a cota acaba, e uma ferramenta com modelos de várias empresas pode ter um perfil por família.
+
+- Divisão das tarefas: chave nova `planning.task_split`, com `funcionalidade` (padrão, como antes: cada tarefa leva servidor e tela juntos) ou `front-back`. Com `front-back`, cada funcionalidade vira uma tarefa pequena de contrato da API, depois uma de back-end e uma de front-end, que andam em paralelo. O front-end é construído sobre as respostas de exemplo do contrato, entra na entrega depois do back-end e tem os testes de tela rodados com os dois juntos. Mudança de contrato volta pela tarefa de contrato. Cada tarefa ganha o campo `Parte` (contrato, back-end ou front-end), e o plano diz qual divisão vale e de onde veio. Valor inválido volta para `funcionalidade`, com aviso.
+- Papéis e reservas: chave nova `roles`, com uma lista em ordem para cada papel (`implementer`, `backend`, `frontend`, `task_reviewer`, `task_reviewer_last`, `final_reviewer`, `pr_reviewer`). Cada item é uma ferramenta de `harnesses` ou `ferramenta/modelo`, para fixar um modelo. A primeira faz o papel; quando a cota dela acaba, a seguinte continua sozinha, sem esperar a pessoa, porque a lista foi aprovada com o plano. O revisor de uma tarefa nunca é da mesma família de modelo de quem a construiu. `task_reviewer_last` dá outro revisor à última revisão permitida da tarefa, para uma segunda visão. Papel desconhecido ou ferramenta fora de `harnesses` sai da lista, com aviso.
+- Perfis de uma ferramenta: `harnesses.<nome>.tool` diz qual programa a entrada chama. Assim o Antigravity pode ter uma entrada para o Gemini e outra para o Claude (`tool: antigravity`), cada uma com os próprios níveis e a própria cota.
+- Aprovação do plano: a mensagem diz o que a pessoa pode mudar só para aquela entrega (a divisão, a lista e as reservas de cada papel, o modelo e o esforço de qualquer papel ou tarefa). A configuração fica como está, e o plano registra o que difere dela.
+- Condutor: o plano diz quem continua se a conta da conversa principal acabar. Na Ratoeira, lê a ordem da fila de contas, só para mostrar, e avisa quando a próxima conta é de outro agente, em que o BACO roda sem os agentes e os ganchos do plugin.
+- Configuração: perguntas novas 13 (como o plano divide as tarefas) e 14 (quem faz cada papel e as reservas), e a oferta de um perfil por família quando a ferramenta tem modelos de mais de uma empresa.
+
 ## 1.7.0 (2026-11-20)
 
 O BACO passa a funcionar no Antigravity (CLI 1.5.10), de três jeitos: como revisor em modo só leitura e como construtor, chamado pelo condutor em outra ferramenta, e como ferramenta principal, com um plugin próprio gerado a partir do plugin do Claude Code.

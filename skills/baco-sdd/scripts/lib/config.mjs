@@ -51,6 +51,14 @@ export const DEFAULTS = {
   // same folder limit, with network and local ports) or livre (no sandbox, only the command rules).
   // Default rede.
   harnesses: {},
+  // How the plan splits the tasks: funcionalidade (each task delivers a whole behavior, server and
+  // screen together) or front-back (each behavior becomes a back-end task and a front-end task, with
+  // the API contract first, so the two run in parallel).
+  planning: { task_split: 'funcionalidade' },
+  // Who does each role, in order of preference: `<harness>` or `<harness>/<model>`. The next entry
+  // takes over when the previous one is out of quota. The plan shows the lists and the person may
+  // change them for one delivery when approving it. Empty: the plan decides as before.
+  roles: {},
   // Paths (git pathspec globs) that, like <docs_root>/entregas/**, never make a recorded head stale (R26).
   provenance: { ignore: [] },
   // Conversation size (input + cache tokens of the last answer) from which the conductor suggests,
@@ -212,7 +220,7 @@ function deepMerge(base, over) {
 }
 
 // Sections that must be maps; any other non-null value is ignored (defaults kept) with a warning.
-const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github'];
+const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github', 'planning', 'roles'];
 // List settings where a single scalar is accepted as a one-element list.
 const LIST_SETTINGS = [['branches', 'protected'], ['tests', 'patterns'], ['tests', 'queue']];
 
@@ -253,6 +261,8 @@ const HARNESS_LEVELS = ['forte', 'medio', 'leve'];
 const HARNESS_SANDBOXES = ['protegida', 'rede', 'livre'];
 const PR_REVIEWERS = ['agente', 'pessoa', 'ambos'];
 const LAST_ROUND_IMPORTANTE = ['seguir', 'parar'];
+const TASK_SPLITS = ['funcionalidade', 'front-back'];
+export const ROLE_NAMES = ['implementer', 'backend', 'frontend', 'task_reviewer', 'task_reviewer_last', 'final_reviewer', 'pr_reviewer'];
 
 // `harnesses.<name>`: a map with `models` (level -> non-empty model name), `implementers`
 // (boolean, default false) and `sandbox` (protegida, rede or livre, default rede). An entry that is
@@ -288,9 +298,76 @@ function normalizeHarnesses(harnesses, warnings) {
         warnings.push({ key: 'config.sandbox_invalid', params: { harness: name, value: String(entry.sandbox) } });
       }
     }
-    out[name] = { ...entry, models, implementers, sandbox };
+    const next = { ...entry, models, implementers, sandbox };
+    if (entry.tool !== undefined && entry.tool !== null) {
+      const tool = typeof entry.tool === 'string' ? entry.tool.trim() : '';
+      if (tool) next.tool = tool;
+      else { delete next.tool; warn(`${name}.tool`); }
+    }
+    out[name] = next;
   }
   return out;
+}
+
+// The tool a harness entry calls: its `tool` when set (a profile, such as `antigravity-claude` with
+// `tool: antigravity`), otherwise its own name.
+export function harnessTool(config, name) {
+  const tool = config.harnesses?.[name]?.tool;
+  return typeof tool === 'string' && tool ? tool : name;
+}
+
+// `planning.task_split`: funcionalidade or front-back; anything else falls back to funcionalidade.
+function normalizePlanning(planning, warnings) {
+  const out = { ...planning };
+  const split = planning.task_split;
+  if (split !== undefined && split !== null && !TASK_SPLITS.includes(split)) {
+    warnings.push({ key: 'config.task_split_invalid', params: { value: String(split) } });
+    out.task_split = 'funcionalidade';
+  }
+  return out;
+}
+
+// `roles.<role>`: a list (or one text) of `<harness>` or `<harness>/<model>`, in order of
+// preference. A role outside ROLE_NAMES, a list that is something else, an entry that is not text or
+// has an empty part, and an entry naming a harness absent from `harnesses` are dropped with a warning.
+function normalizeRoles(roles, harnesses, warnings) {
+  const out = {};
+  for (const [role, value] of Object.entries(roles)) {
+    if (!ROLE_NAMES.includes(role)) {
+      warnings.push({ key: 'config.role_unknown', params: { role, known: ROLE_NAMES.join(', ') } });
+      continue;
+    }
+    if (value === undefined || value === null) continue;
+    const list = Array.isArray(value) ? value : (typeof value === 'string' ? [value] : null);
+    if (list === null) { warnings.push({ key: 'config.invalid_section', params: { section: `roles.${role}` } }); continue; }
+    const kept = [];
+    for (const item of list) {
+      const text = typeof item === 'string' ? item.trim() : '';
+      const slash = text.indexOf('/');
+      const harness = slash === -1 ? text : text.slice(0, slash).trim();
+      const model = slash === -1 ? null : text.slice(slash + 1).trim();
+      if (!harness || model === '') { warnings.push({ key: 'config.invalid_section', params: { section: `roles.${role}` } }); continue; }
+      if (!Object.hasOwn(harnesses, harness)) {
+        warnings.push({ key: 'config.role_harness_unknown', params: { role, harness } });
+        continue;
+      }
+      kept.push(model === null ? harness : `${harness}/${model}`);
+    }
+    if (kept.length) out[role] = kept;
+  }
+  return out;
+}
+
+// The resolved list of a role: [{ harness, tool, model }], model null when the entry names none (the
+// plan then takes the model of the task's level from that harness's `models`).
+export function roleChain(config, role) {
+  const list = config.roles?.[role];
+  if (!Array.isArray(list)) return [];
+  return list.map((entry) => {
+    const slash = entry.indexOf('/');
+    const harness = slash === -1 ? entry : entry.slice(0, slash);
+    return { harness, tool: harnessTool(config, harness), model: slash === -1 ? null : entry.slice(slash + 1) };
+  });
 }
 
 // `github.project`: a map with `owner` (non-empty text) and `number` (positive integer), plus an
@@ -484,6 +561,8 @@ export function resolveConfig(parsed) {
   if (isPlainObject(user.harnesses)) user = { ...user, harnesses: normalizeHarnesses(user.harnesses, warnings) };
   if (isPlainObject(user.review)) user = { ...user, review: normalizeReview(user.review, warnings) };
   if (isPlainObject(user.github)) user = { ...user, github: normalizeGithub(user.github, warnings) };
+  if (isPlainObject(user.planning)) user = { ...user, planning: normalizePlanning(user.planning, warnings) };
+  if (isPlainObject(user.roles)) user = { ...user, roles: normalizeRoles(user.roles, isPlainObject(user.harnesses) ? user.harnesses : {}, warnings) };
   for (const [section, key] of LIST_SETTINGS) {
     const v = user[section]?.[key];
     if (v === undefined || v === null) continue;

@@ -106,6 +106,9 @@ Object.assign(messages['pt-BR'], {
   'config.last_round_importante_invalid': 'review.last_round_importante "{value}" não é seguir nem parar; usando parar (a tarefa espera você).',
   'config.pr_reviewer_invalid': 'Quem revisa o PR (review.pr.reviewer) tem um valor inválido ("{value}"); usando "pessoa", a revisão mais humana. Corrija para agente, pessoa ou ambos.',
   'config.sandbox_invalid': 'A caixa da ferramenta {harness} (harnesses.{harness}.sandbox) tem um valor inválido ("{value}"); usando "protegida", a mais restrita. Corrija para protegida, rede ou livre.',
+  'config.task_split_invalid': 'planning.task_split "{value}" não é funcionalidade nem front-back; usando funcionalidade (cada tarefa leva servidor e tela juntos).',
+  'config.role_unknown': 'roles.{role} não é um papel conhecido; ignorado. Papéis: {known}.',
+  'config.role_harness_unknown': 'roles.{role} cita a ferramenta "{harness}", que não está em harnesses; ela sai da lista desse papel.',
 });
 Object.assign(messages.en, {
   'cli.unknown_command': 'Unknown command: {name}',
@@ -186,6 +189,9 @@ Object.assign(messages.en, {
   'config.last_round_importante_invalid': 'review.last_round_importante "{value}" is neither seguir nor parar; using parar (the task waits for you).',
   'config.pr_reviewer_invalid': 'The PR reviewer (review.pr.reviewer) has an invalid value ("{value}"); using "pessoa", the most human review. Set it to agente, pessoa or ambos.',
   'config.sandbox_invalid': 'The sandbox of the {harness} tool (harnesses.{harness}.sandbox) has an invalid value ("{value}"); using "protegida", the strictest. Set it to protegida, rede or livre.',
+  'config.task_split_invalid': 'planning.task_split "{value}" is neither funcionalidade nor front-back; using funcionalidade (each task carries server and screen together).',
+  'config.role_unknown': 'roles.{role} is not a known role; ignored. Roles: {known}.',
+  'config.role_harness_unknown': 'roles.{role} names the tool "{harness}", which is not in harnesses; it leaves that role\'s list.',
 });
 
 Object.assign(messages['pt-BR'], {

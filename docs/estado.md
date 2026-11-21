@@ -1,6 +1,6 @@
 # Estado do trabalho
 
-Atualizado em 2026-11-20.
+Atualizado em 2026-11-21.
 
 ## Pronto
 
@@ -23,6 +23,8 @@ Atualizado em 2026-11-20.
 11. Versão 1.6.0: o limite conta revisões (com "revisão N de M" na tabela de tarefas em andamento); só abre correção o achado que quebra uma promessa da tarefa; da segunda revisão em diante, só o que a correção mudou; classe de problema que volta depois de duas correções muda a pergunta (refazer, simplificar ou estreitar a promessa). 645 testes do motor passando. Publicada (marca `v1.6.0` e release com o pacote da skill).
 
 12. Versão 1.7.0: Antigravity como revisor só leitura (regras em `.baco/antigravity/leitura.json`, comando `baco harness-answer`) e como construtor na caixa `protegida` (comando `baco antigravity-task`, gancho `scripts/antigravity-guard.mjs` que prende a gravação na pasta da tarefa), ganchos nos formatos do Claude Code e do Antigravity, gerador do plugin do Antigravity (`tools/antigravity.mjs`) e SKILL.md abaixo de 24 KB, com o detalhe em `references/dispatch.md`. 690 testes do motor passando. Publicada (marca `v1.7.0` e release com o pacote da skill).
+
+13. Versão 1.8.0: divisão das tarefas em back-end e front-end (`planning.task_split: front-back`, com o contrato da API antes e as duas partes em paralelo), papéis com reservas por cota (`roles`, a reserva assume sem parar a entrega e o revisor nunca é da mesma família de quem construiu) e perfis por família de modelo (`harnesses.<nome>.tool`). 695 testes do motor passando. Publicada (marca `v1.8.0` e release com o pacote da skill). Ainda sem entrega real com a divisão e as reservas: a primeira entrega que usar serve de teste.
 
 ## Em andamento
 

@@ -8,7 +8,8 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o plano real)
 - Início: a hora em que o planejamento desta entrega começou, tirada do comando `date`. É daí que o motor mede nas conversas o custo real da entrega (`baco cost measure`).
 - O plano só vale depois que uma pessoa aprova. Recomendação da IA não conta como aprovação.
 - Classe da tarefa: mecânica (troca simples, sem decisão), padrão (trabalho comum) ou arriscada (mexe em dados, login, dinheiro ou algo difícil de desfazer). A classe define o nível e o esforço.
-- Harness e modelo: a ferramenta de IA (por exemplo Claude Code, Codex) e o modelo real que roda cada tarefa e cada papel, tirados de `harnesses` em `.baco/config.yaml`. Ficam decididos aqui e são aprovados com o plano; na construção ninguém troca. Uma ferramenta que não é a do agente principal só faz papéis que leem e revisam, a não ser que a configuração diga `implementers: on` para ela.
+- Harness e modelo: a ferramenta de IA (por exemplo Claude Code, Codex) e o modelo real que roda cada tarefa e cada papel, tirados de `harnesses` em `.baco/config.yaml`, seguidos das reservas em ordem quando a configuração tem `roles` (a reserva assume só se a cota da anterior acabar). Ficam decididos aqui e são aprovados com o plano; na construção ninguém troca fora dessa lista. Uma ferramenta que não é a do agente principal só faz papéis que leem e revisam, a não ser que a configuração diga `implementers: on` para ela.
+- Divisão das tarefas: por funcionalidade (cada tarefa leva servidor e tela juntos) ou back-end e front-end separados (`planning.task_split: front-back`), com a parte de cada tarefa (contrato, back-end ou front-end) nos detalhes dela. Quem aprova o plano pode trocar a divisão, as listas de cada papel e qualquer modelo só para esta entrega; o plano diz o que difere da configuração e por quê.
 - Parada humana: uma tarefa que exige que uma pessoa olhe o resultado antes de seguir leva `Parada humana: sim` (com o motivo) no arquivo dela. O padrão é `não`. Quem aprova o plano aprova também essas paradas.
 - Nível da entrega: leve (pequena, fácil de desfazer, sem dinheiro nem dados pessoais, sem tecnologia nova, uma spec só, nenhuma tarefa arriscada), normal (o caminho de sempre) ou completo (basta um sinal de risco: várias specs, difícil de desfazer, dinheiro, dados pessoais, tecnologia nova, trabalho longo ou migração que apaga dados). Na dúvida, escolha o nível acima.
 - Uma spec por entrega é o padrão; juntar duas exige um motivo escrito.
@@ -24,6 +25,8 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o plano real)
 **Entrega:** ENT-NNN | `<nome da entrega>`
 
 **Nível:** <leve, normal ou completo>
+
+**Divisão das tarefas:** <por funcionalidade (cada tarefa leva servidor e tela juntos), ou back-end e front-end separados: primeiro o contrato da API, depois back-end (<ferramenta e modelo>) e front-end (<ferramenta e modelo>) em paralelo; e de onde veio: da configuração, ou escolhida para esta entrega>
 
 **Revisão externa:** <revisão do PR (recomendado), por agente, pessoa ou ambos, como em `review.pr.reviewer`, com o harness, o modelo e o esforço do revisor agente e se as correções são automáticas; ou modo repositório, quando o isolamento da pasta da entrega precisa ser garantido, ou pacote, quando a pessoa pedir; ou dispensada com o motivo>
 
@@ -49,6 +52,7 @@ Uma subseção por tarefa, com o que o publicador copia para o arquivo dela (ele
 
 ### `T-001`
 
+- **Parte:** `<só com back-end e front-end separados: contrato, back-end ou front-end; senão, apague a linha>`
 - **Resultado esperado:** `<o que existe ou funciona depois desta tarefa, em linguagem simples>`
 - **Critério de pronto:** `<como conferir, por exemplo: o teste [CT-XYZ-001] passa>`
 - **Testes da tarefa:** `<os testes que ela cria, com o caminho, e os que já existem nos arquivos que ela mexe>`
@@ -59,9 +63,11 @@ Tarefa com parada humana leva a palavra `PARADA` ao lado do código na coluna `T
 
 | Papel | O que faz | Nível | Harness | Modelo e esforço | Máximo de revisões |
 |---|---|---|---|---|---|
-| `<ex.: implementador padrão>` | `<o que faz>` | `<leve, medio ou forte>` | `<ferramenta de IA, de harnesses>` | `<modelo e esforço reais>` | `<revisões por tarefa, contando a primeira: de review.task_rounds (mecânica 2, padrão 3, arriscada 4) ou outro com o motivo; só a correção antes da última revisão usa um nível acima>` |
+| `<ex.: implementador padrão>` | `<o que faz>` | `<leve, medio ou forte>` | `<ferramenta de IA, de harnesses; com roles, também as reservas em ordem: "reserva: <ferramenta>">` | `<modelo e esforço reais, de cada uma>` | `<revisões por tarefa, contando a primeira: de review.task_rounds (mecânica 2, padrão 3, arriscada 4) ou outro com o motivo; só a correção antes da última revisão usa um nível acima>` |
 | `<revisor do PR>` | `revisa o PR da entrega, só leitura, sem ver docs/entregas/` | `forte` | `<de preferência outro que não o de quem construiu>` | `<modelo e esforço reais>` | `<review.external_rounds_max>` |
 | `<localizador, se for usado>` | `acha onde está a informação e devolve o trecho literal` | `leve` | `<ferramenta>` | `<modelo e esforço reais>` | `não se aplica` |
+
+**Condutor:** `<a ferramenta e o modelo da conversa principal; se a conta dela acabar, quem continua: na Ratoeira, a próxima conta da fila de contas (e, se for outro agente, que o BACO segue sem os agentes e os ganchos do plugin); fora dela, a entrega para até a cota voltar>`
 
 **Estimativa de uso da cota:** `<faixa tirada do custo das entregas anteriores, ou "sem histórico">`
 
