@@ -15,7 +15,8 @@ COMO USAR ESTE MODELO (apague este bloco ao criar a tarefa real)
 | CAs | `<critérios de aceite que esta tarefa cumpre, como CA-XYZ-001>` |
 | Classe | `<mecânica, padrão ou arriscada>` |
 | Nível/esforço | `<ex.: medio/medio>` |
-| Harness e modelo | `<copiado da linha do plano, ex.: claude-code: sonnet, medium>` |
+| Harness e modelo | `<copiado da linha do plano, com as reservas, ex.: claude-code: sonnet, medium>` |
+| Parte | `<só com back-end e front-end separados: contrato, back-end ou front-end; senão, apague a linha>` |
 | Faixa | `<faixa paralela da linha do plano, como A>` |
 | Arquivos prováveis | `<arquivos que a tarefa deve tocar, copiados da linha do plano>` |
 | Branch | `baco/ENT-NNN-<TASK-ID>` |

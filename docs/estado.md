@@ -1,6 +1,6 @@
 # Estado do trabalho
 
-Atualizado em 2026-11-20.
+Atualizado em 2026-11-21.
 
 ## Pronto
 
@@ -25,6 +25,8 @@ Atualizado em 2026-11-20.
 12. Versão 1.7.0: Antigravity como revisor só leitura (regras em `.baco/antigravity/leitura.json`, comando `baco harness-answer`) e como construtor na caixa `protegida` (comando `baco antigravity-task`, gancho `scripts/antigravity-guard.mjs` que prende a gravação na pasta da tarefa), ganchos nos formatos do Claude Code e do Antigravity, gerador do plugin do Antigravity (`tools/antigravity.mjs`) e SKILL.md abaixo de 24 KB, com o detalhe em `references/dispatch.md`. 690 testes do motor passando. Publicada (marca `v1.7.0` e release com o pacote da skill).
 
 ## Em andamento
+
+Versão 1.8.0, na branch `feat/task-split-roles`, esperando juntar: divisão das tarefas em back-end e front-end (`planning.task_split`), papéis com reservas por cota (`roles`) e perfis por família de modelo (`harnesses.<nome>.tool`). 695 testes do motor passando. Falta juntar na `main`, marcar `v1.8.0`, publicar a release com o pacote da skill e testar numa entrega real (back-end no Claude, front-end no Antigravity, revisão no Codex com reserva no Antigravity).
 
 Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. A etapa 3 saiu na 1.3.0: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa, e continua opcional (decisão de 2026-11-18). Falta:
 

@@ -589,3 +589,111 @@ test('github.project: bad values warn and fall back', async () => {
   assert.deepEqual(listStatus.warnings.map((w) => w.params.section), ['github.project.status']);
   assert.equal(githubProject(listStatus).status.published, 'Backlog');
 });
+
+// 1.8.0: how the plan splits the tasks (planning.task_split), tool profiles (harnesses.<name>.tool)
+// and the ordered reserve list of each role (roles).
+test('planning.task_split: defaults to funcionalidade; front-back loads; a bad value falls back with a warning', async () => {
+  assert.deepEqual(DEFAULTS.planning, { task_split: 'funcionalidade' });
+  assert.equal(loadConfig(rootWith()).planning.task_split, 'funcionalidade');
+  const fb = loadConfig(rootWith('planning:\n  task_split: front-back\n'));
+  assert.equal(fb.planning.task_split, 'front-back');
+  assert.deepEqual(fb.warnings, []);
+  const bad = loadConfig(rootWith('planning:\n  task_split: camadas\n'));
+  assert.equal(bad.planning.task_split, 'funcionalidade');
+  assert.deepEqual(bad.warnings, [{ key: 'config.task_split_invalid', params: { value: 'camadas' } }]);
+  for (const lang of ['pt-BR', 'en']) assert.match(t(lang, 'config.task_split_invalid', { value: 'camadas' }), /camadas.*funcionalidade/s);
+  const scalar = loadConfig(rootWith('planning: front-back\n'));
+  assert.equal(scalar.planning.task_split, 'funcionalidade');
+  assert.deepEqual(scalar.warnings, [{ key: 'config.invalid_section', params: { section: 'planning' } }]);
+});
+
+test('harnesses.<name>.tool: a profile names the tool it calls; the tool defaults to the name; a bad tool warns', async () => {
+  const { harnessTool } = await import('../skills/baco-sdd/scripts/lib/config.mjs');
+  const cfg = loadConfig(rootWith([
+    'harnesses:',
+    '  antigravity:',
+    '    models: { forte: gemini-4-neon }',
+    '  antigravity-claude:',
+    '    tool: antigravity',
+    '    models: { forte: claude-opus-5-5, medio: claude-sonnet-5-5 }',
+    '  outro:',
+    '    tool: [x]',
+    '',
+  ].join('\n')));
+  assert.equal(cfg.harnesses['antigravity-claude'].tool, 'antigravity');
+  assert.equal(harnessTool(cfg, 'antigravity-claude'), 'antigravity');
+  assert.equal(harnessTool(cfg, 'antigravity'), 'antigravity');
+  assert.equal(harnessTool(cfg, 'claude-code'), 'claude-code');
+  assert.equal(cfg.harnesses.outro.tool, undefined);
+  assert.equal(harnessTool(cfg, 'outro'), 'outro');
+  assert.deepEqual(cfg.warnings, [{ key: 'config.invalid_section', params: { section: 'harnesses.outro.tool' } }]);
+});
+
+test('roles: default empty; each role is an ordered list of harness or harness/model; unknown roles and harnesses warn', async () => {
+  const { roleChain, ROLE_NAMES } = await import('../skills/baco-sdd/scripts/lib/config.mjs');
+  assert.deepEqual(DEFAULTS.roles, {});
+  assert.deepEqual(ROLE_NAMES, ['implementer', 'backend', 'frontend', 'task_reviewer', 'task_reviewer_last', 'final_reviewer', 'pr_reviewer']);
+  assert.deepEqual(roleChain(loadConfig(rootWith()), 'backend'), []);
+  const cfg = loadConfig(rootWith([
+    'harnesses:',
+    '  claude-code:',
+    '    implementers: on',
+    '  codex:',
+    '    models: { forte: gpt-x }',
+    '  antigravity:',
+    '    implementers: on',
+    '    sandbox: protegida',
+    '  antigravity-claude:',
+    '    tool: antigravity',
+    '    implementers: on',
+    '    sandbox: protegida',
+    'roles:',
+    '  backend: [antigravity-claude, claude-code]',
+    '  frontend: antigravity',
+    '  task_reviewer:',
+    '    - codex',
+    '    - antigravity/gemini-4-argon',
+    '  task_reviewer_last: [antigravity/gemini-4-argon, sumiu]',
+    '  revisor_extra: [codex]',
+    '  pr_reviewer: [nada]',
+    '',
+  ].join('\n')));
+  assert.deepEqual(cfg.roles, {
+    backend: ['antigravity-claude', 'claude-code'],
+    frontend: ['antigravity'],
+    task_reviewer: ['codex', 'antigravity/gemini-4-argon'],
+    task_reviewer_last: ['antigravity/gemini-4-argon'],
+  });
+  assert.deepEqual(roleChain(cfg, 'backend'), [
+    { harness: 'antigravity-claude', tool: 'antigravity', model: null },
+    { harness: 'claude-code', tool: 'claude-code', model: null },
+  ]);
+  assert.deepEqual(roleChain(cfg, 'task_reviewer')[1], { harness: 'antigravity', tool: 'antigravity', model: 'gemini-4-argon' });
+  assert.deepEqual(roleChain(cfg, 'pr_reviewer'), []);
+  assert.deepEqual(cfg.warnings, [
+    { key: 'config.role_harness_unknown', params: { role: 'task_reviewer_last', harness: 'sumiu' } },
+    { key: 'config.role_unknown', params: { role: 'revisor_extra', known: ROLE_NAMES.join(', ') } },
+    { key: 'config.role_harness_unknown', params: { role: 'pr_reviewer', harness: 'nada' } },
+  ]);
+  for (const lang of ['pt-BR', 'en']) {
+    assert.match(t(lang, 'config.role_harness_unknown', { role: 'pr_reviewer', harness: 'nada' }), /pr_reviewer.*nada/s);
+    assert.match(t(lang, 'config.role_unknown', { role: 'x', known: 'implementer' }), /x.*implementer/s);
+  }
+});
+
+test('roles: an entry that is not text or has an empty model is dropped with a warning; a role that is not a list warns', () => {
+  const cfg = loadConfig(rootWith([
+    'harnesses:',
+    '  codex:',
+    '    models: { forte: gpt-x }',
+    'roles:',
+    '  task_reviewer: [codex/, codex]',
+    '  final_reviewer: { a: b }',
+    '',
+  ].join('\n')));
+  assert.deepEqual(cfg.roles, { task_reviewer: ['codex'] });
+  assert.deepEqual(cfg.warnings, [
+    { key: 'config.invalid_section', params: { section: 'roles.task_reviewer' } },
+    { key: 'config.invalid_section', params: { section: 'roles.final_reviewer' } },
+  ]);
+});
