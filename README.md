@@ -22,7 +22,7 @@ O trabalho anda em fases. Cada uma termina com arquivos salvos no projeto, entã
 
 | Fase | Comando | O que acontece | Quem decide |
 |---|---|---|---|
-| 0. Configurar | `/baco:configurar` | Perguntas que explicam o que cada opção muda: idioma, onde registrar tarefas, linhas de trabalho do código (branches), paradas, cenários manuais pendentes, comandos de teste, tamanho da conversa, ferramentas de IA e o modelo de cada nível, nível de IA por tipo de tarefa, quem revisa o PR, rodadas de revisão, regras de permissão. Num projeto configurado numa versão anterior, faz só as perguntas novas. Opcional: sem ela, vale o padrão. | Você responde |
+| 0. Configurar | `/baco:configurar` | Perguntas que explicam o que cada opção muda: idioma, onde registrar tarefas, linhas de trabalho do código (branches), paradas, cenários manuais pendentes, comandos de teste, tamanho da conversa, ferramentas de IA e o modelo de cada nível, nível de IA por tipo de tarefa, quem revisa o PR, rodadas de revisão, divisão das tarefas, quem faz cada papel e as reservas, regras de permissão. Num projeto configurado numa versão anterior, faz só as perguntas novas. Opcional: sem ela, vale o padrão. | Você responde |
 | 1. Iniciar | `/baco:iniciar` | Entrevista curta sobre o produto e cria a documentação mínima: visão, planejamento, catálogo de specs. Pergunta em quais navegadores o produto precisa funcionar e se já existe alguma decisão técnica ou restrição a respeitar. Não escolhe tecnologia: isso é da fase 3. | Você aprova o início |
 | 2. Spec | `/baco:spec` | Escreve o contrato de uma capacidade: regras de negócio e critérios de aceite (o que precisa acontecer para estar certo), com cenários de teste. Um leitor sem contexto procura lacunas; um revisor de simplicidade corta o que sobra. Também audita ou evolui uma spec já aprovada. | Você aprova a spec (sempre) |
 | 3. Arquitetura | `/baco:arquitetura` | Depois da primeira spec aprovada, propõe a tecnologia (ou confere a que você já tem), com custo, risco e dificuldade de voltar atrás, e registra cada decisão (ADR). Um advogado do diabo ataca a proposta antes de você ver. | Você aprova |
@@ -71,7 +71,7 @@ Depois do plano aprovado, o `/baco:executar` trabalha sem parar até a entrega f
 3. confere se o app sobe como o usuário faz antes de juntar cada tarefa de tela ou servidor;
 4. decide dúvidas pequenas e reversíveis pela recomendação dele e registra "decidido pelo agente, conferir no fim";
 5. transforma bloqueio de ambiente em pendência registrada e segue com o resto;
-6. se a cota de uso acabar, registra onde parou e retoma dali quando você manda "continuar";
+6. se a cota de uma ferramenta acabar, passa o papel para a reserva que o plano aprovou; sem reserva, registra onde parou e retoma dali quando você manda "continuar";
 7. troca de conversa quando ela fica grande, sem perder o fio (ver [Proteções](#proteções));
 8. abre o PR da entrega como rascunho (sem GitHub, usa a diferença local), manda revisar, registra o veredito da IA revisora e corrige os achados no mesmo PR até a aprovação ou até o limite de rodadas.
 
@@ -127,6 +127,14 @@ Com o Codex disponível, a configuração sugere uma de duas divisões, e você 
 2. O Claude constrói, e o Codex revisa o PR em modo só leitura. Custou cerca de 1% do uso e achou defeitos que as revisões do Claude não acharam.
 
 Nas duas, quem revisa o PR é uma ferramenta diferente da que construiu.
+
+Para ir além dessas duas, a configuração aceita mais três ajustes, e o plano de cada entrega mostra todos para você mudar só naquela entrega:
+
+1. Divisão das tarefas (`planning.task_split`). O padrão é por funcionalidade, com servidor e tela na mesma tarefa. Com `front-back`, cada funcionalidade vira uma tarefa pequena de contrato da API e depois uma de back-end e uma de front-end, que andam em paralelo, cada uma com a ferramenta que você escolher. A tela entra depois do servidor, e os testes de tela rodam com os dois juntos.
+2. Papéis e reservas (`roles`). Cada papel (construir o back-end, o front-end, revisar cada tarefa, a última revisão da tarefa, a revisão final, o PR) tem uma lista em ordem. Quando a cota da primeira acaba, a seguinte continua sem parar a entrega. Quem revisa nunca usa um modelo da mesma empresa de quem construiu.
+3. Perfis por família (`harnesses.<nome>.tool`). Uma ferramenta com modelos de várias empresas, como o Antigravity com Gemini e Claude, ganha uma entrada por família, cada uma com a própria cota.
+
+A conversa principal, que conduz a entrega, fica de fora das reservas: quando a conta dela acaba, quem continua é a troca de contas do ambiente, quando existe (na Ratoeira, a fila de contas), e o plano diz quem seria.
 
 ## Nível de cuidado de cada entrega
 
