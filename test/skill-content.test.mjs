@@ -855,7 +855,8 @@ test('antigravity: read-only reviewer call, resume, check with refusal, cost and
   const conf = read('skills/baco-sdd/references/configure.md');
   for (const p of ['--settings .baco/antigravity/leitura.json', '--output-format json', 'baco harness-answer <answer file>.json --out <answer file>',
     'templates/antigravity/leitura.json', 'BACO does not pass `--sandbox`', '--conversation <id>', 'at most twice', 'no `--dangerously-skip-permissions`',
-    'antigravity-regra.txt', '`regra: sim` when `harness-answer` says `denied`', '--harness antigravity --tokens', '`antigravity -p *` (or `agy -p *`',
+    'antigravity-regra.txt', '`regra: sim` when `harness-answer` says `denied`', '--harness <harness entry> --tokens', '`antigravity -p *` (or `agy -p *`',
+    '--harness <harness entry, for example antigravity or antigravity-claude> --model <model> --agent <role>', '.baco/logs/uso-ferramentas.jsonl', 'on a resume `harness-answer` gives only what that call added',
     'Você só lê: use suas ferramentas de ler e buscar arquivos']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   for (const p of ['`agy` or `antigravity` on the PATH', '`.baco/antigravity/leitura.json`', '`Bash(antigravity -p * --settings .baco/antigravity/leitura.json *)`',
     '`Bash(antigravity *--dangerously-skip-permissions*)`', '`Bash(antigravity * --settings * --settings *)`',
