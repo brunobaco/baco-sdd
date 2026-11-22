@@ -1,8 +1,8 @@
 // Per-machine settings for test commands: `.baco/local.env` (not versioned).
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { git } from './git.mjs';
+import { mainCheckout } from './git.mjs';
 
 export const LOCAL_ENV = '.baco/local.env';
 
@@ -21,14 +21,6 @@ export function parseLocalEnv(text) {
     vars[m[1]] = value;
   });
   return { vars, bad };
-}
-
-// The main checkout of the repo at `root` when `root` is a linked worktree (task folders are), else null.
-function mainCheckout(root) {
-  let common;
-  try { common = git(['rev-parse', '--path-format=absolute', '--git-common-dir'], root); } catch { return null; }
-  const main = dirname(common);
-  return common && resolve(main) !== resolve(root) ? main : null;
 }
 
 // Reads `<root>/.baco/local.env`; when `root` is a task worktree without one, the git-ignored file of

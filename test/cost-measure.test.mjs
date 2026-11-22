@@ -479,3 +479,83 @@ test('measure: transcripts of removed worktrees are still found (recorded folder
   gitc('worktree', 'remove', inner);
   assert.equal(await measured(), 24);
 });
+
+// The ledger `baco harness-answer` keeps (`.baco/logs/uso-ferramentas.jsonl`): one line per call,
+// the conversation's running total each time (Antigravity reports usage since the conversation began).
+const toolRow = (at, conversation, input, output, { harness = 'antigravity', model = 'gemini-4-neon-high', agent = 'task-reviewer', cacheRead = 0, thinking = 0 } = {}) =>
+  ({ at, harness, model, agent, conversation, input, output, thinking, cacheRead, total: input + output });
+
+test('usage: tool ledger counts what each call added, inside the window, per harness entry', (t) => {
+  const base = tmp(t);
+  const ledger = join(base, 'uso-ferramentas.jsonl');
+  put(ledger, [
+    toolRow('2026-03-09T23:00:00.000Z', 'conv-a', 500, 5),
+    toolRow('2026-03-10T12:00:00.000Z', 'conv-a', 1500, 25, { cacheRead: 300 }),
+    toolRow('2026-03-10T12:30:00.000Z', 'conv-b', 800, 40, { harness: 'antigravity-claude', model: 'claude-opus-5-5-high', agent: 'pr-reviewer', thinking: 60 }),
+    toolRow('2026-03-10T12:30:00.000Z', 'conv-b', 800, 40, { harness: 'antigravity-claude', model: 'claude-opus-5-5-high', agent: 'pr-reviewer', thinking: 60 }),
+    '{linha quebrada',
+  ]);
+  const d = measureUsage({ claudeDirs: [], codexDir: null, toolLedger: ledger, since: SINCE, until: UNTIL, sessions: null, roots: ['/proj'] });
+  const a = d.rows.find((r) => r.harness === 'antigravity');
+  assert.deepEqual([a.who, a.model, a.responses, a.input, a.cacheRead, a.output, a.total], ['task-reviewer', 'gemini-4-neon-high', 1, 1000, 300, 20, 1320]);
+  const b = d.rows.find((r) => r.harness === 'antigravity-claude');
+  assert.deepEqual([b.who, b.responses, b.input, b.output, b.total], ['pr-reviewer', 1, 800, 100, 900], 'thinking counts as output; a line written twice counts once');
+  assert.equal(d.groups.find((g) => g.harness === 'antigravity').kind, 'harness');
+  assert.equal(d.skippedLines, 1);
+  assert.equal(d.sources.tools.calls, 3);
+  const only = measureUsage({ claudeDirs: [], codexDir: null, toolLedger: ledger, since: null, until: null, sessions: ['conv-b'], roots: ['/proj'] });
+  assert.deepEqual(only.rows.map((r) => r.harness), ['antigravity-claude']);
+});
+
+// OpenCode keeps every message in its own SQLite file; node:sqlite writes a fictitious one here.
+function opencodeFixture(base, root) {
+  const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
+  const file = join(base, 'opencode.db');
+  const db = new DatabaseSync(file);
+  db.exec(`CREATE TABLE session (id text PRIMARY KEY, parent_id text, agent text, directory text NOT NULL);
+    CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL);`);
+  const ses = db.prepare('INSERT INTO session (id, parent_id, agent, directory) VALUES (?, ?, ?, ?)');
+  ses.run('ses-1', null, 'build', root);
+  ses.run('ses-2', 'ses-1', 'explore', root);
+  ses.run('ses-3', null, 'build', '/outro');
+  const msg = db.prepare('INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)');
+  const m = (id, session, at, role, cwd, model, input, output, reasoning, read, write) => {
+    const t = Date.parse(at);
+    msg.run(id, session, t, t, JSON.stringify({ role, modelID: model, providerID: 'prov', path: { cwd, root: cwd }, time: { created: t }, tokens: { input, output, reasoning, cache: { read, write } } }));
+  };
+  m('msg-1', 'ses-1', '2026-03-10T12:00:00.000Z', 'assistant', root, 'modelo-oc', 100, 10, 5, 1000, 50);
+  m('msg-2', 'ses-1', '2026-03-10T12:00:01.000Z', 'user', root, 'modelo-oc', 0, 0, 0, 0, 0);
+  m('msg-3', 'ses-2', '2026-03-10T12:05:00.000Z', 'assistant', join(root, 'sub'), 'modelo-oc', 20, 2, 0, 0, 0);
+  m('msg-4', 'ses-1', '2026-03-09T12:00:00.000Z', 'assistant', root, 'modelo-oc', 999, 9, 0, 0, 0);
+  m('msg-5', 'ses-3', '2026-03-10T12:00:00.000Z', 'assistant', '/outro', 'modelo-oc', 777, 7, 0, 0, 0);
+  db.close();
+  return file;
+}
+
+test('usage: OpenCode messages inside the project and the window, reasoning as output, subagents by agent', (t) => {
+  const base = tmp(t);
+  const db = opencodeFixture(base, '/proj');
+  const d = measureUsage({ claudeDirs: [], codexDir: null, opencodeDb: db, since: SINCE, until: UNTIL, sessions: null, roots: ['/proj'] });
+  assert.deepEqual(d.rows.map((r) => [r.harness, r.who, r.responses, r.input, r.cacheRead, r.cacheWrite, r.output, r.total]), [
+    ['opencode', 'explore', 1, 20, 0, 0, 2, 22],
+    ['opencode', 'sessão', 1, 100, 1000, 50, 15, 1165],
+  ]);
+  assert.equal(d.sources.opencode.sessions, 2);
+  const one = measureUsage({ claudeDirs: [], codexDir: null, opencodeDb: db, since: null, until: null, sessions: ['ses-3'], roots: ['/proj'] });
+  assert.equal(one.total.total, 784);
+});
+
+test('measure: reads the tool ledger of the main checkout and the OpenCode file; --no-opencode skips it', async (t) => {
+  const base = tmp(t);
+  const dir = await makeRepo({ '.gitignore': '.baco/logs/\n' });
+  put(join(dir, '.baco', 'logs', 'uso-ferramentas.jsonl'), [toolRow('2026-03-10T12:00:00.000Z', 'conv-a', 300, 30)]);
+  const db = opencodeFixture(base, dir);
+  const run = async (...extra) => JSON.parse((await call(dir, 'cost', 'measure', ...WINDOW, '--claude-dir', join(base, 'vazio'), '--no-codex', ...extra, '--json')).stdout);
+  mkdirSync(join(base, 'vazio'));
+  const d = await run('--opencode-db', db);
+  assert.equal(d.byHarness.antigravity.total, 330);
+  assert.equal(d.byHarness.opencode.total, 1165 + 22);
+  const without = await run('--opencode-db', db, '--no-opencode');
+  assert.equal(without.byHarness.opencode, undefined);
+  assert.equal((await call(dir, 'cost', 'measure', ...WINDOW, '--opencode-db', join(base, 'nada.db'), '--json')).code, 65);
+});
