@@ -1,6 +1,7 @@
 // Thin wrappers over the git CLI. Every helper takes `cwd` last.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 
 export class GitError extends Error {
   constructor(message, args) {
@@ -92,6 +93,14 @@ export function repoRoot(cwd) {
     if (e instanceof GitUnavailableError) throw e; // "git did not respond" is not "not a repo"
     return null;
   }
+}
+
+// The main checkout of the repo at `root` when `root` is a linked worktree (task folders are), else null.
+export function mainCheckout(root) {
+  let common;
+  try { common = git(['rev-parse', '--path-format=absolute', '--git-common-dir'], root); } catch { return null; }
+  const main = dirname(common);
+  return common && resolve(main) !== resolve(root) ? main : null;
 }
 
 export function currentBranch(cwd) {

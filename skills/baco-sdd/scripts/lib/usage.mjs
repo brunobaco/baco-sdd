@@ -21,8 +21,20 @@ import { basename, join } from 'node:path';
 // own response, and is dropped, only when it has the same usage and no new turn (`turn_context`,
 // a user message, a task start) lies between them: equal numbers alone are not the same response.
 
+//
+// Tools that print their usage only at the end of a non-interactive call (Antigravity CLI,
+// `--output-format json`) are measured from the ledger `baco harness-answer` keeps in the project:
+// `.baco/logs/uso-ferramentas.jsonl`, one line per call with the conversation's running total
+// (that tool reports usage since the conversation began). Each call counts what it added to the
+// largest earlier total of its conversation; a line written twice adds nothing.
+// OpenCode keeps every message in its own SQLite file (`$XDG_DATA_HOME/opencode/opencode.db`),
+// each assistant message with its tokens, model, working folder and time; it is read with
+// node:sqlite, read-only.
+
 export const claudeHome = () => process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
 export const codexSessionsDir = () => join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'sessions');
+export const opencodeDbPath = () => join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), 'opencode', 'opencode.db');
+export const TOOL_LEDGER = join('.baco', 'logs', 'uso-ferramentas.jsonl');
 
 // Claude Code names the project folder after the working directory, every character other than a
 // letter or a digit replaced by a hyphen.
@@ -284,6 +296,80 @@ function readCodex(dir, ledger, opts, stats) {
   }
 }
 
+// The ledger of `baco harness-answer`. `who` is the role the conductor named (`--agent`), else 'exec'.
+function readToolLedger(file, ledger, opts, stats) {
+  const calls = new Map(); // harness + conversation -> [line]
+  for (const o of readLines(file, () => stats.skippedLines++)) {
+    if (!o || typeof o.harness !== 'string' || typeof o.conversation !== 'string') { stats.skippedLines++; continue; }
+    if (opts.sessions && !opts.sessions.includes(o.conversation)) continue;
+    const k = JSON.stringify([o.harness, o.conversation]);
+    if (!calls.has(k)) calls.set(k, []);
+    calls.get(k).push(o);
+  }
+  const f = (o, k) => n(o[k]);
+  for (const list of calls.values()) {
+    list.sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0));
+    const before = { input: 0, output: 0, thinking: 0, cacheRead: 0 };
+    let last = null;
+    for (const o of list) {
+      const same = last && last.at === o.at && Object.keys(before).every((k) => f(last, k) === f(o, k));
+      last = o;
+      if (same) continue; // the same call written twice
+      stats.toolCalls++;
+      const added = {};
+      for (const k of Object.keys(before)) { added[k] = Math.max(0, f(o, k) - before[k]); before[k] = Math.max(before[k], f(o, k)); }
+      if (!inWindow(o.at, opts.since, opts.until)) continue;
+      const at = Date.parse(o.at ?? '');
+      ledger.add({
+        key: null, harness: o.harness, model: typeof o.model === 'string' && o.model ? o.model : 'desconhecido',
+        who: typeof o.agent === 'string' && o.agent ? o.agent : 'exec', session: null, at: Number.isNaN(at) ? null : at,
+        input: added.input, cacheRead: added.cacheRead, cacheWrite: 0, output: added.output + added.thinking,
+        context: added.input + added.cacheRead,
+      });
+    }
+  }
+}
+
+// node:sqlite exists from Node 22.5 and prints an experimental warning when loaded: the warning is
+// kept off the command's output. Null when this Node has no node:sqlite.
+function sqlite() {
+  const emit = process.emitWarning;
+  process.emitWarning = () => {};
+  try { return process.getBuiltinModule?.('node:sqlite') ?? null; } catch { return null; } finally { process.emitWarning = emit; }
+}
+
+// OpenCode: assistant messages whose working folder is inside the project (or of the chosen
+// sessions). A session with a parent is a subagent, named by its agent; any other is 'sessão'.
+function readOpenCode(file, ledger, opts, stats) {
+  const mod = sqlite();
+  if (!mod) { stats.opencodeUnreadable = true; return; }
+  let db;
+  try { db = new mod.DatabaseSync(file, { readOnly: true }); } catch { stats.opencodeUnreadable = true; return; }
+  try {
+    const sessions = new Map(db.prepare('SELECT id, parent_id, agent FROM session').all().map((s) => [s.id, s]));
+    const seen = new Set();
+    for (const m of db.prepare('SELECT id, session_id, time_created, data FROM message').all()) {
+      if (opts.sessions && !opts.sessions.includes(m.session_id)) continue;
+      let d;
+      try { d = JSON.parse(m.data); } catch { stats.skippedLines++; continue; }
+      if (d?.role !== 'assistant' || !d.tokens) continue;
+      if (!opts.sessions && !inside(d.path?.cwd, opts.roots)) continue;
+      const at = Number.isFinite(d.time?.created) ? d.time.created : m.time_created;
+      if (!inWindow(new Date(at).toISOString(), opts.since, opts.until)) continue;
+      seen.add(m.session_id);
+      const s = sessions.get(m.session_id);
+      const who = s?.parent_id ? (typeof s.agent === 'string' && s.agent ? s.agent : 'subagente') : 'sessão';
+      const t = d.tokens;
+      const input = n(t.input), cacheRead = n(t.cache?.read), cacheWrite = n(t.cache?.write);
+      ledger.add({
+        key: `opencode:${m.id}`, harness: 'opencode', model: typeof d.modelID === 'string' && d.modelID ? d.modelID : 'desconhecido',
+        who, session: null, at, input, cacheRead, cacheWrite, output: n(t.output) + n(t.reasoning), context: input + cacheRead + cacheWrite,
+      });
+    }
+    stats.opencodeSessions = seen.size;
+  } catch { stats.opencodeUnreadable = true; } finally { db.close(); }
+}
+
 export function totals(rows, harnessOverride = null) {
   const sum = (list) => list.reduce((a, r) => {
     for (const k of Object.keys(blank())) a[k] += r[k];
@@ -329,10 +415,12 @@ export function totals(rows, harnessOverride = null) {
 // conductorHarness: 'claude-code' (default) or 'codex' (the harness whose own sessions are the conductor) }.
 export function measureUsage(given) {
   const opts = { ...given, conductorHarness: given.conductorHarness || 'claude-code' };
-  const stats = { claudeConductor: 0, claudeSubagents: 0, codexSessions: 0, skippedLines: 0 };
+  const stats = { claudeConductor: 0, claudeSubagents: 0, codexSessions: 0, toolCalls: 0, opencodeSessions: 0, opencodeUnreadable: false, skippedLines: 0 };
   const ledger = makeLedger();
-  readClaude(opts.claudeDirs, ledger, opts, stats);
+  readClaude(opts.claudeDirs ?? [], ledger, opts, stats);
   if (opts.codexDir) readCodex(opts.codexDir, ledger, opts, stats);
+  if (opts.toolLedger && existsSync(opts.toolLedger)) readToolLedger(opts.toolLedger, ledger, opts, stats);
+  if (opts.opencodeDb && existsSync(opts.opencodeDb)) readOpenCode(opts.opencodeDb, ledger, opts, stats);
   const order = (r) => [r.harness, r.who === 'condutor' ? 0 : 1, r.who, r.model].join('\u0000');
   const sessionList = ledger.sessionList();
   const owners = new Set(sessionList.filter((s) => s.who === 'condutor' && s.owner).map((s) => s.key));
@@ -344,6 +432,8 @@ export function measureUsage(given) {
     sources: {
       claude: { conductorFiles: stats.claudeConductor, subagentFiles: stats.claudeSubagents },
       codex: { sessions: stats.codexSessions },
+      tools: { calls: stats.toolCalls },
+      opencode: { sessions: stats.opencodeSessions, unreadable: stats.opencodeUnreadable },
     },
   };
 }

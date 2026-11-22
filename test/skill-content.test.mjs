@@ -355,6 +355,9 @@ test('no orphan references', () => {
 
 // Plan 2.1: ideas from the video.
 const ref = (name) => read(join(SKILL_ROOT, 'references', name));
+// Phase 0: the rules in configure.md, the questions in the two files it points to.
+const CONFIGURE_FILES = ['configure.md', 'configure-questions.md', 'configure-questions-tools.md'];
+const configureAll = () => CONFIGURE_FILES.map(ref).join('\n');
 const ENTRY_LABELS = ['O quê', 'Para quem', 'Por quê', 'Fica de fora', 'Como saber se deu certo'];
 const ID_RE = /\b(?:RF|RN|RNF|INV|CA|CT|P)-(?:[A-Z]{2,6}-)?\d{3}\b/;
 const entryBlock = (md) => {
@@ -669,7 +672,7 @@ test('conversation size: threshold, asking, auto switch in construction, title s
   // The hook only points to the rule; it never prescribes stopping by itself.
   const hook = read(join(SKILL_ROOT, '..', '..', 'hooks', 'context-size.mjs'));
   assert.ok(hook.includes('Conversation size') && !/and stop\b/.test(hook), 'hook note points to the rule, without "stop"');
-  const conf = ref('configure.md');
+  const conf = configureAll();
   for (const p of ['**8. Conversation size**', 'a partir de 400 mil tokens de contexto, sugiro continuar numa conversa nova', 'posso trocar para uma conversa nova sem te perguntar']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   const prog = read(join(TEMPLATES, 'progresso.md'));
   for (const p of ['**Trocas de conversa:**', 'parado para conversa nova']) assert.ok(prog.includes(p), `progresso.md: "${p}" missing`);
@@ -718,7 +721,7 @@ test('0.1.1 instruction fixes are present in the skill text', () => {
 });
 
 test('config questions for harnesses and PR review, and the offer for keys an older config lacks', () => {
-  const conf = ref('configure.md');
+  const conf = configureAll();
   for (const p of ['**9. AI tools** (`harnesses`)', '**10. Review of the delivery\'s PR**', '`review.pr.reviewer`', '`review.pr.auto_fix`', 'implementers: on', 'implementers: off', '## Existing config without the new keys', 'offer once, before building', 'ask only the questions of the missing keys']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   // Every import-verdict is asked; only import-pr-verdict (no file, latest round) is allowed.
   assert.ok(!conf.includes('import-verdict * -)') && !conf.includes('import-verdict ENT-* *'), 'configure.md: the import-verdict ask is never narrowed, nor allowed with a file');
@@ -762,14 +765,14 @@ test('PR review: draft PR or local diff, agent verdict straight from its file, p
 
 test('harness sandbox: protegida, rede and livre, the Codex call of each, the command rules and the setup question', () => {
   const amb = read('skills/baco-sdd/references/ambientes.md');
-  const conf = read('skills/baco-sdd/references/configure.md');
+  const conf = configureAll();
   const rules = read('skills/baco-sdd/templates/codex/baco.rules');
   const tpl = read('skills/baco-sdd/templates/pt-BR/config.yaml');
   for (const p of ['**Sandbox.**', '`protegida`', '`rede`', '`livre`', 'templates/codex/baco.rules', '`.codex/rules/baco.rules`',
     'ignores a per-call trust override, so BACO adds none', 'run `git init -q` in it', '-c sandbox_workspace_write.network_access=true',
     'shell_environment_policy.set={npm_config_cache="/tmp/baco-npm-cache"}', '-s danger-full-access', 'Start every Codex call in the background from the beginning', 'Do not add `< /dev/null` instead',
     'Never `--approve-for-me`', '`regra: sim`', 'identical to the skill\'s template (`cmp`)']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
-  for (const p of ['`harnesses.<name>.sandbox`', '(a) protegida', '(b) rede', '(c) livre', 'Recomendo a rede', 'O padrão é rede.', 'A caixa vale a partir da próxima conversa', '`Bash(git switch docs/*)`',
+  for (const p of ['`harnesses.<name>.sandbox`', '(a) protegida', '(b) rede', '(c) livre', 'Minha recomendação: (b) rede', 'Padrão: (b) rede.', 'A caixa vale a partir da próxima conversa', '`Bash(git switch docs/*)`',
     '`.codex/rules/baco.rules` there']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   for (const p of ['pattern = ["sudo"]', 'pattern = ["git", "push"]', 'pattern = ["git", "commit"]', 'pattern = ["git", "reset", "--hard"]',
     'pattern = ["rm", ["-rf"', 'pattern = ["gh"]', 'decision = "forbidden"', 'justification = "BACO:']) assert.ok(rules.includes(p), `baco.rules: "${p}" missing`);
@@ -777,14 +780,14 @@ test('harness sandbox: protegida, rede and livre, the Codex call of each, the co
   assert.ok(tpl.includes('#   sandbox: rede'), 'config template shows the sandbox key');
   for (const p of ["**Claude Code's sandbox.**", '"allowUnsandboxedCommands": false', '"excludedCommands": ["codex exec *", "git worktree remove *"]', '"allowedDomains"', 'BACO_QUEUE_DIR="<your $TMPDIR>/baco-queue"', 'never `git add -A`', 'apply in the next conversation',
     'CONNECT tunnel failed, response 403', 'only two values make sense', 'reachable only by that same command']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
-  for (const p of ['Antes das outras ferramentas, uma pergunta sobre mim', 'Vou liberar estes endereços', "**Claude Code's sandbox.** When `harnesses.claude-code.sandbox` is `rede`"]) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  for (const p of ['Liberdade dos meus comandos', 'Vou liberar estes endereços', "**Claude Code's sandbox.** When `harnesses.claude-code.sandbox` is `rede`"]) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   assert.ok(read('skills/baco-sdd/SKILL.md').includes('offer once to turn it on'), 'SKILL.md: startup offer for the sandbox');
 });
 
 test('harness check before the plan; the conductor commits for an implementer on another harness', () => {
   const amb = ref('ambientes.md');
   for (const p of ['**Check before relying on it.**', '.baco/logs/harnesses.md', 'Never retry with a sandbox wider than the configured value', '**Implementer on another harness: you commit.**', '`.git/worktrees/<name>`', 'Implementado por: <harness>, <model>, <effort>']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
-  assert.ok(ref('configure.md').includes('Check before relying on it'), 'configure.md: checks each tool');
+  assert.ok(configureAll().includes('Check before relying on it'), 'configure files: checks each tool');
   assert.ok(ref('planning.md').includes('only in a mode whose check passed'), 'planning.md: only checked harnesses');
   const impl = ref('implementation.md');
   assert.ok(impl.includes('**Other harnesses.**') && impl.includes('That implementer does not commit'), 'implementation.md: re-check and commit rule');
@@ -838,7 +841,7 @@ test('acceptance validator reads test bodies and reports what it read and ran; s
 // 1.2.0: the GitHub Project board stayed in Backlog the whole delivery. Configuration asks for it,
 // publication adds the issues, every task event syncs it through the engine, and a failure never stops.
 test('GitHub Project board: asked in configuration, filled at publication, synced at every task event', () => {
-  const c = ref('configure.md');
+  const c = configureAll();
   for (const p of ['**2B. Project board**', 'gh project list --owner', 'gh project field-list', '`project`', 'gh auth refresh -s project', 'do not try another way', 'Bash(gh project item-edit *)']) assert.ok(c.includes(p), `configure.md: "${p}" missing`);
   const pub = ref('task-publication.md');
   for (const p of ['### Project board', 'gh project item-add', 'baco board ENT-NNN', '--applied', 'never stops the delivery', '`## Pendências`', 'Issue mãe', 'nothing ever reads the board']) assert.ok(pub.includes(p), `task-publication.md: "${p}" missing`);
@@ -852,10 +855,11 @@ test('GitHub Project board: asked in configuration, filled at publication, synce
 
 test('antigravity: read-only reviewer call, resume, check with refusal, cost and setup rules', () => {
   const amb = read('skills/baco-sdd/references/ambientes.md');
-  const conf = read('skills/baco-sdd/references/configure.md');
+  const conf = configureAll();
   for (const p of ['--settings .baco/antigravity/leitura.json', '--output-format json', 'baco harness-answer <answer file>.json --out <answer file>',
     'templates/antigravity/leitura.json', 'BACO does not pass `--sandbox`', '--conversation <id>', 'at most twice', 'no `--dangerously-skip-permissions`',
-    'antigravity-regra.txt', '`regra: sim` when `harness-answer` says `denied`', '--harness antigravity --tokens', '`antigravity -p *` (or `agy -p *`',
+    'antigravity-regra.txt', '`regra: sim` when `harness-answer` says `denied`', '--harness <harness entry> --tokens', '`antigravity -p *` (or `agy -p *`',
+    '--harness <harness entry, for example antigravity or antigravity-claude> --model <model> --agent <role>', '.baco/logs/uso-ferramentas.jsonl', 'on a resume `harness-answer` gives only what that call added',
     'Você só lê: use suas ferramentas de ler e buscar arquivos']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   for (const p of ['`agy` or `antigravity` on the PATH', '`.baco/antigravity/leitura.json`', '`Bash(antigravity -p * --settings .baco/antigravity/leitura.json *)`',
     '`Bash(antigravity *--dangerously-skip-permissions*)`', '`Bash(antigravity * --settings * --settings *)`',
@@ -864,10 +868,44 @@ test('antigravity: read-only reviewer call, resume, check with refusal, cost and
 
 test('antigravity implementer: task folder prepared by the engine, guard hook, protegida only, checks and commit line', () => {
   const amb = read('skills/baco-sdd/references/ambientes.md');
-  const conf = read('skills/baco-sdd/references/configure.md');
+  const conf = configureAll();
   for (const p of ['baco antigravity-task <task folder>', 'baco antigravity-task <task folder> --clean', '--settings .agents/baco-construcao.json',
     'Antigravity builds only in `protegida`', '`trava: sim`', 'antigravity-fora.txt', 'Implementado por: antigravity, <model>',
     'the tests it runs are code', 'git init -q -b baco/verificacao']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   for (const p of ['`Bash(antigravity -p * --settings .agents/baco-construcao.json *)`', 'Antigravity builds only in `protegida`']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   assert.ok(!conf.includes('Antigravity takes only read-only roles for now'), 'configure.md: the read-only-only rule is gone');
+});
+
+// The configuration interview is for lay people too: an opening map, one numbered question per
+// message, the same labelled parts in every question, plain terms and "não entendi" always valid.
+test('configuration interview: opening map, numbered questions in one format, plain terms and "não entendi"', () => {
+  const conf = configureAll();
+  const sec9 = ref('ambientes.md').split('## 9. Task split, roles and reserves at configuration')[1];
+  assert.ok(sec9, 'ambientes.md: section 9 present');
+  // configure.md keeps the rules and points to the file of each question.
+  const rules = ref('configure.md');
+  for (const p of ['## Questions', '[configure-questions.md](configure-questions.md)', '[configure-questions-tools.md](configure-questions-tools.md)', '| 13, 14 |']) assert.ok(rules.includes(p), `configure.md index: "${p}" missing`);
+  for (const f of ['configure-questions.md', 'configure-questions-tools.md']) assert.ok(ref(f).includes('"How to ask" rules'), `${f}: points back to the rules of configure.md`);
+  // Opening: map of the blocks, count and time, and the two answers always valid.
+  for (const p of ['São [total] perguntas, uma de cada vez, em [tempo]', '1. Idioma e pasta dos documentos.', '7. Ferramentas de IA e revisão do trabalho.',
+    'Duas respostas valem sempre: "pode ser o padrão"', 'e "não entendi", e eu explico de outro jeito, com um exemplo do seu projeto']) assert.ok(conf.includes(p), `configure.md opening: "${p}" missing`);
+  // English rules: numbering of only the questions asked, the format, plain terms, "não entendi".
+  for (const p of ['count the questions that will actually be asked in this project', 'never with the files\' numbers (1B, 6B, 12B)', 'say in one short sentence why the count changed',
+    '"(continuação)"', '`Pergunta [N] de [total] · [tema]`', 'explained in simple words the first time it comes up in this interview',
+    'never repeat the same text and never choose for the person', 'with a concrete example from this project']) assert.ok(conf.includes(p), `configure.md rules: "${p}" missing`);
+  // Every numbered question block has the five labels, in order.
+  const blocks = (text) => text.split(/\n(?=> Pergunta \[N\] de \[total\] · )/).slice(1).map((b) => b.split(/\n(?!>)/)[0]);
+  const questions = [...blocks(conf), ...blocks(sec9)].filter((b) => !b.split('\n')[0].includes('(continuação)'));
+  assert.ok(questions.length >= 24, `expected every question in the new format, found ${questions.length}`);
+  for (const b of questions) {
+    const at = ['> O que é:', '> Por que importa:', '> Opções', '> Minha recomendação:', '> Padrão:'].map((l) => b.indexOf(l));
+    assert.ok(at.every((i, k) => i > 0 && (k === 0 || i > at[k - 1])), `question without the five parts in order: ${b.split('\n')[0]}`);
+  }
+  // Terms explained in plain words where they first appear.
+  for (const p of ['a IA mede o texto em tokens', 'uma branch, que eu chamo de linha de trabalho', 'no GitHub ele se chama pull request, ou PR', 'eu chamo esse limite de caixa',
+    'uma ferramenta de IA é o programa em que uma IA trabalha', 'o esforço é quanto a IA pensa antes de agir']) assert.ok(conf.includes(p), `configure.md term: "${p}" missing`);
+  // The final summary is in everyday words.
+  assert.ok(conf.includes('Em palavras simples, combinamos isto:'), 'configure.md: plain final summary');
+  // No em or en dash in what the agent says.
+  for (const [name, text] of [['configure.md', conf], ['ambientes.md section 9', sec9]]) assert.ok(!/[–—]/.test(text), `${name}: no em or en dash`);
 });

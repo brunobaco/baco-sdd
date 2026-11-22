@@ -1,6 +1,6 @@
 # Test commands: reports and machine settings
 
-Load this reference when you set or check the project's test commands (`tests`, `tests_quick`, `app.smoke` in `.baco/config.yaml`): in phase 0 ([configure.md](configure.md), question 7), in phase 3 when the stack sets them ([architecture.md](architecture.md)) and in phase 6 when a command fails to report ([implementation.md](implementation.md)).
+Load this reference when you set or check the project's test commands (`tests`, `tests_quick`, `app.smoke` in `.baco/config.yaml`): in phase 0 ([configure-questions.md](configure-questions.md), question 7), in phase 3 when the stack sets them ([architecture.md](architecture.md)) and in phase 6 when a command fails to report ([implementation.md](implementation.md)).
 
 ## Known gap: each command must write its own JUnit file
 

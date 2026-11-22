@@ -1,5 +1,14 @@
 # Histórico de mudanças
 
+## 1.9.0 (2026-11-22)
+
+O custo de uma entrega passa a incluir o Antigravity e o OpenCode, e a configuração fica didática, para quem não é da área entender cada pergunta.
+
+- Medição de custo: `baco cost measure` lê também o banco do próprio OpenCode (`~/.local/share/opencode/opencode.db`, só leitura, com `node:sqlite`) e as chamadas do Antigravity anotadas pelo `baco harness-answer`. Opções novas `--opencode-db <arquivo>` e `--no-opencode`. O OpenCode precisa de Node 22.5 ou mais novo; sem isso, a medição avisa e segue sem ele.
+- `baco harness-answer` ganha `--harness`, `--model` e `--agent` e anota cada chamada em `.baco/logs/uso-ferramentas.jsonl` (fora do git), só com números, a ferramenta, o modelo, o papel e o identificador da conversa.
+- Correção: o Antigravity informa o uso acumulado da conversa, não o da chamada. Uma retomada (`--conversation`) devolvia os tokens da primeira chamada somados aos dela, e o registro de custo contava a primeira de novo. Agora o `harness-answer` desconta o que as chamadas anteriores da mesma conversa já tinham e, na retomada, não informa segundos (a ferramenta conta desde o começo da conversa, com o tempo parado junto).
+- Configuração: uma pergunta por vez, com a posição ("Pergunta 6 de 14") e sempre no mesmo formato: o que é, por que importa, as opções com o que muda na prática, a recomendação para aquele projeto com o motivo, e o padrão. A abertura mostra o mapa dos blocos, os termos técnicos são explicados na primeira vez, "não entendi" sempre vale como resposta (o agente explica de novo com um exemplo do projeto) e o resumo final sai em linguagem simples. As perguntas, as opções, os padrões e o que é gravado não mudam.
+
 ## 1.8.0 (2026-11-21)
 
 O plano pode separar back-end e front-end, cada papel ganha uma lista de ferramentas em ordem, com reservas para quando a cota acaba, e uma ferramenta com modelos de várias empresas pode ter um perfil por família.

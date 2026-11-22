@@ -569,6 +569,8 @@ Object.assign(messages['pt-BR'], {
   'cost.measure_title': 'Uso medido nas transcrições: {window}',
   'cost.measure_sources': 'Lidas: {conductor} conversa(s) do Claude Code, {subagents} transcrição(ões) de subagentes e {codex} sessão(ões) do Codex.',
   'cost.measure_bad_lines': '{n} linha(s) das transcrições sem JSON válido foram ignoradas.',
+  'cost.measure_sources_more': 'Também: {tools} chamada(s) registradas pelo baco harness-answer (Antigravity) e {opencode} sessão(ões) do OpenCode.',
+  'cost.measure_opencode_unreadable': '[baco] Aviso: não consegui ler o arquivo do OpenCode ({path}); o uso dele ficou de fora. É preciso Node 22.5 ou mais novo (node:sqlite).',
   'cost.measure_sources_not_ignored': '[baco] Aviso: {path} não está no .gitignore, então as pastas das tarefas não foram anotadas para medir depois da limpeza das branches; acrescente a linha "{path}" ao .gitignore.',
   'cost.measure_none': 'Nenhuma resposta encontrada nesse período ou nessas conversas. Pastas lidas: {dirs}. Confira o período (--since, --until), as conversas (--session) ou as pastas (--claude-dir, --codex-dir).',
   'cost.measure_head': '\n| Harness | Modelo | Quem | Respostas | Entrada | Cache lido | Cache gravado | Saída | Total | Maior contexto |\n|---|---|---|---|---|---|---|---|---|---|',
@@ -608,6 +610,8 @@ Object.assign(messages.en, {
   'cost.measure_title': 'Usage measured in the transcripts: {window}',
   'cost.measure_sources': 'Read: {conductor} Claude Code conversation(s), {subagents} subagent transcript(s) and {codex} Codex session(s).',
   'cost.measure_bad_lines': '{n} transcript line(s) without valid JSON were skipped.',
+  'cost.measure_sources_more': 'Also: {tools} call(s) recorded by baco harness-answer (Antigravity) and {opencode} OpenCode session(s).',
+  'cost.measure_opencode_unreadable': '[baco] Warning: could not read the OpenCode file ({path}); its usage was left out. Node 22.5 or newer is needed (node:sqlite).',
   'cost.measure_sources_not_ignored': '[baco] Warning: {path} is not in .gitignore, so the task folders were not recorded for a measurement after the branch cleanup; add the line "{path}" to .gitignore.',
   'cost.measure_none': 'No response found in that period or those conversations. Folders read: {dirs}. Check the period (--since, --until), the conversations (--session) or the folders (--claude-dir, --codex-dir).',
   'cost.measure_head': '\n| Harness | Model | Who | Responses | Input | Cache read | Cache written | Output | Total | Largest context |\n|---|---|---|---|---|---|---|---|---|---|',
@@ -807,6 +811,7 @@ Object.assign(messages['pt-BR'], {
   'answer.failed': 'A ferramenta terminou com o estado {status}{error}; nada foi gravado.',
   'answer.empty': 'A ferramenta terminou sem resposta e sem ação negada; nada foi gravado.',
   'answer.invalid_json': 'O arquivo {path} não é a resposta em JSON da ferramenta (--output-format json): {message}.',
+  'answer.ledger_not_ignored': '[baco] Aviso: {path} não está no .gitignore, então o uso desta chamada não foi anotado para o baco cost measure; acrescente a linha "{path}" ao .gitignore.',
 });
 
 Object.assign(messages.en, {
@@ -816,6 +821,7 @@ Object.assign(messages.en, {
   'answer.failed': 'The tool ended with status {status}{error}; nothing was written.',
   'answer.empty': 'The tool ended with no answer and no denied action; nothing was written.',
   'answer.invalid_json': 'File {path} is not the tool\'s JSON answer (--output-format json): {message}.',
+  'answer.ledger_not_ignored': '[baco] Warning: {path} is not in .gitignore, so this call\'s usage was not recorded for baco cost measure; add the line "{path}" to .gitignore.',
 });
 
 // 1.7.0: task folder of an Antigravity implementer.
