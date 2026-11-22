@@ -6,9 +6,23 @@ Output: `.baco/config.yaml`. Gate: none. Load this reference when the user asks 
 
 Without `.baco/config.yaml` the engine uses its defaults (pt-BR, `docs/`, tracker `files`, main `main`, integration `develop`, protected `main`/`master`/`develop`, parallel 3, default gates, `manual_pending` main `block` and others `warn`, default models, no harness listed besides the one in use, the delivery's PR reviewed by an agent with automatic fixes, 3 external review rounds, a new conversation suggested from 400000 tokens of context and never switched without asking). Every phase works on defaults.
 
-So: offer phase 0 once, at the start of the first phase you run in a project without config, in these words:
+So: offer phase 0 once, at the start of the first phase you run in a project without config, with this opening message. Fill `[total]` with the number of questions that will actually be asked in this project (see "How to ask") and `[tempo]` with about one minute per question, rounded (for example "uns 15 minutos"):
 
-> Antes de começar: posso fazer algumas perguntas para ajustar o método ao seu projeto (idioma, onde registrar as tarefas, branches ou linhas de trabalho do código, paradas, testes, ferramentas e modelos de IA, revisão). Em cada uma eu explico o que cada opção muda e digo o padrão, então "pode ser o padrão" sempre vale como resposta. Se preferir, uso os valores padrão em tudo e você ajusta depois. O que prefere?
+> Antes de começar, posso fazer algumas perguntas para ajustar o método ao seu projeto. São [total] perguntas, uma de cada vez, em [tempo]. Elas seguem esta ordem:
+>
+> 1. Idioma e pasta dos documentos.
+> 2. Onde registrar as tarefas.
+> 3. Linhas de trabalho do código.
+> 4. Ritmo do trabalho e paradas para a sua aprovação.
+> 5. Testes do projeto.
+> 6. Tamanho da conversa.
+> 7. Ferramentas de IA e revisão do trabalho.
+>
+> Em cada pergunta eu digo o que é, por que importa, o que cada opção muda na prática, o que eu recomendo para este projeto e qual é o padrão. Duas respostas valem sempre: "pode ser o padrão", e eu sigo com o valor padrão; e "não entendi", e eu explico de outro jeito, com um exemplo do seu projeto.
+>
+> Se preferir, uso os valores padrão em tudo agora e você ajusta depois. O que prefere?
+
+When the person asked for the configuration themselves (`/baco:configurar`), send the same opening without its last paragraph and follow it with the first question.
 
 If the user declines or ignores it, proceed on defaults and never block, delay or re-ask in that session. If `.baco/config.yaml` already exists, read it, summarize it in plain words, and ask only what the user wants to change; never overwrite it wholesale.
 
@@ -16,17 +30,27 @@ If the user declines or ignores it, proceed on defaults and never block, delay o
 
 A project configured with an older version lacks keys this version brought: `harnesses`, `review.pr` (inside `review`), `context` and, when `tracker` lists `github`, `github.project`. At startup (SKILL.md, "Startup checks"), when `.baco/config.yaml` exists and any of them is missing, offer once, before building (phase 6), to ask only the questions of the missing keys: 8 for `context`, 9 for `harnesses`, 10 for `review.pr`, 2B for `github.project`. In these words:
 
-> Esta versão do método trouxe ajustes novos que este projeto ainda não tem: [quais, em palavras simples: tamanho da conversa, ferramentas de IA, revisão do pedido de junção (PR), quadro do GitHub em dia com as tarefas]. Posso fazer só essas perguntas agora, antes de construir? Se preferir, uso os padrões e você ajusta depois.
+> Esta versão do método trouxe ajustes novos que este projeto ainda não tem: [quais, em palavras simples: tamanho da conversa, ferramentas de IA, revisão do pedido de junção (o PR, a página do GitHub em que a entrega pronta espera para entrar no código principal), quadro do GitHub em dia com as tarefas].
+>
+> São [total] perguntas, uma de cada vez. Em cada uma, "pode ser o padrão" e "não entendi" valem como resposta.
+>
+> Posso fazer só essas perguntas agora, antes de construir? Se preferir, uso os padrões e você ajusta depois.
 
 If the user declines, go on with the defaults and do not ask again in that session. With a yes, ask only those questions and add only those keys, keeping every other line of the file as it is.
 
 When `review.pr` is missing, also say once, as a statement, whether they answered or declined (the PR review is the default either way):
 
-> Uma mudança desta versão: durante a construção, eu envio a linha de trabalho da entrega para o GitHub e abro o pedido de junção (PR) como rascunho, sem perguntar, para a revisão de fora. A parada "pedido de junção" passa a valer para o momento de marcar esse rascunho como pronto para juntar. Juntar na linha principal continua esperando você.
+> Uma mudança desta versão: durante a construção, eu envio a linha de trabalho da entrega para o GitHub e abro o pedido de junção (PR) como rascunho, sem perguntar, para a revisão de fora. O pedido de junção é a página do GitHub em que a entrega espera para entrar no código principal; como rascunho, ele não junta nada.
+>
+> A parada "pedido de junção" passa a valer para o momento de marcar esse rascunho como pronto para juntar. Juntar na linha principal continua esperando você.
 
 ## How to ask
 
-- One question at a time; wait for the answer. Offer the default so "pode ser o padrão" is a valid answer.
+- One question at a time, one question per message; wait for the answer. Offer the default so "pode ser o padrão" is a valid answer.
+- Numbering. Before the opening message, count the questions that will actually be asked in this project: every block below that starts with `Pergunta [N] de [total]` and whose condition holds, from what you detected (for example 1B only when the documents live outside `docs/`, 13 only with a server side and screens). Number them 1, 2, 3 in the order asked, with no gaps and never with this file's numbers (1B, 6B, 12B). A question in two parts (8, 10, 12B) has two blocks, so two numbers. A follow-up message inside a question (marked "follow-up" below) keeps the number of its question and ends its first line with "(continuação)"; it is not a new question. When an answer adds or removes questions (GitHub in 2 brings 2B; another tool in 9 brings its questions and 14; turning an implementer on brings its sandbox question), use the new total from the next header on and say in one short sentence why the count changed. In "Existing config without the new keys", count only the questions of the missing keys.
+- Format of a question, always the same, each part in its own short paragraph and in this order: the first line `Pergunta [N] de [total] · [tema]` with the theme given in the block; `O que é:` in plain words; `Por que importa:` with a concrete consequence or example; `Opções:` with one option per line, each saying what changes in practice; `Minha recomendação:` with the reason tied to this project (fill the bracket from what you detected; with no project-specific reason, give the general one, never an invented fact); `Padrão:`. Informational messages (something that will happen, not a question) keep a simple form, in plain words.
+- Plain words. Every technical term (token, branch or linha de trabalho, pedido de junção or PR, caixa, ferramenta de IA, nível and esforço, spec, commit and others) is explained in simple words the first time it comes up in this interview. The blocks below explain each term where it appears; when a term was already explained earlier in this interview, drop the repeated explanation, and when the question that explains it was skipped, keep the explanation in the next question that uses it.
+- "Não entendi". Any sign of doubt ("não entendi", "como assim?", "o que é isso?", a question back, an answer that matches no option) is always a valid answer. Then never repeat the same text and never choose for the person: explain again in other words, with a concrete example from this project (its folders, its branches, its test commands, what the system does), and ask the same question again, with the same header.
 - Explain every option before asking: for each alternative, one plain sentence on what it changes in the work and what it costs (time, money, interruptions, risk). The wordings below already do it; keep that when you adapt them to what you detected. Never offer an option without saying what it does.
 - Ask every question below whose condition holds, including the ones about models (11), review rounds (12) and pending manual scenarios (6B), and, after 12B, questions 13 (how the plan splits the tasks) and 14 (who does each role, and the reserves), whose conditions and texts are in [ambientes.md](ambientes.md), section 9. The configuration is still optional (see "Missing config"); once the person accepts it, cover all of it, unless they say "o resto pode ser o padrão", which keeps the defaults for everything not yet asked.
 - Technical keys are not questions: `tests.patterns`, `tests.junit_dir`, `tests.queue` and `provenance.ignore` are set by you from what you detect, as the sections below say, and named in the final summary only when they differ from the default.
@@ -37,7 +61,19 @@ When `review.pr` is missing, also say once, as a statement, whether they answere
 
 **1. Language** (`language`; accepted `pt-BR` or `en`)
 
-> Em que idioma você quer os documentos e as mensagens? (a) português do Brasil: os modelos de documento e as mensagens do método já vêm nele; (b) inglês: as mensagens do método passam a sair em inglês, mas os modelos de documento só existem em português, então os documentos novos começam com títulos em português. O padrão é português do Brasil.
+> Pergunta [N] de [total] · Idioma
+>
+> O que é: o idioma dos documentos que eu escrevo e das mensagens do método. Entre os documentos estão as specs (especificações: o texto que diz o que o sistema deve fazer), o plano de cada entrega e os relatórios.
+>
+> Por que importa: quem vai ler esses documentos precisa ler o idioma deles. Os modelos de documento (os arquivos-base que eu preencho) só existem em português.
+>
+> Opções:
+> (a) português do Brasil: os modelos de documento e as mensagens do método já vêm nele.
+> (b) inglês: as mensagens do método passam a sair em inglês, mas os modelos de documento só existem em português, então os documentos novos começam com títulos em português.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto, por exemplo: (a), porque o projeto e o time escrevem em português].
+>
+> Padrão: (a) português do Brasil.
 
 `en` makes the engine's messages English. The document templates shipped with the skill are pt-BR only.
 
@@ -45,13 +81,37 @@ When `review.pr` is missing, also say once, as a statement, whether they answere
 
 Ask only when you detected a documents folder other than `docs/` (for example `documentacao/` or `doc/`); otherwise keep the default and do not ask.
 
-> Os documentos deste projeto ficam em [pasta detectada], e o método usa `docs/` por padrão. (a) uso [pasta detectada]: specs, plano e entregas ficam junto do que já existe; (b) uso `docs/`: os documentos do método ficam separados dos que vocês já têm. O padrão é `docs/`.
+> Pergunta [N] de [total] · Pasta dos documentos
+>
+> O que é: a pasta onde ficam os documentos do método: specs, plano e o registro de cada entrega (uma entrega é um conjunto de funcionalidades que fica pronto e entra no sistema de uma vez). Os documentos deste projeto ficam em [pasta detectada], e o método usa `docs/` por padrão.
+>
+> Por que importa: com tudo numa pasta só, quem procura um documento acha num lugar; com pastas separadas, o que é do método não se mistura com o que vocês já têm.
+>
+> Opções:
+> (a) uso [pasta detectada]: specs, plano e entregas ficam junto do que já existe.
+> (b) uso `docs/`: os documentos do método ficam separados dos que vocês já têm.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto].
+>
+> Padrão: (b) `docs/`.
 
 (a) -> `docs_root: <folder>`; (b) -> no key.
 
 **2. Tracker** (`tracker`: a list of `files`, `github`)
 
-> Onde você quer registrar as tarefas? (a) só em arquivos dentro do projeto, na pasta de documentos: ficam versionadas junto com o código e não dependem de nenhum serviço de fora; (b) em arquivos e também no GitHub, como itens de acompanhamento (issues): o time acompanha e comenta pelo GitHub, cada tarefa ganha um link, e precisa do login do GitHub nesta máquina com permissão de criar issues. Nas duas, os arquivos continuam valendo como registro oficial. O padrão é só arquivos.
+> Pergunta [N] de [total] · Onde registrar as tarefas
+>
+> O que é: cada entrega (um conjunto de funcionalidades que fica pronto e entra no sistema de uma vez) é dividida em tarefas pequenas. Aqui você escolhe onde essas tarefas ficam registradas.
+>
+> Por que importa: é ali que você e o time acompanham o que está sendo feito, o que já terminou e o que falta. Nas duas opções, os arquivos continuam valendo como registro oficial.
+>
+> Opções:
+> (a) só em arquivos dentro do projeto, na pasta de documentos: ficam versionadas junto com o código (o histórico guarda cada mudança) e não dependem de nenhum serviço de fora.
+> (b) em arquivos e também no GitHub, como itens de acompanhamento (issues): o time acompanha e comenta pelo GitHub, cada tarefa ganha um link, e precisa do login do GitHub nesta máquina com permissão de criar issues.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto, por exemplo: (b), porque o time já acompanha o trabalho pelo GitHub; ou (a), porque só você acompanha].
+>
+> Padrão: (a) só arquivos.
 
 (a) -> `[files]`; (b) -> `[files, github]`. Do not test the permission to create issues here; phase 5 checks it when it publishes.
 
@@ -62,17 +122,33 @@ A GitHub Project board can mirror the delivery: each issue moves through the col
 1. Find the owner: the user or organization of the git remote (`git remote get-url origin`). Without a GitHub remote, skip this question and say the board can be set later.
 2. Check the login: `gh auth status`. Its `Token scopes` line must list `project` (reading and writing boards). When `gh` is missing or not logged in, skip the question and say the board can be set later with `/baco:configurar`. When the scope is missing, do not try another way: tell the user, and ask the question again after they say it is done:
 
-> Para eu mover os cards no quadro do GitHub, o login do GitHub nesta máquina precisa da permissão de quadros (project), que ele ainda não tem. Rode no terminal `gh auth refresh -s project` e me avise quando terminar. Se preferir, sigo sem o quadro e você liga depois.
+> Para eu mover os cartões no quadro do GitHub (uma página com colunas, em que cada tarefa é um cartão), o login do GitHub nesta máquina precisa da permissão de quadros (project), que ele ainda não tem.
+>
+> Rode no terminal `gh auth refresh -s project` e me avise quando terminar. Se preferir, sigo sem o quadro e você liga depois.
 
 3. List the boards: `gh project list --owner <owner> --format json` (title and number of each). Then ask:
 
-> Encontrei estes quadros (GitHub Projects) de [owner]: [lista: número e título]. Quer que eu mantenha um deles em dia com as tarefas, movendo cada card conforme o trabalho anda (publicada, em construção, em revisão, juntada)? Qual? O padrão é nenhum.
+> Pergunta [N] de [total] · Quadro do GitHub
+>
+> O que é: um quadro do GitHub (GitHub Projects) é uma página com colunas, como "a fazer", "em andamento" e "feito", em que cada tarefa aparece como um cartão. Encontrei estes quadros de [owner]: [lista: número e título].
+>
+> Por que importa: com o quadro em dia, quem acompanha pelo GitHub vê em que pé cada tarefa está sem abrir os arquivos. O registro oficial continua nos arquivos; o quadro só recebe as atualizações.
+>
+> Opções:
+> (a) um dos quadros acima (diga qual): eu mantenho esse quadro em dia com as tarefas, movendo cada cartão conforme o trabalho anda (publicada, em construção, em revisão, juntada).
+> (b) nenhum: as tarefas ficam nos arquivos e nos itens do GitHub, sem quadro.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto].
+>
+> Padrão: (b) nenhum.
 
 With no board found, say so and ask whether to go on without one (the user creates it on GitHub and runs the configuration again).
 
-4. With a board chosen, read its fields: `gh project field-list <number> --owner <owner> --format json`. Find the single-select field named `Status` and its options. When its options include `Backlog`, `In progress`, `In review` and `Done`, write only `owner` and `number`: the defaults match. Otherwise ask which option fits each moment, offering the closest names you found:
+4. With a board chosen, read its fields: `gh project field-list <number> --owner <owner> --format json`. Find the single-select field named `Status` and its options. When its options include `Backlog`, `In progress`, `In review` and `Done`, write only `owner` and `number`: the defaults match. Otherwise ask which option fits each moment, offering the closest names you found (follow-up):
 
-> O campo de etapa desse quadro tem estas opções: [lista]. Qual delas uso para: tarefa publicada, construção começou, em revisão e juntada na entrega?
+> Pergunta [N] de [total] · Quadro do GitHub (continuação)
+>
+> O campo de etapa desse quadro (o que diz em que coluna cada cartão está) tem estas opções: [lista]. Qual delas uso para cada momento: tarefa publicada, construção começou, em revisão e juntada na entrega?
 
 Write the answers under `status` (`published`, `started`, `review`, `merged`); a field with another name than `Status` goes in `field`. Invent no option: when a moment has none, the user creates it on GitHub, or picks the nearest. The parent issue of the delivery uses the same options: `started` when phase 6 begins and `merged` only when the delivery is merged into the integration branch.
 
@@ -87,41 +163,132 @@ github:
 
 **3. Branch roles** (`branches.main`, `branches.integration`)
 
-> Detectei estas branches (linhas de trabalho do código) no projeto: [lista]. O método usa duas com papéis fixos. A principal é a que vale: só entra nela o que você aprovou, sempre com a sua confirmação. A de integração é onde cada entrega se junta primeiro, depois das revisões; ali dá para testar várias entregas juntas antes de levar para a principal. Qual é a principal? [padrão: main] E qual é a de integração? [padrão: develop]
+> Pergunta [N] de [total] · Linhas de trabalho do código
+>
+> O que é: uma branch, que eu chamo de linha de trabalho, é uma versão do código em que dá para mudar coisas sem mexer nas outras. Detectei estas no projeto: [lista]. O método usa duas com papéis fixos. A principal é a que vale: só entra nela o que você aprovou, sempre com a sua confirmação. A de integração é onde cada entrega se junta primeiro, depois das revisões.
+>
+> Por que importa: na de integração dá para testar várias entregas juntas antes de levar para a principal, então um problema aparece ali, e não no que já está valendo.
+>
+> Opções:
+> principal: uma das linhas acima.
+> integração: uma das linhas acima, ou o nome de uma linha nova.
+>
+> Minha recomendação: [as linhas e o motivo ligado a este projeto, por exemplo: main como principal, porque é nela que está o que já foi entregue].
+>
+> Padrão: principal main, integração develop.
 
 If the project has no integration branch, keep `develop` as the name and say that nothing is created now; it is created from the main branch when the setup is written ("Write the file", step 0).
 
 **4. Protected branches** (`branches.protected`)
 
-> Quais branches (linhas de trabalho do código) ninguém deve editar direto? Numa branch protegida, eu não mudo arquivo nenhum: toda mudança nasce numa branch da entrega e chega por junção, depois das revisões. Proteger mais branches evita mudança sem revisão; uma branch fora da lista pode ser editada direto. O padrão é main, master e develop. A principal e a de integração ficam protegidas sempre, mesmo fora da lista.
+> Pergunta [N] de [total] · Linhas protegidas
+>
+> O que é: uma linha de trabalho protegida é uma que ninguém edita direto. Nela eu não mudo arquivo nenhum: toda mudança nasce numa linha da entrega e chega por junção (o passo que leva as mudanças de uma linha para outra), depois das revisões.
+>
+> Por que importa: proteger mais linhas evita mudança sem revisão; uma linha fora da lista pode ser editada direto. A principal e a de integração ficam protegidas sempre, mesmo fora da lista.
+>
+> Opções:
+> (a) manter a lista padrão: main, master e develop.
+> (b) mudar a lista: acrescentar ou tirar linhas (diga quais).
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto, por exemplo: (a), porque as linhas deste projeto são main e develop].
+>
+> Padrão: (a) main, master e develop.
 
 **5. Parallelism** (`parallel`; 0 = one task at a time)
 
-> Quantas tarefas podem andar ao mesmo tempo? Mais tarefas juntas termina mais rápido, mas gasta mais do limite de uso de uma vez e dá mais conflitos quando duas tarefas mexem nos mesmos arquivos. Menos tarefas é mais lento e mais previsível. O padrão é 3; 0 significa uma de cada vez.
+> Pergunta [N] de [total] · Tarefas ao mesmo tempo
+>
+> O que é: quantas tarefas da entrega podem estar em construção ao mesmo tempo.
+>
+> Por que importa: o número muda a velocidade, o gasto do limite de uso do seu plano de IA e a chance de duas tarefas atrapalharem uma à outra.
+>
+> Opções:
+> (a) mais tarefas juntas: termina mais rápido, mas gasta mais do limite de uso de uma vez e dá mais conflitos quando duas tarefas mexem nos mesmos arquivos.
+> (b) menos tarefas: é mais lento e mais previsível.
+> (c) 0: uma de cada vez.
+> Diga o número que quer.
+>
+> Minha recomendação: [o número e o motivo ligado a este projeto, por exemplo: 3, porque as partes do sistema são bem separadas].
+>
+> Padrão: 3.
 
 **6. Gates to adjust** (`gates`)
 
 Name each adjustable stop in plain words and ask which to change:
 
-> Por padrão, o trabalho para e espera sua aprovação nestes pontos: (1) início do projeto, em que você confirma a visão e o escopo antes de qualquer spec; (2) arquitetura, em que você aprova as tecnologias e as decisões técnicas propostas; (3) plano da entrega, em que você aprova o que entra, as tarefas e quem faz cada uma; (4) lote de tarefas, em que você confere as tarefas publicadas antes de a construção começar; (5) pedido de junção (PR) pronto para juntar, em que você vê a entrega já revisada. Entre essas paradas, as tarefas rodam sozinhas. Desligar uma parada deixa o trabalho andar sem esperar você, mas aquele ponto passa sem o seu olhar. Dá também para ligar uma parada depois de cada tarefa: você acompanha tudo de perto, e a construção fica bem mais lenta, porque cada tarefa espera você. Três paradas nunca desligam: aprovação da spec, ação sem volta (apagar dados, publicar em produção) e junção na branch principal. Quer mudar alguma?
+> Pergunta [N] de [total] · Paradas para a sua aprovação
+>
+> O que é: uma parada é um ponto em que o trabalho para e espera você aprovar antes de seguir. Por padrão, o trabalho para nestes pontos:
+> (1) início do projeto, em que você confirma a visão e o escopo antes de qualquer spec;
+> (2) arquitetura, em que você aprova as tecnologias e as decisões técnicas propostas;
+> (3) plano da entrega, em que você aprova o que entra, as tarefas e quem faz cada uma;
+> (4) lote de tarefas, em que você confere as tarefas publicadas antes de a construção começar;
+> (5) pedido de junção (PR) pronto para juntar, em que você vê a entrega já revisada. O pedido de junção é o pedido para levar a entrega para a linha principal; no GitHub ele se chama pull request, ou PR.
+> Entre essas paradas, as tarefas rodam sozinhas.
+>
+> Por que importa: desligar uma parada deixa o trabalho andar sem esperar você, mas aquele ponto passa sem o seu olhar. Três paradas nunca desligam: aprovação da spec, ação sem volta (apagar dados, publicar em produção) e junção na linha principal.
+>
+> Opções:
+> (a) manter as paradas como estão.
+> (b) desligar uma ou mais das cinco paradas acima (diga quais): o trabalho anda sem esperar você naquele ponto.
+> (c) ligar também uma parada depois de cada tarefa: você acompanha tudo de perto, e a construção fica bem mais lenta, porque cada tarefa espera você.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto, por exemplo: (a), porque é a primeira entrega e vale você ver cada ponto].
+>
+> Padrão: (a), as cinco paradas ligadas e nenhuma parada depois de cada tarefa.
 
 Map: início do projeto `project_start`; arquitetura `architecture`; plano `plan`; lote `task_batch`; depois de cada tarefa `each_task`; pedido de junção `before_pr`. Write `on` or `off`. If the user asks to turn off a never-off gate, refuse as in `gates.md` and leave it out of the file or `on`.
 
 **6B. Pending manual scenarios** (`manual_pending`: `block` or `warn` per target branch; role keys `main` and `integration`, a literal branch name wins, `"*"` is the fallback)
 
-> Alguns cenários de teste só uma pessoa consegue executar, como conferir um e-mail que chegou ou testar no celular. Se um deles ainda não foi feito quando a entrega vai ser juntada, o que eu faço? Para cada lugar, há duas opções: (a) travar: a junção espera até alguém executar e registrar o resultado, o que é mais seguro e pode segurar a entrega; (b) avisar: eu mostro o que falta e deixo juntar, o que é mais rápido e deixa o teste para depois. O padrão é travar na branch principal e só avisar nas outras, inclusive na de integração. Quer mudar?
+> Pergunta [N] de [total] · Testes feitos à mão
+>
+> O que é: alguns cenários de teste só uma pessoa consegue executar, como conferir um e-mail que chegou ou testar no celular. Aqui você decide o que eu faço se um deles ainda não foi feito quando a entrega vai ser juntada. A decisão é por lugar: primeiro a linha principal, depois as outras.
+>
+> Por que importa: um teste à mão que ficou para trás pode esconder um defeito que só aparece no celular ou no e-mail de verdade.
+>
+> Opções:
+> (a) travar: a junção espera até alguém executar e registrar o resultado. É mais seguro e pode segurar a entrega.
+> (b) avisar: eu mostro o que falta e deixo juntar. É mais rápido e deixa o teste para depois.
+>
+> Minha recomendação: [a opção para a linha principal e o motivo ligado a este projeto].
+>
+> Padrão: travar na linha principal e só avisar nas outras, inclusive na de integração.
+>
+> Na linha principal, (a) travar ou (b) avisar?
+
+Then the others (follow-up):
+
+> Pergunta [N] de [total] · Testes feitos à mão (continuação)
+>
+> E nas outras linhas, inclusive a de integração: (a) travar ou (b) avisar? Se quiser a de integração diferente das demais, me diga. O padrão aqui é (b) avisar.
 
 Ask first about the main branch, then about the others. Main -> `main`; others -> `"*"`. Write `integration` only when the person wants the integration branch different from the rest. Never edit this key later to make a merge pass ([gates.md](gates.md)).
 
 **7. Test commands per layer** (`tests.<layer>`, for example `unit`, `e2e_web`; quick version in `tests_quick.<layer>`)
 
-> Quais comandos rodam os testes do projeto? Por exemplo, um para os testes das regras e funções, e outro para os testes do site no navegador. Pode me dizer o comando de cada um? Se não souber, eu procuro no projeto e confirmo com você.
+> Pergunta [N] de [total] · Comandos de teste
+>
+> O que é: testes são programas que conferem sozinhos se o sistema faz o que deve. Cada tipo de teste roda com um comando, por exemplo um para os testes das regras e funções, e outro para os testes do site no navegador.
+>
+> Por que importa: é com esses comandos que eu provo que cada tarefa funciona antes de dizer que terminou.
+>
+> Opções: encontrei no projeto [comandos detectados, um por linha, com o tipo de teste de cada um; ou: não encontrei nenhum]. Você pode confirmar, corrigir ou me dizer o comando de cada tipo de teste.
+>
+> Minha recomendação: [usar os comandos detectados, ou o que fazer se não houver testes, e o motivo ligado a este projeto].
+>
+> Padrão: se você não souber, eu procuro no projeto e confirmo com você.
 
 Detect candidates from `package.json` scripts and CI files; show them and ask for confirmation. Skip layers the project does not have.
 
 For a layer that runs in a browser, ask for two versions: the full one (every browser the product must work in; phase 1 records which) in `tests.<layer>`, and a quick one (Chromium only) in `tests_quick.<layer>`. The quick one is what runs during construction; without it the engine falls back to the full command.
 
-> Para os testes no navegador, preciso de duas versões do comando: a completa, que roda em todos os navegadores, e a rápida, que roda só no Chrome (Chromium) e serve para o dia a dia da construção. Se ainda não tiver a rápida, eu proponho uma.
+Ask it as a follow-up:
+
+> Pergunta [N] de [total] · Comandos de teste (continuação)
+>
+> Para os testes no navegador, preciso de duas versões do comando. A completa roda em todos os navegadores em que o sistema precisa funcionar. A rápida roda só no Chrome (Chromium, a base aberta do Chrome) e serve para o dia a dia da construção. Se ainda não tiver a rápida, eu proponho uma.
 
 Layers that start with `e2e` are serialized machine-wide by the engine (`tests.queue` lists them; default is every layer starting with `e2e`). Change `tests.queue` only if the user's layers are named otherwise.
 
@@ -129,7 +296,19 @@ Every command of the project must run without asking anything: a command that wa
 
 **7B. Start the app** (`app.smoke`)
 
-> Existe um comando que sobe o sistema do jeito que o usuário usa, confere que ele responde e termina? Ele é a prova de que o sistema liga de verdade, não só de que os testes passam. Se não existir, deixo marcado para a fase de arquitetura criar.
+> Pergunta [N] de [total] · Comando que liga o sistema
+>
+> O que é: um comando que sobe o sistema do jeito que o usuário usa, confere que ele responde e termina.
+>
+> Por que importa: ele é a prova de que o sistema liga de verdade, não só de que os testes passam. Um sistema pode passar em todos os testes e mesmo assim não abrir, por exemplo por uma configuração faltando.
+>
+> Opções:
+> (a) existe: me diga qual é [detectado: o comando, se encontrei um], e eu confiro rodando uma vez, com o seu ok.
+> (b) não existe: deixo marcado para a fase de arquitetura (a etapa em que se decidem as tecnologias do sistema) criar.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto].
+>
+> Padrão: se não existir, a fase de arquitetura cria.
 
 `app.smoke` is a command that starts the app as the user does, checks it answers, and exits 0, with no interactive prompt. If the project has no app yet, or no such command, write nothing under `app` and note in the summary that phase 3 creates it. Run it with `baco run-tests --smoke` to check it, with the user's consent.
 
@@ -143,13 +322,51 @@ The context does not start at zero: the host's instructions, tools and skills al
 
 Show the default first, then ask the two questions one at a time:
 
-> Conversa muito longa fica mais cara a cada passo e lembra pior dos detalhes. Como tudo fica salvo nos arquivos, continuar numa conversa nova custa pouco. O padrão é este: a partir de 400 mil tokens de contexto, sugiro continuar numa conversa nova. Quer outro valor?
+> Pergunta [N] de [total] · Tamanho da conversa
+>
+> O que é: a IA mede o texto em tokens, pedaços pequenos de texto, mais ou menos do tamanho de uma sílaba. O contexto é tudo o que esta conversa já tem: as suas mensagens, as minhas e os arquivos que eu li.
+>
+> Por que importa: conversa muito longa fica mais cara a cada passo e lembra pior dos detalhes. Como tudo fica salvo nos arquivos, continuar numa conversa nova custa pouco.
+>
+> Opções:
+> (a) o padrão: a partir de 400 mil tokens de contexto, sugiro continuar numa conversa nova.
+> (b) outro valor (diga qual): um valor menor troca mais cedo e mais vezes; um maior deixa a conversa crescer mais, mais cara e com mais chance de esquecer detalhes.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto, por exemplo: (a), porque o projeto é pequeno e cada entrega cabe numa conversa].
+>
+> Padrão: (a) 400 mil tokens.
 
 When `autoCompactWindow` exists, use this wording instead, filling the brackets (for example 320 mil and 290 mil):
 
-> Conversa muito longa fica mais cara a cada passo e lembra pior dos detalhes. Como tudo fica salvo nos arquivos, continuar numa conversa nova custa pouco. O seu Claude Code resume a conversa sozinho perto de [80% da janela de resumo automático] tokens. Para dar tempo de terminar o passo e trocar antes disso, proponho avisar em [limite efetivo] tokens. Lembre que a conversa já começa com uma parte ocupada pelas instruções e ferramentas, então a primeira troca pode vir cedo. Pode ser esse valor, ou quer um menor?
+> Pergunta [N] de [total] · Tamanho da conversa
+>
+> O que é: a IA mede o texto em tokens, pedaços pequenos de texto, mais ou menos do tamanho de uma sílaba. O contexto é tudo o que esta conversa já tem: as suas mensagens, as minhas e os arquivos que eu li.
+>
+> Por que importa: conversa muito longa fica mais cara a cada passo e lembra pior dos detalhes. Como tudo fica salvo nos arquivos, continuar numa conversa nova custa pouco. O seu Claude Code resume a conversa sozinho perto de [80% da janela de resumo automático] tokens. Lembre que a conversa já começa com uma parte ocupada pelas instruções e ferramentas, então a primeira troca pode vir cedo.
+>
+> Opções:
+> (a) avisar em [limite efetivo] tokens: dá tempo de terminar o passo e trocar de conversa antes do resumo automático.
+> (b) um valor menor (diga qual): a troca vem mais cedo e mais vezes.
+>
+> Minha recomendação: (a) [limite efetivo] tokens, porque é o maior valor em que a troca ainda vem antes do resumo automático.
+>
+> Padrão: (a) [limite efetivo] tokens.
 
-> Durante a construção, quando a conversa passar desse tamanho, posso trocar para uma conversa nova sem te perguntar? Eu termino a tarefa em andamento, salvo onde parei e continuo na conversa nova. O padrão é perguntar antes.
+Then the second question:
+
+> Pergunta [N] de [total] · Troca de conversa sem perguntar
+>
+> O que é: durante a construção, quando a conversa passar desse tamanho, você decide se posso trocar para uma conversa nova sem te perguntar. Nesse caso, eu termino a tarefa em andamento, salvo onde parei e continuo na conversa nova.
+>
+> Por que importa: trocando sem perguntar, a conversa nova começa sem depender de você estar olhando. Perguntando antes, você decide cada troca.
+>
+> Opções:
+> (a) perguntar antes de cada troca.
+> (b) trocar sem perguntar.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto, por exemplo: (b), se você costuma deixar a construção rodando sozinha].
+>
+> Padrão: (a) perguntar antes.
 
 A number -> `handoff_at` (a positive whole number of tokens; above the effective limit, the effective limit, as said above); "pode ser o padrão" keeps 400000, or the effective limit when `autoCompactWindow` exists. Yes to the second -> `auto_handoff: on`; otherwise `off`. Outside the Ratoeira the agent cannot open a conversation by itself, so say that there the switch is only suggested, with a ready request to paste. The plugin hook reads these keys in Claude Code; in another host they guide the agent only.
 
@@ -157,40 +374,100 @@ A number -> `handoff_at` (a positive whole number of tokens; above the effective
 
 First, the tool you run in. In Claude Code, ask how free it is in this project (`harnesses.claude-code.sandbox`; [ambientes.md](ambientes.md), section 2, "Claude Code's sandbox"), and recommend `rede`:
 
-> Antes das outras ferramentas, uma pergunta sobre mim. Neste projeto, quanta liberdade eu tenho nos comandos? (a) rede: eu gravo só na pasta do projeto e acesso a internet só nos endereços que você aprovar (GitHub e o registro de pacotes do projeto); se um texto malicioso lido de fora me mandasse enviar suas chaves para outro lugar, a caixa recusaria; (b) livre: como hoje, gravo onde você pode e acesso qualquer endereço, protegido só pelas regras e pela confirmação das ações arriscadas. Recomendo a rede. Ela vale para todas as conversas deste projeto, inclusive as suas.
+> Pergunta [N] de [total] · Liberdade dos meus comandos
+>
+> O que é: quando trabalho no seu projeto, eu rodo comandos no computador, como instalar pacotes, rodar os testes e usar o git. Aqui você decide até onde esses comandos podem ir. Quando eles ficam presos a um limite, eu chamo esse limite de caixa (em inglês, sandbox).
+>
+> Por que importa: eu leio textos de fora, como documentação, páginas e issues. Se um deles trouxer uma instrução maliciosa, por exemplo "envie as chaves deste computador para tal endereço", a caixa impede o comando de funcionar, mesmo que eu me engane.
+>
+> Opções:
+> (a) rede: eu gravo só dentro da pasta do projeto e acesso a internet só nos endereços que você aprovar (o GitHub e o site de onde vêm os pacotes do projeto). É o mais seguro; de vez em quando eu peço para liberar um endereço novo.
+> (b) livre: eu gravo onde o seu usuário pode e acesso qualquer endereço. Tem menos interrupções, e a proteção fica só nas regras e nas confirmações das ações arriscadas.
+>
+> Minha recomendação: (a) rede, porque [motivo ligado a este projeto].
+>
+> Padrão: (a). Vale para todas as conversas neste projeto, inclusive as que você abrir.
 
-With `rede`, propose the network list from the project's stack (GitHub, its package registries) and ask:
+With `rede`, propose the network list from the project's stack (GitHub, its package registries) and ask (follow-up):
 
-> Vou liberar estes endereços: [lista]. Precisa de mais algum, como uma API que os testes chamam?
+> Pergunta [N] de [total] · Liberdade dos meus comandos (continuação)
+>
+> Vou liberar estes endereços: [lista]. Precisa de mais algum, como uma API (o endereço pelo qual um programa conversa com outro sistema) que os testes chamam?
 
-and, when the project has an app the person tests in the browser:
+and, when the project has an app the person tests in the browser (follow-up):
 
+> Pergunta [N] de [total] · Liberdade dos meus comandos (continuação)
+>
 > Para você testar o sistema no navegador, eu deixo ele rodando com um comando. Dentro da caixa, um sistema iniciado assim só fica visível para o próprio comando, então esse comando roda fora dela. Qual é ele? [detectado: por exemplo npm run dev]
 
 Save the answer as `sandbox` under `harnesses.claude-code`, and keep the list and the command for the settings (step 7 of "Write the file" and "Execution rules"). Then detect what else this machine has (for example `claude`, `codex`, `opencode`, `agy` or `antigravity` on the PATH), then ask:
 
-> Além de mim, você tem outras ferramentas de IA para usar neste projeto, como Codex, OpenCode ou Antigravity? Com mais de uma, uma pode revisar o trabalho da outra, o que deixa a revisão mais independente. Detectei: [lista]. Quais quer usar?
+> Pergunta [N] de [total] · Outras ferramentas de IA
+>
+> O que é: uma ferramenta de IA é o programa em que uma IA trabalha no seu computador, como eu aqui no [ferramenta em uso]. Outros exemplos são Codex, OpenCode e Antigravity. Detectei nesta máquina: [lista].
+>
+> Por que importa: com mais de uma, uma pode revisar o trabalho da outra, o que deixa a revisão mais independente: uma IA diferente enxerga erros que a primeira deixou passar.
+>
+> Opções:
+> [uma linha por ferramenta detectada: "[ferramenta]: passa a revisar e procurar informação neste projeto"]
+> nenhuma: só eu trabalho neste projeto.
+> Pode escolher mais de uma.
+>
+> Minha recomendação: [as ferramentas e o motivo ligado a este projeto].
+>
+> Padrão: nenhuma além de mim.
 
-For each tool the user wants, list its models from the tool itself and recommend the level of each ([ambientes.md](ambientes.md), section 5, "Adding one"), in plain words:
+For each tool the user wants, list its models from the tool itself and recommend the level of each ([ambientes.md](ambientes.md), section 5, "Adding one"), in plain words (follow-up):
 
-> No [ferramenta], recomendo: forte = [modelo], para revisar e decidir o que é difícil; médio = [modelo], para o trabalho comum; leve = [modelo], para tarefas simples e buscas. Pode ser assim?
+> Pergunta [N] de [total] · Outras ferramentas de IA (continuação)
+>
+> Cada ferramenta tem vários modelos, que são as versões da IA: umas mais capazes e caras, outras mais rápidas e baratas. Eu organizo os modelos em três níveis: forte, médio e leve. No [ferramenta], recomendo: forte = [modelo], para revisar e decidir o que é difícil; médio = [modelo], para o trabalho comum; leve = [modelo], para tarefas simples e buscas. Pode ser assim?
 
 Save each approved tool under `harnesses.<name>` with its `models`; a tool with models of more than one maker gets one entry per family, when the person wants ([ambientes.md](ambientes.md), section 9). The tool you run in gets `implementers: on`. Every other tool gets `implementers: off` and only reviews and searches, never changes code, until it has been tested end to end with BACO; set `on` only when the user asks for it after such a test and its write check (below) passed, and say what it changes:
 
-> Por enquanto, as outras ferramentas só revisam e procuram informação; quem constrói é a ferramenta em que eu estou. Quando você tiver testado uma delas de ponta a ponta, posso liberar para ela construir também.
+> Por enquanto, as outras ferramentas só revisam e procuram informação; quem constrói (escreve o código das tarefas) é a ferramenta em que eu estou. Quando você tiver testado uma delas de ponta a ponta, posso liberar para ela construir também.
 
 When a tool other than yours gets `implementers: on` (now or later), ask how free it is when it builds (`harnesses.<name>.sandbox`; [ambientes.md](ambientes.md), section 5, "Sandbox"), and recommend `rede`:
 
-> Quando o [ferramenta] construir, quanta liberdade ele tem? (a) protegida: grava só na pasta da tarefa e não tem internet, então eu instalo as dependências e rodo os testes de tela por ele, o que gasta mais do meu lado; (b) rede: grava só na pasta da tarefa, mas tem internet e pode abrir o app para testar, então faz o trabalho inteiro sozinho; (c) livre: sem caixa nenhuma, lê e grava onde você pode, como eu hoje. Nas três, as regras do BACO recusam os comandos proibidos (administrador, enviar ao GitHub, fazer commit, apagar pastas inteiras), mas elas são um filtro, não uma barreira. Com internet, um texto malicioso lido de fora (um pacote, uma página) teria caminho para mandar suas chaves para fora, o mesmo risco que eu já corro. Recomendo a rede: dá a ele o que a tarefa precisa e mantém a gravação presa na pasta. O padrão é rede.
+> Pergunta [N] de [total] · Liberdade do [ferramenta] ao construir
+>
+> O que é: quando o [ferramenta] construir, ele também roda comandos no computador. Aqui você decide até onde esses comandos podem ir, como na pergunta sobre a minha caixa.
+>
+> Por que importa: nas três opções, as regras do BACO recusam os comandos proibidos (administrador, enviar ao GitHub, fazer commit, que é gravar uma versão no histórico do código, e apagar pastas inteiras), mas elas são um filtro, não uma barreira. Com internet, um texto malicioso lido de fora (um pacote, uma página) teria caminho para mandar suas chaves para fora, o mesmo risco que eu já corro.
+>
+> Opções:
+> (a) protegida: grava só na pasta da tarefa e não tem internet, então eu instalo as dependências (os pacotes de que o projeto precisa) e rodo os testes de tela por ele, o que gasta mais do meu lado.
+> (b) rede: grava só na pasta da tarefa, mas tem internet e pode abrir o app para testar, então faz o trabalho inteiro sozinho.
+> (c) livre: sem caixa nenhuma, lê e grava onde você pode.
+>
+> Minha recomendação: (b) rede, porque dá a ele o que a tarefa precisa e mantém a gravação presa na pasta.
+>
+> Padrão: (b) rede.
 
 Save the answer as `sandbox` (`protegida`, `rede` or `livre`). A tool with no command-rules mechanism of its own takes only `protegida`; say so. For Codex, whenever it is listed in `harnesses`, copy [templates/codex/baco.rules](../templates/codex/baco.rules) to `.codex/rules/baco.rules` in the project; it is committed with the setup (step 7 of "Write the file"), so every task folder carries it. For Antigravity, whenever it is listed in `harnesses`, copy [templates/antigravity/leitura.json](../templates/antigravity/leitura.json) to `.baco/antigravity/leitura.json`, committed the same way: it is the read-only mode of its calls ([ambientes.md](ambientes.md), section 5). Antigravity builds only in `protegida`: its terminal sandbox does not start on every machine, so BACO keeps it inside the task folder with a hook and command rules instead ([ambientes.md](ambientes.md), section 5, "Sandbox"). When the person turns its `implementers` on, do not ask the sandbox question; save `sandbox: protegida` and tell them, in plain words:
-> O Antigravity pode construir, mas só do jeito protegido: ele grava só na pasta da tarefa (uma trava do BACO recusa o resto), roda só os testes e comandos de leitura, e eu instalo as dependências por ele. Uma coisa fica aberta: os testes que ele escreve e roda são programas que rodam com o seu usuário, então um teste mal feito ainda poderia ler arquivos seus ou acessar a internet. Eu confiro tudo o que ele mudou e rodo os testes de novo antes de cada commit.
+
+> O Antigravity pode construir, mas só do jeito protegido: ele grava só na pasta da tarefa (uma trava do BACO recusa o resto), roda só os testes e comandos de leitura, e eu instalo as dependências (os pacotes de que o projeto precisa) por ele.
+>
+> Uma coisa fica aberta: os testes que ele escreve e roda são programas que rodam com o seu usuário, então um teste mal feito ainda poderia ler arquivos seus ou acessar a internet. Eu confiro tudo o que ele mudou e rodo os testes de novo antes de cada commit (cada versão gravada no histórico do código).
 
 Then check each tool other than yours on this machine, before any plan relies on it ([ambientes.md](ambientes.md), section 5, "Check before relying on it"): the read call always, the write call only for a tool marked `implementers: on`, in its configured `sandbox`, which also tries a network fetch, binding a local port and a forbidden command, and records `rede`, `porta` and `regra` in `.baco/logs/harnesses.md` (a missing capability is reported, never fixed by widening the sandbox beyond its value) (also when the user turns it on later; `on` takes effect only after that check passed). Say the result in one line per tool. A tool that fails stays in the config, but no plan gives it work until a new check passes; tell the person with the message of that section and never widen its sandbox beyond the configured value.
 
 **Suggested split when Codex is available.** When Codex is installed and its read check passed, suggest (never impose) this split, with the one-line reason, and let the person accept it or change any part. When only your own harness is available, skip this and keep the usual setup (implementers by risk class, every role on your harness):
 
-> Como o Codex está funcionando aqui, sugiro uma destas divisões. (a) O Codex constrói, com o modelo mais capaz e esforço muito alto, na caixa com rede, e eu conduzo e faço as revisões no Claude. Em teste ponta a ponta foi a construção mais rápida e quase sem correção, e o Codex instalou e testou sozinho; em troca, gasta uma boa parte do limite do Codex. (b) Eu conduzo, os implementadores e os revisores de tarefa ficam no Claude, e a revisão do pedido de junção (PR) fica no Codex, com o modelo mais capaz, esforço alto e só leitura: custou cerca de 1% do uso e achou defeitos que as revisões do Claude não acharam. Nas duas, quem revisa o PR é uma ferramenta diferente da que construiu, e o localizador usa o modelo mais leve do Claude. Recomendo a (a) se o seu plano do Codex tiver folga, e a (b) se não tiver. Qual prefere, ou quer mudar alguma parte?
+> Pergunta [N] de [total] · Divisão do trabalho com o Codex
+>
+> O que é: como o Codex está funcionando aqui, sugiro dividir o trabalho entre ele e o Claude, que sou eu. Construir é escrever o código das tarefas; conduzir é organizar a entrega e chamar cada etapa; revisar é conferir o trabalho feito. O esforço é quanto a IA pensa antes de agir: mais esforço, mais cuidado e mais gasto.
+>
+> Por que importa: nas duas divisões, quem revisa o PR é uma ferramenta diferente da que construiu, o que dá um olhar mais independente. O que muda é quem constrói e quanto do limite de cada plano você gasta.
+>
+> Opções:
+> (a) O Codex constrói, com o modelo mais capaz e esforço muito alto, na caixa com rede, e eu conduzo e faço as revisões no Claude. Em teste ponta a ponta foi a construção mais rápida e quase sem correção, e o Codex instalou e testou sozinho; em troca, gasta uma boa parte do limite do Codex.
+> (b) Eu conduzo, quem constrói e quem revisa cada tarefa fica no Claude, e a revisão do pedido de junção (PR) fica no Codex, com o modelo mais capaz, esforço alto e só leitura: custou cerca de 1% do uso e achou defeitos que as revisões do Claude não acharam.
+> Nas duas, o localizador (o ajudante que só procura informação nos arquivos) usa o modelo mais leve do Claude. Você também pode mudar qualquer parte.
+>
+> Minha recomendação: a (a) se o seu plano do Codex tiver folga, e a (b) se não tiver. [No seu caso: a opção e o motivo, se você me disse como está o seu plano do Codex.]
+>
+> Padrão: nenhuma divisão fixa. Sem escolha, o Codex só revisa e procura informação, e o plano de cada entrega mostra quem faz cada papel para você aprovar.
 
 With (a), set `implementers: on` and `sandbox: rede` for Codex (its write check must pass with `rede: sim`, `porta: sim` and `regra: sim`) and keep every review role on Claude. With (b), record the PR reviewer on `codex` (its model and effort in the agents table of the plan) and leave `implementers: off` for Codex. The plan shows the split for approval like any other.
 
@@ -200,9 +477,36 @@ When the user later says they added a subscription, come back to this question f
 
 Ask the two questions one at a time:
 
-> No fim de cada entrega, o pedido de junção (PR) passa por uma revisão de fora, além das revisões internas. Quem faz essa revisão: (a) outra IA, de preferência uma ferramenta diferente da que construiu: a revisão acontece na hora, sem você precisar fazer nada; (b) uma pessoa do time: traz o olhar de quem conhece o negócio, e a entrega espera essa pessoa revisar; (c) as duas, primeiro a IA e depois a pessoa: a pessoa recebe a entrega já com os problemas óbvios corrigidos, e é o caminho mais lento. O padrão é a IA.
+> Pergunta [N] de [total] · Quem revisa o pedido de junção
+>
+> O que é: no fim de cada entrega, o pedido de junção (PR) passa por uma revisão de fora, além das revisões internas feitas durante a construção. Aqui você escolhe quem faz essa revisão de fora.
+>
+> Por que importa: é o último olhar sobre a entrega inteira antes de ela ficar pronta para você testar e juntar.
+>
+> Opções:
+> (a) outra IA, de preferência uma ferramenta diferente da que construiu: a revisão acontece na hora, sem você precisar fazer nada.
+> (b) uma pessoa do time: traz o olhar de quem conhece o negócio, e a entrega espera essa pessoa revisar.
+> (c) as duas, primeiro a IA e depois a pessoa: a pessoa recebe a entrega já com os problemas óbvios corrigidos, e é o caminho mais lento.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto, por exemplo: (a), porque você trabalha sozinho neste projeto].
+>
+> Padrão: (a) outra IA.
 
-> Quando a revisão apontar problemas, posso corrigir sozinho, no mesmo pedido de junção, e pedir para o mesmo revisor conferir só as correções, até ele aprovar ou chegar ao limite de rodadas? Com sim, a entrega anda sem esperar você. Com não, cada rodada de problemas espera você ler e decidir o que corrigir. O padrão é sim.
+Then the second question:
+
+> Pergunta [N] de [total] · Correções da revisão
+>
+> O que é: quando a revisão apontar problemas, posso corrigir sozinho, no mesmo pedido de junção, e pedir para o mesmo revisor conferir só as correções, até ele aprovar ou chegar ao limite de rodadas. Cada conferência do revisor é uma rodada.
+>
+> Por que importa: decide se a entrega anda sozinha depois da revisão ou se espera você a cada rodada.
+>
+> Opções:
+> (a) sim: eu corrijo sozinho, e a entrega anda sem esperar você.
+> (b) não: cada rodada de problemas espera você ler e decidir o que corrigir.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto].
+>
+> Padrão: (a) sim.
 
 (a) -> `agente`; (b) -> `pessoa`; (c) -> `ambos`. Yes to the second -> `auto_fix: on`; no -> `off` (then each round of findings waits for the person before fixing). Then say once, as a statement, what the PR review changes in the run:
 
@@ -210,19 +514,70 @@ Ask the two questions one at a time:
 
 **11. AI level per task type** (`models.mechanical`, `models.standard`, `models.risky`; each a `level` `forte`, `medio` or `leve` and an `effort` `alto`, `medio` or `baixo`)
 
-> Na construção, cada tarefa recebe um tipo conforme o risco, e cada tipo usa um nível de IA e um esforço (quanto a IA pensa antes de agir). O padrão é: tarefa mecânica (troca simples, sem decisão) com o modelo mais leve e esforço baixo, o mais rápido e barato; tarefa padrão (o trabalho comum) com o intermediário e esforço médio; tarefa arriscada (dados, login, dinheiro ou algo difícil de desfazer) com o mais capaz e esforço médio. Subir o nível ou o esforço deixa a tarefa mais cuidadosa, mais cara e mais lenta; descer faz o contrário e aumenta a chance de a revisão pedir correção. Neste ambiente, os níveis são: [forte = modelo, médio = modelo, leve = modelo, de `harnesses` da ferramenta em que você está]. O plano de cada entrega mostra o modelo de cada tarefa para você aprovar. Quer mudar algum?
+> Pergunta [N] de [total] · Nível da IA por tipo de tarefa
+>
+> O que é: na construção, cada tarefa recebe um tipo conforme o risco, e cada tipo usa um nível de IA e um esforço. O nível vai do modelo mais capaz (forte) ao mais simples (leve); o esforço é quanto a IA pensa antes de agir. Neste ambiente, os níveis são: [forte = modelo, médio = modelo, leve = modelo, de `harnesses` da ferramenta em que você está].
+>
+> Por que importa: subir o nível ou o esforço deixa a tarefa mais cuidadosa, mais cara e mais lenta; descer faz o contrário e aumenta a chance de a revisão pedir correção. O plano de cada entrega mostra o modelo de cada tarefa para você aprovar.
+>
+> Opções (o padrão de cada tipo; você pode mudar qualquer um):
+> tarefa mecânica (troca simples, sem decisão): o modelo mais leve e esforço baixo, o mais rápido e barato.
+> tarefa padrão (o trabalho comum): o intermediário e esforço médio.
+> tarefa arriscada (dados, login, dinheiro ou algo difícil de desfazer): o mais capaz e esforço médio.
+>
+> Minha recomendação: [manter ou mudar, e o motivo ligado a este projeto, por exemplo: manter, porque o projeto tem poucas tarefas arriscadas].
+>
+> Padrão: os três como acima.
 
 Talk in levels and efforts, never ask the person to pick a model name; name the real models only to make the levels concrete ([ambientes.md](ambientes.md)). Write only the classes the person changed; keep the others as in the template.
 
 **12. External review rounds** (`review.external_rounds_max`, default 3)
 
-> Quando a revisão de fora acha problemas e eles são corrigidos, o revisor confere de novo; cada conferência é uma rodada. Quantas rodadas posso fazer antes de parar e pedir a sua decisão? Mais rodadas deixam a entrega se resolver sozinha por mais tempo, gastando mais a cada volta; menos rodadas te chamam mais cedo, quando a revisão e a correção não convergem. O padrão é 3.
+> Pergunta [N] de [total] · Rodadas da revisão de fora
+>
+> O que é: quando a revisão de fora acha problemas e eles são corrigidos, o revisor confere de novo; cada conferência é uma rodada. Aqui você decide quantas rodadas posso fazer antes de parar e pedir a sua decisão.
+>
+> Por que importa: às vezes a revisão e a correção não convergem, e cada nova volta gasta mais sem resolver.
+>
+> Opções (diga o número):
+> mais rodadas: deixam a entrega se resolver sozinha por mais tempo, gastando mais a cada volta.
+> menos rodadas: te chamam mais cedo, quando a revisão e a correção não convergem.
+>
+> Minha recomendação: [o número e o motivo ligado a este projeto].
+>
+> Padrão: 3.
 
 A positive whole number -> `review.external_rounds_max`. Every verdict counts as a round, from an agent or a person ([review.md](review.md), section 4).
 
 **12B. Reviews of a task** (`review.task_rounds`, the maximum of reviews counting the first, default `{ mechanical: 2, standard: 3, risky: 4 }`, three positive whole numbers; then `review.last_round_importante`, default `seguir`, (a) -> `seguir`, (b) -> `parar`; ask the two one at a time; not asked at startup of a project already configured, which keeps the defaults; the 1.4.0 name `round5_importante` is still read)
 
-> Cada tarefa pronta passa por uma revisão. Se ela acha problema que quebra o que a tarefa promete, a IA corrige e o revisor confere só a correção; problema fora do que a tarefa promete vira pendência, sem correção. O padrão é até 2 revisões na tarefa mecânica, 3 na padrão e 4 na arriscada, contando a primeira, e só a correção antes da última revisão usa um nível de IA acima, mais caro. Esse é o valor que o plano de cada entrega sugere, e você pode mudar ali para aquela entrega. Mais revisões resolvem mais sozinho e gastam mais; menos revisões te chamam mais cedo. Quer outro padrão para o projeto? Depois: se na última revisão ainda sobrar só achado "importante" (um caso raro, como dois cliques no mesmo milissegundo, ou um erro de efeito pequeno), posso (a) juntar a tarefa, anotar cada achado como pendência e seguir a construção, e antes da revisão final eu te mostro todas numa lista só, com a minha recomendação para cada uma; ou (b) parar a tarefa e esperar você decidir na hora, o que segura também as tarefas que dependem dela. Achado "crítico" (dado errado gravado, dado restrito à mostra ou permissão indevida no uso normal) sempre para a tarefa. O padrão é (a).
+> Pergunta [N] de [total] · Revisões de cada tarefa
+>
+> O que é: cada tarefa pronta passa por uma revisão. Se ela acha problema que quebra o que a tarefa promete, a IA corrige e o revisor confere só a correção; problema fora do que a tarefa promete vira pendência (fica anotado para depois), sem correção. Aqui você decide quantas revisões cada tipo de tarefa pode ter, contando a primeira.
+>
+> Por que importa: mais revisões resolvem mais sozinho e gastam mais; menos revisões te chamam mais cedo. Só a correção antes da última revisão usa um nível de IA acima, mais caro.
+>
+> Opções: um número máximo para cada tipo de tarefa (mecânica, padrão e arriscada). Esse é o valor que o plano de cada entrega sugere, e você pode mudar ali para aquela entrega.
+>
+> Minha recomendação: [manter ou mudar, e o motivo ligado a este projeto].
+>
+> Padrão: até 2 revisões na tarefa mecânica, 3 na padrão e 4 na arriscada, contando a primeira.
+
+Then the second question:
+
+> Pergunta [N] de [total] · O que sobra na última revisão
+>
+> O que é: se na última revisão de uma tarefa ainda sobrar só achado "importante" (um caso raro, como dois cliques no mesmo milissegundo, ou um erro de efeito pequeno), eu preciso saber se sigo ou paro.
+>
+> Por que importa: parar segura a construção; seguir deixa os achados para você decidir depois, todos juntos. Achado "crítico" (dado errado gravado, dado restrito à mostra ou permissão indevida no uso normal) sempre para a tarefa; esta pergunta vale só para o "importante".
+>
+> Opções:
+> (a) juntar a tarefa, anotar cada achado como pendência e seguir a construção; antes da revisão final eu te mostro todas numa lista só, com a minha recomendação para cada uma.
+> (b) parar a tarefa e esperar você decidir na hora, o que segura também as tarefas que dependem dela.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto].
+>
+> Padrão: (a).
 
 Each command must write its own JUnit report, and machine-specific paths and variables go in `.baco/local.env`: follow [test-commands.md](test-commands.md) when you confirm the commands. Do not change `tests.patterns` unless the project's tests live outside the defaults (`*.test.*`, `*.spec.*`, `e2e/`, `.maestro/`).
 
@@ -255,7 +610,15 @@ Build the list from what you know of the project: its test commands (`tests`, `t
 
 In Claude Code the order is deny, then ask, then allow: the first that matches wins, so an `ask` rule is not swallowed by a broader `allow`, and a `deny` beats both. Write them to `.claude/settings.local.json` (not versioned; add it to `.gitignore` if it is not already there), under `permissions.allow`, `permissions.ask` and `permissions.deny`. Keep what the file already has. Check that no allow pattern matches an ask pattern (for example `git push *`); if one does, narrow the allow. Show the user the rules in plain words before saving:
 
-> Para o trabalho rodar sozinho sem arriscar nada, vou deixar estas regras no projeto. Pode rodar sem perguntar: os testes do projeto, os comandos do BACO, o git nas linhas de trabalho desta entrega, enviar a linha de trabalho da entrega e abrir o pedido de junção (PR) dela como rascunho, chamar as outras ferramentas de IA só para ler e revisar, quando elas têm um modo só leitura (a caixa do Codex, ou as regras de leitura do BACO no Antigravity), e registrar a resposta do revisor de IA da última rodada. Sempre pergunta a você, mesmo se você pedir para não confirmar nada: ir para as linhas principais do código (onde fica o que já foi aprovado) ou enviar algo para elas, juntar o pedido de junção, dispensar a revisão externa, registrar qualquer veredito que não seja a resposta do revisor de IA (como a revisão de uma pessoa) e chamar uma ferramenta de IA que pode gravar ou não tem proteção de só leitura (como o OpenCode). Nunca roda: comandos de administrador (sudo), envio forçado, voltar o código à força, apagar as linhas principais, apagar pastas inteiras, rodar o Codex fora da caixa que você escolheu ou sem as regras do BACO, rodar o Antigravity aprovando tudo sozinho e escrever fora do projeto, exceto a cópia para o revisor, ao lado do projeto. Posso salvar assim?
+> Para o trabalho rodar sozinho sem arriscar nada, vou deixar estas regras no projeto. Elas dizem o que eu posso fazer sem te perguntar, o que sempre pergunta e o que nunca roda.
+>
+> Pode rodar sem perguntar: os testes do projeto, os comandos do BACO, o git nas linhas de trabalho desta entrega, enviar a linha de trabalho da entrega e abrir o pedido de junção (PR) dela como rascunho, chamar as outras ferramentas de IA só para ler e revisar, quando elas têm um modo só leitura (a caixa do Codex, ou as regras de leitura do BACO no Antigravity), e registrar a resposta do revisor de IA da última rodada.
+>
+> Sempre pergunta a você, mesmo se você pedir para não confirmar nada: ir para as linhas principais do código (onde fica o que já foi aprovado) ou enviar algo para elas, juntar o pedido de junção, dispensar a revisão externa, registrar qualquer veredito (a conclusão de uma revisão) que não seja a resposta do revisor de IA, como a revisão de uma pessoa, e chamar uma ferramenta de IA que pode gravar ou não tem proteção de só leitura (como o OpenCode).
+>
+> Nunca roda: comandos de administrador (sudo), envio forçado (que apaga o histórico que está no GitHub), voltar o código à força (que descarta mudanças sem volta), apagar as linhas principais, apagar pastas inteiras, rodar o Codex fora da caixa que você escolheu ou sem as regras do BACO, rodar o Antigravity aprovando tudo sozinho e escrever fora do projeto, exceto a cópia para o revisor, ao lado do projeto.
+>
+> Posso salvar assim?
 
 Save only after the user agrees. In another environment (Codex or another host), describe the equivalent in that tool's own mechanism, as in [ambientes.md](ambientes.md). If the tool cannot enforce a block, say so plainly and keep the rule as an instruction only:
 
@@ -295,6 +658,18 @@ Run `baco check-branch`. It loads the config, so a bad file shows up here.
 - A warning on stderr (`config.invalid_section`: a section that must be a map was something else; `config.mandatory_gate_ignored`: a never-off gate was set to off): fix the file, run again. Tell the user in plain words what was ignored.
 - Exit 65 with a config error naming a line: fix that line (usually a tab, an unbalanced quote or bracket, or a bad indent) and run again.
 
-Then close with:
+Then close with this summary, in everyday words, one short line per subject, saying what was agreed and what it means in practice (not the config keys). Fill each bracket with the real answer:
 
-> Pronto: a configuração está salva em `.baco/config.yaml` e conferida. Resumo: [idioma, tarefas em arquivos/GitHub e o quadro do GitHub mantido em dia (qual, ou nenhum), branch principal e de integração, quantas tarefas em paralelo, paradas ligadas, comandos de teste completos e rápidos e se foram conferidos, comando de subir o sistema, tamanho da conversa para continuar numa nova e se a troca na construção pode ser sem perguntar, ferramentas de IA e o modelo de cada nível, quem revisa o PR e se as correções são automáticas, regras de execução salvas ou não]. Você pode pedir para mudar qualquer item quando quiser.
+> Pronto: a configuração está salva e conferida, no arquivo `.baco/config.yaml`. Em palavras simples, combinamos isto:
+>
+> Idioma: [os documentos e as mensagens saem em português / as mensagens saem em inglês e os documentos começam com títulos em português].
+> Tarefas: [ficam registradas em arquivos do projeto / em arquivos e também no GitHub], [e eu mantenho o quadro "[nome]" do GitHub em dia / sem quadro do GitHub].
+> Linhas de trabalho: a principal é [nome], onde só entra o que você aprovar; a de integração é [nome], onde as entregas se juntam primeiro.
+> Ritmo: até [número] tarefas ao mesmo tempo; eu paro para você aprovar em [paradas ligadas, em palavras simples].
+> Testes: [cada tipo de teste com o comando completo e o rápido, e se eu já conferi que rodam]; [o comando que liga o sistema é X / a fase de arquitetura vai criar o comando que liga o sistema].
+> Conversa: a partir de [número] mil tokens, eu [sugiro continuar numa conversa nova / troco sozinho para uma conversa nova durante a construção].
+> Ferramentas de IA: [quais ferramentas, quem constrói e quem revisa, e o modelo de cada nível].
+> Revisão do pedido de junção: [quem revisa], e [eu corrijo sozinho o que ela apontar / cada rodada espera você].
+> Regras de segurança: [salvas no projeto / não salvas, e por quê].
+>
+> Você pode pedir para mudar qualquer item quando quiser.

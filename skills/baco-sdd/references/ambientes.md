@@ -176,11 +176,26 @@ Questions 13 and 14 of [configure.md](configure.md), asked one at a time after 1
 
 **Profiles.** When question 9 adds a tool that lists models of more than one maker (Antigravity: Gemini and Claude), offer one entry per family, each with its own levels and `tool: <program>` on the extra ones (section 5, "Profiles of one tool"):
 
-> O [ferramenta] tem modelos de mais de uma empresa: [famílias]. Cada uma tem a própria cota. Posso registrar uma entrada para cada, assim uma pode ser reserva da outra e o plano escolhe a família de cada papel. Quer assim?
+> Pergunta [N] de [total] · Outras ferramentas de IA (continuação)
+>
+> O [ferramenta] tem modelos de mais de uma empresa: [famílias]. Cada uma tem a própria cota, que é o limite de uso do seu plano com ela. Posso registrar uma entrada para cada, assim uma pode ser reserva da outra quando a cota acabar, e o plano escolhe a empresa de cada papel. Quer assim?
 
 **13. How the plan splits the tasks** (`planning.task_split`, default `funcionalidade`; only when the project has both a server side and screens)
 
-> Como o plano deve dividir as tarefas? (a) Por funcionalidade: cada tarefa entrega uma funcionalidade inteira, o servidor e a tela juntos, feita por uma ferramenta de IA só. É o padrão, e cada tarefa já sai testável de ponta a ponta. (b) Back-end e front-end separados: cada funcionalidade vira uma tarefa de back-end (servidor, banco e API) e uma de front-end (as telas). Primeiro sai uma tarefa pequena com o contrato da API, o formato do que a tela pede e do que o servidor responde, e depois o back-end e o front-end andam em paralelo, cada um com a ferramenta de IA que você escolher. A tela só entra na entrega depois do servidor, e eu rodo os testes de tela com os dois juntos. Vale a pena quando você quer uma IA no back-end e outra no front-end, ou quando há muita tela. Em qualquer das duas, o plano de cada entrega mostra a divisão, e você pode trocar só para aquela entrega ao aprovar.
+> Pergunta [N] de [total] · Como dividir as tarefas
+>
+> O que é: este projeto tem duas partes. O back-end é o lado do servidor: as regras, o banco de dados e a API (o endereço pelo qual a tela pede e recebe os dados). O front-end são as telas que o usuário vê. Aqui você decide se cada tarefa faz as duas partes de uma funcionalidade ou só uma delas.
+>
+> Por que importa: com as partes separadas, dá para pôr uma IA no back-end e outra no front-end, trabalhando ao mesmo tempo. Com as partes juntas, cada tarefa já sai testável de ponta a ponta.
+>
+> Opções:
+> (a) Por funcionalidade: cada tarefa entrega uma funcionalidade inteira, o servidor e a tela juntos, feita por uma ferramenta de IA só. Cada tarefa já sai testável de ponta a ponta.
+> (b) Back-end e front-end separados: cada funcionalidade vira uma tarefa de back-end (servidor, banco e API) e uma de front-end (as telas). Primeiro sai uma tarefa pequena com o contrato da API, o formato do que a tela pede e do que o servidor responde, e depois o back-end e o front-end andam em paralelo, cada um com a ferramenta de IA que você escolher. A tela só entra na entrega depois do servidor, e eu rodo os testes de tela com os dois juntos. Vale a pena quando você quer uma IA no back-end e outra no front-end, ou quando há muita tela.
+> Em qualquer das duas, o plano de cada entrega mostra a divisão, e você pode trocar só para aquela entrega ao aprovar.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto, por exemplo: (a), porque o projeto tem poucas telas].
+>
+> Padrão: (a) por funcionalidade.
 
 (a) -> `funcionalidade`; (b) -> `front-back`.
 
@@ -188,6 +203,21 @@ Questions 13 and 14 of [configure.md](configure.md), asked one at a time after 1
 
 Show the roles that apply (with `front-back`, `backend` and `frontend` instead of `implementer`) and propose a list for each from the tools that passed their checks, the reviewers on a model family other than the builders':
 
-> Agora, quem faz cada papel e quem continua se a cota acabar. Para cada papel, uma lista em ordem: a primeira ferramenta faz o trabalho; se a cota dela acabar no meio da entrega, a seguinte continua sozinha, sem esperar você. Proponho: [papel: ferramenta (modelo), reserva: ferramenta (modelo); um por linha, em palavras simples: "construção do back-end", "construção do front-end", "revisão de cada tarefa", "última revisão de cada tarefa", "revisão final", "revisão do PR"]. A revisão sempre fica com um modelo de outra empresa que não a de quem construiu, para ser um olhar independente. A última revisão de cada tarefa pode ter outro revisor, para uma segunda visão mais crítica; ela só acontece nas tarefas que chegam até ela. A conversa principal, a que conduz a entrega, não entra aqui: se a conta dela acabar, quem continua é [na Ratoeira: a fila de contas, hoje na ordem X; fora dela: ninguém, a entrega para até a cota voltar]. O plano de cada entrega mostra essas listas e você pode mudar qualquer papel, reserva ou modelo só para aquela entrega. Quer assim, ou mudar algum?
+> Pergunta [N] de [total] · Quem faz cada papel, e as reservas
+>
+> O que é: um papel é uma parte do trabalho, como construir ou revisar. Para cada papel, uma lista em ordem: a primeira ferramenta faz o trabalho; se a cota dela (o limite de uso do seu plano) acabar no meio da entrega, a seguinte continua sozinha, sem esperar você. Essa seguinte é a reserva.
+>
+> Por que importa: sem reserva, uma cota que acaba no meio da entrega para aquele papel. A revisão sempre fica com um modelo de outra empresa que não a de quem construiu, para ser um olhar independente. A conversa principal, a que conduz a entrega, não entra aqui: se a conta dela acabar, quem continua é [na Ratoeira: a fila de contas, hoje na ordem X; fora dela: ninguém, a entrega para até a cota voltar].
+>
+> Opções:
+> (a) assim como proponho:
+> [papel: ferramenta (modelo), reserva: ferramenta (modelo); um por linha, em palavras simples: "construção do back-end", "construção do front-end", "revisão de cada tarefa", "última revisão de cada tarefa", "revisão final", "revisão do PR"]
+> A última revisão de cada tarefa pode ter outro revisor, para uma segunda visão mais crítica; ela só acontece nas tarefas que chegam até ela.
+> (b) mudar algum papel, reserva ou modelo (diga qual).
+> Em qualquer caso, o plano de cada entrega mostra essas listas e você pode mudar qualquer papel, reserva ou modelo só para aquela entrega.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto].
+>
+> Padrão: sem lista. O plano de cada entrega escolhe quem faz cada papel, e você aprova no plano.
 
 Save each approved list under `roles.<role>`, entries as `<harness>` or `<harness>/<model>` (only when the person wants one model pinned for that role). A role the person leaves to the plan stays out. In the Ratoeira, read the queue order from `~/.config/ratoeira/fila-contas.json` (read only), and when the next entry after the conductor's account is another agent, add once: "Se a conta principal acabar, a fila da Ratoeira continua a conversa no [agente]. Nele o BACO roda sem os agentes e os ganchos do plugin; uma segunda conta do [agente do condutor] na fila, ou esperar o limite voltar, evita isso."
