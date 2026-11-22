@@ -769,7 +769,7 @@ test('harness sandbox: protegida, rede and livre, the Codex call of each, the co
     'ignores a per-call trust override, so BACO adds none', 'run `git init -q` in it', '-c sandbox_workspace_write.network_access=true',
     'shell_environment_policy.set={npm_config_cache="/tmp/baco-npm-cache"}', '-s danger-full-access', 'Start every Codex call in the background from the beginning', 'Do not add `< /dev/null` instead',
     'Never `--approve-for-me`', '`regra: sim`', 'identical to the skill\'s template (`cmp`)']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
-  for (const p of ['`harnesses.<name>.sandbox`', '(a) protegida', '(b) rede', '(c) livre', 'Recomendo a rede', 'O padrão é rede.', 'A caixa vale a partir da próxima conversa', '`Bash(git switch docs/*)`',
+  for (const p of ['`harnesses.<name>.sandbox`', '(a) protegida', '(b) rede', '(c) livre', 'Minha recomendação: (b) rede', 'Padrão: (b) rede.', 'A caixa vale a partir da próxima conversa', '`Bash(git switch docs/*)`',
     '`.codex/rules/baco.rules` there']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   for (const p of ['pattern = ["sudo"]', 'pattern = ["git", "push"]', 'pattern = ["git", "commit"]', 'pattern = ["git", "reset", "--hard"]',
     'pattern = ["rm", ["-rf"', 'pattern = ["gh"]', 'decision = "forbidden"', 'justification = "BACO:']) assert.ok(rules.includes(p), `baco.rules: "${p}" missing`);
@@ -777,7 +777,7 @@ test('harness sandbox: protegida, rede and livre, the Codex call of each, the co
   assert.ok(tpl.includes('#   sandbox: rede'), 'config template shows the sandbox key');
   for (const p of ["**Claude Code's sandbox.**", '"allowUnsandboxedCommands": false', '"excludedCommands": ["codex exec *", "git worktree remove *"]', '"allowedDomains"', 'BACO_QUEUE_DIR="<your $TMPDIR>/baco-queue"', 'never `git add -A`', 'apply in the next conversation',
     'CONNECT tunnel failed, response 403', 'only two values make sense', 'reachable only by that same command']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
-  for (const p of ['Antes das outras ferramentas, uma pergunta sobre mim', 'Vou liberar estes endereços', "**Claude Code's sandbox.** When `harnesses.claude-code.sandbox` is `rede`"]) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  for (const p of ['Liberdade dos meus comandos', 'Vou liberar estes endereços', "**Claude Code's sandbox.** When `harnesses.claude-code.sandbox` is `rede`"]) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   assert.ok(read('skills/baco-sdd/SKILL.md').includes('offer once to turn it on'), 'SKILL.md: startup offer for the sandbox');
 });
 
@@ -871,4 +871,34 @@ test('antigravity implementer: task folder prepared by the engine, guard hook, p
     'the tests it runs are code', 'git init -q -b baco/verificacao']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   for (const p of ['`Bash(antigravity -p * --settings .agents/baco-construcao.json *)`', 'Antigravity builds only in `protegida`']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   assert.ok(!conf.includes('Antigravity takes only read-only roles for now'), 'configure.md: the read-only-only rule is gone');
+});
+
+// The configuration interview is for lay people too: an opening map, one numbered question per
+// message, the same labelled parts in every question, plain terms and "não entendi" always valid.
+test('configuration interview: opening map, numbered questions in one format, plain terms and "não entendi"', () => {
+  const conf = ref('configure.md');
+  const sec9 = ref('ambientes.md').split('## 9. Task split, roles and reserves at configuration')[1];
+  assert.ok(sec9, 'ambientes.md: section 9 present');
+  // Opening: map of the blocks, count and time, and the two answers always valid.
+  for (const p of ['São [total] perguntas, uma de cada vez, em [tempo]', '1. Idioma e pasta dos documentos.', '7. Ferramentas de IA e revisão do trabalho.',
+    'Duas respostas valem sempre: "pode ser o padrão"', 'e "não entendi", e eu explico de outro jeito, com um exemplo do seu projeto']) assert.ok(conf.includes(p), `configure.md opening: "${p}" missing`);
+  // English rules: numbering of only the questions asked, the format, plain terms, "não entendi".
+  for (const p of ['count the questions that will actually be asked in this project', 'never with this file\'s numbers (1B, 6B, 12B)', 'say in one short sentence why the count changed',
+    '"(continuação)"', '`Pergunta [N] de [total] · [tema]`', 'explained in simple words the first time it comes up in this interview',
+    'never repeat the same text and never choose for the person', 'with a concrete example from this project']) assert.ok(conf.includes(p), `configure.md rules: "${p}" missing`);
+  // Every numbered question block has the five labels, in order.
+  const blocks = (text) => text.split(/\n(?=> Pergunta \[N\] de \[total\] · )/).slice(1).map((b) => b.split(/\n(?!>)/)[0]);
+  const questions = [...blocks(conf), ...blocks(sec9)].filter((b) => !b.split('\n')[0].includes('(continuação)'));
+  assert.ok(questions.length >= 24, `expected every question in the new format, found ${questions.length}`);
+  for (const b of questions) {
+    const at = ['> O que é:', '> Por que importa:', '> Opções', '> Minha recomendação:', '> Padrão:'].map((l) => b.indexOf(l));
+    assert.ok(at.every((i, k) => i > 0 && (k === 0 || i > at[k - 1])), `question without the five parts in order: ${b.split('\n')[0]}`);
+  }
+  // Terms explained in plain words where they first appear.
+  for (const p of ['a IA mede o texto em tokens', 'uma branch, que eu chamo de linha de trabalho', 'no GitHub ele se chama pull request, ou PR', 'eu chamo esse limite de caixa',
+    'uma ferramenta de IA é o programa em que uma IA trabalha', 'o esforço é quanto a IA pensa antes de agir']) assert.ok(conf.includes(p), `configure.md term: "${p}" missing`);
+  // The final summary is in everyday words.
+  assert.ok(conf.includes('Em palavras simples, combinamos isto:'), 'configure.md: plain final summary');
+  // No em or en dash in what the agent says.
+  for (const [name, text] of [['configure.md', conf], ['ambientes.md section 9', sec9]]) assert.ok(!/[–—]/.test(text), `${name}: no em or en dash`);
 });
