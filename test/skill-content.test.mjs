@@ -921,7 +921,7 @@ test('1.10.0 review fixes: specialist kinds, Antigravity npm/npx limit, conversa
   for (const p of ['leitor de tela', 'Conferência de segurança ou de permissão nunca entra aqui', 'A security or permission check never goes in this list', 'starts with `manual, especialista: <tipo>`']) assert.ok(q25.includes(p), `question 25: "${p}" missing`);
   // Antigravity rede/livre: publishing and registry downloads refused, node still runs anything.
   const amb = ref('ambientes.md');
-  for (const p of ['`npm` passes only with `ci`, `install`, `i`, `test`, `run`, `exec`, `ls` or `view`', '`npx --no ...` or `npx --no-install ...`', 'never downloads a package from the registry', 'can still run any program']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
+  for (const p of ['`npm` passes only with `ci`, `install`, `i`, `test`, `run`, `ls` or `view`', '`npx --no ...` or `npx --no-install ...`', 'never downloads a package from the registry', 'can still run any program']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   assert.ok(!amb.includes('`git status|diff|log|show|grep`'), 'ambientes.md: git grep left the livre list');
   const tools = ref('configure-questions-tools.md');
   assert.ok(tools.includes('o BACO recusa publicar pacotes e baixar pacotes novos pelo `npx`, mas o `node` ainda pode rodar qualquer programa'), 'sandbox question: honest limit');
