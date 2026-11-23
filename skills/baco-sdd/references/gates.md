@@ -73,7 +73,7 @@ Code 3 (the external review loop reached `review.external_rounds_max`; every imp
 
 > A revisão externa já deu [N] voltas e ainda não foi aprovada. Para não ficar em círculo, preciso que você decida: [A: seguir mesmo assim com os pontos abertos], [B: mudar a spec ou o plano], [C: parar a entrega]. O que prefere?
 
-If the human chooses A, record it in `progresso.md` (date, round, open findings, who decided). Delivery may then start without an `aprovado` verdict ([delivery.md](delivery.md), section 1), and the resulting `merge.verdict_not_approved` is still decided per blocker, as in the `acceptance-report` case below.
+If the human chooses A, record it in `progresso.md`, under `Decisões registradas`, as one line that names `saída 3` and the verdict file of the round (date, `saída 3`, `veredito-NN`, open findings, who decided); `baco merge-check` reads that line. Delivery may then start without an `aprovado` verdict ([delivery.md](delivery.md), section 1), and the resulting `merge.verdict_not_approved` is still decided per blocker, as in the `acceptance-report` case below.
 
 Rules for both:
 - Translate engine finding codes into plain pt-BR consequences ("um teste que prova um critério da spec foi alterado", not `TAGGED_TEST_CHANGED`).

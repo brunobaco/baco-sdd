@@ -1,6 +1,6 @@
-# Phase 0: Configuration questions 15 to 25
+# Phase 0: Configuration questions 15 to 26
 
-Questions 15 to 25 of the configuration interview: how the plan sizes and judges the work, what the reviews look for, which tests run where, where the delivery ends and which scenarios only a specialist runs. Load this file when you run the interview, after [configure-questions-tools.md](configure-questions-tools.md) and the questions 13 and 14 of [ambientes.md](ambientes.md), section 9; the "How to ask" rules of [configure.md](configure.md) (numbering, format, plain words, "não entendi") apply to every block here. All these keys are optional: "pode ser o padrão" keeps the default of each.
+Questions 15 to 26 of the configuration interview: how the plan sizes and judges the work, what the reviews look for, which tests run where, where the delivery ends, which scenarios only a specialist runs and whether the system uses AI. Load this file when you run the interview, after [configure-questions-tools.md](configure-questions-tools.md) and the questions 13 and 14 of [ambientes.md](ambientes.md), section 9; the "How to ask" rules of [configure.md](configure.md) (numbering, format, plain words, "não entendi") apply to every block here. All these keys are optional: "pode ser o padrão" keeps the default of each.
 
 **15. Risk of a task** (`planning.risk.arriscada`, `planning.risk.mecanica`; free text with examples; default: the generic criterion of [planning.md](planning.md))
 
@@ -190,3 +190,21 @@ Write `review.focus.always` and `review.focus.suggestion` as lists of strings. A
 > Padrão: (a) nenhum.
 
 Write the list under `qa.specialist`. A scenario marks itself with `Automação: manual, especialista` (the QA scenarios template).
+
+**26. The system uses AI** (`product.uses_ai`, a boolean, default `false`; skip it when phase 1 already answered it)
+
+> Pergunta [N] de [total] · O sistema usa IA
+>
+> O que é: alguns sistemas mandam texto para um modelo de IA, para resumir, classificar, responder um cliente ou decidir um próximo passo. Se esse texto vem de fora (um formulário, uma planilha importada, um e-mail, outra integração), ele pode trazer instruções escondidas que a IA obedece. Isso se chama injeção de instruções.
+>
+> Por que importa: com "sim", a arquitetura registra como o sistema se protege disso, as specs ganham testes de ataque e as revisões conferem essas proteções no código. Sem isso, um texto malicioso pode fazer o sistema agir sozinho ou mostrar dado que não devia.
+>
+> Opções:
+> (a) não: o sistema não chama IA.
+> (b) sim: o sistema chama ou vai chamar um modelo de IA.
+>
+> Minha recomendação: [a opção e o motivo ligado a este projeto; se as specs ou a visão falam em IA, (b)].
+>
+> Padrão: (a) não.
+
+(a) -> `false`; (b) -> `true`. Later, when a spec or an ADR brings an AI call, the conductor sets it to `true` and tells the person ([project-bootstrap.md](project-bootstrap.md)).

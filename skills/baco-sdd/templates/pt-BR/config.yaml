@@ -200,6 +200,11 @@ provenance:
 # qa:
 #   specialist: ["leitor de tela"]
 
+# O sistema chama um modelo de IA (por exemplo para resumir, classificar ou responder)? Com on, a
+# arquitetura, as specs, o plano e as revisões tratam a injeção de instruções em texto de fora.
+# product:
+#   uses_ai: off              # on = o sistema usa IA; o método também liga quando uma spec ou ADR traz IA
+
 # Tamanho da conversa. Conversa muito longa fica mais cara a cada passo e lembra pior dos detalhes;
 # como o estado do trabalho fica salvo nos arquivos, continuar numa conversa nova custa pouco.
 context:

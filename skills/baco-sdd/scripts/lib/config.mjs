@@ -86,6 +86,9 @@ export const DEFAULTS = {
   delivery: { target: 'integration', integration_merge: 'ask' },
   // specialist: kinds of manual scenario only a specialist QA runs (never asked, never a blocker).
   qa: { specialist: [] },
+  // uses_ai: the system being built calls an AI model; turns on the prompt-injection requirements of
+  // the architecture, the specs, the plan and the reviews.
+  product: { uses_ai: false },
 };
 
 // Status options of the board, by event: published (phase 5), started (building), review (task
@@ -239,7 +242,7 @@ function deepMerge(base, over) {
 }
 
 // Sections that must be maps; any other non-null value is ignored (defaults kept) with a warning.
-const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github', 'planning', 'roles', 'test_runs', 'ci', 'delivery', 'qa'];
+const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github', 'planning', 'roles', 'test_runs', 'ci', 'delivery', 'qa', 'product'];
 // List settings where a single scalar is accepted as a one-element list.
 const LIST_SETTINGS = [['branches', 'protected'], ['tests', 'patterns'], ['tests', 'queue']];
 
@@ -678,6 +681,7 @@ export function resolveConfig(parsed) {
     test_runs: { screen_task_full: isBool, ci_full: oneOf(['merge', 'manual']) },
     ci: { monthly_minutes: positiveInt },
     delivery: { target: oneOf(['integration', 'main']), integration_merge: oneOf(['ask', 'auto']) },
+    product: { uses_ai: isBool },
   };
   for (const [section, checks] of Object.entries(SECTION_CHECKS)) {
     if (isPlainObject(user[section])) user = { ...user, [section]: checkKeys(section, user[section], checks, warnings) };

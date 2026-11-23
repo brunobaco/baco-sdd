@@ -799,3 +799,27 @@ test('1.10.0 keys: a bad value is dropped (the default stays) with config.invali
     assert.ok(check(cfg), yaml);
   }
 });
+
+// product.uses_ai: the system being built calls an AI model (turns on the prompt-injection requirements).
+test('product.uses_ai: default false, a boolean loads, a bad value is dropped with config.invalid_section', () => {
+  assert.deepEqual(DEFAULTS.product, { uses_ai: false });
+  const none = loadConfig(rootWith());
+  assert.deepEqual(none.product, { uses_ai: false });
+  assert.deepEqual(none.warnings, []);
+  const on = loadConfig(rootWith('product:\n  uses_ai: on\n'));
+  assert.equal(on.product.uses_ai, true);
+  assert.deepEqual(on.warnings, []);
+  const empty = loadConfig(rootWith('product:\n  uses_ai:\n'));
+  assert.equal(empty.product.uses_ai, false);
+  assert.deepEqual(empty.warnings, []);
+  for (const [yaml, section] of [
+    ['product:\n  uses_ai: sim\n', 'product.uses_ai'],
+    ['product:\n  uses_ai: "true"\n', 'product.uses_ai'],
+    ['product:\n  uses_ai: 1\n', 'product.uses_ai'],
+    ['product: true\n', 'product'],
+  ]) {
+    const cfg = loadConfig(rootWith(yaml));
+    assert.deepEqual(cfg.warnings, [invalid(section)], yaml);
+    assert.equal(cfg.product.uses_ai, false, yaml);
+  }
+});
