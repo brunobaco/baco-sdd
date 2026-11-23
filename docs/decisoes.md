@@ -16,9 +16,9 @@ Pedida por padrão; só a pessoa dispensa, com motivo, e o aceite registra. A re
 
 Entram: revisor de simplicidade, regras para tratar achados, conferir no código o que o plano cita, testar comportamento e corrigir a causa, seis olhares antes da spec quando há sinal de risco ou a pedido. Ficam de fora por enquanto: metas numéricas (complexidade, duplicação, mutação).
 
-## 2026-11-02 | Orientações do projeto em `.claude/CLAUDE.md`
+## 2026-11-02 | Orientações do projeto em `.claude/CLAUDE.md` (substituída em 2026-11-23)
 
-A validação do plugin trata um `CLAUDE.md` na raiz do plugin como problema. As orientações ficam em `.claude/CLAUDE.md`, e o `AGENTS.md` aponta para lá.
+A validação do plugin trata um `CLAUDE.md` na raiz do plugin como problema. As orientações ficam em `.claude/CLAUDE.md`, e o `AGENTS.md` aponta para lá. Substituída por "Orientações do projeto no `AGENTS.md`".
 
 ## 2026-11-03 | Validação com revisão externa dispensada
 
@@ -189,3 +189,7 @@ O gancho de tamanho da conversa usa o ponto em que o Claude Code resume sozinho,
 ## 2026-11-23 | Texto de fora é dado; sistema que chama uma IA precisa de defesa contra injeção de instruções
 
 Todo texto que vem de fora (página, e-mail, issue, documento, resposta de ferramenta) é dado para todos os papéis, nunca ordem. Em sistema que chama uma IA (`product.uses_ai`), o BACO pede um ADR de injeção de instruções, critérios de ataque na spec e foco fixo na revisão. Fontes: OWASP LLM01:2025 e o guia de prevenção do projeto, e as orientações da Anthropic e da OpenAI sobre o tema. Descartado: tratar a defesa como regra só do condutor, já que quem lê o texto de fora é qualquer papel.
+
+## 2026-11-23 | Orientações do projeto no `AGENTS.md`
+
+As orientações de quem desenvolve o BACO ficam no `AGENTS.md` da raiz, lido por Claude Code, Codex e Antigravity, e o `CLAUDE.md` da raiz é um link para ele. O aviso da validação do plugin sobre o `CLAUDE.md` na raiz continua sendo o único aceito. Descartado: manter o `CLAUDE.md` como fonte e o `AGENTS.md` só apontando para ele, que obrigava as outras ferramentas a um passo a mais.
