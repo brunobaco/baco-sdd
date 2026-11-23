@@ -28,7 +28,7 @@ Show the default first, then ask the two questions one at a time:
 >
 > Padrão: (a) 290 mil tokens.
 
-When `autoCompactWindow` exists, use this wording instead, filling the brackets (for example 320 mil and 290 mil):
+When `autoCompactWindow` exists, use this wording instead, filling the brackets (for example, with a window of 400000: the automatic summary at about 367 mil, and the warning at 290 mil, the default, which is smaller than the effective limit of 337 mil):
 
 > Pergunta [N] de [total] · Tamanho da conversa
 >
@@ -150,7 +150,7 @@ Save the answer as `sandbox` (`protegida`, `rede` or `livre`). A tool with no co
 >
 > O que é: quando o Antigravity construir, ele roda comandos no computador. O Antigravity não tem uma caixa de verdade aqui: o BACO usa uma trava que só vale para as ferramentas dele de gravar arquivos (elas só gravam na pasta da tarefa) e uma lista de comandos permitidos.
 >
-> Por que importa: o `node` e o `npx` podem rodar qualquer programa com o seu usuário, e a trava não alcança o que um programa assim faz. Então as opções com mais liberdade têm um risco real: um teste ou pacote mal feito, ou um texto malicioso lido de fora, poderia ler arquivos seus ou mandar algo para a internet. Eu confiro tudo o que ele mudou e rodo os testes de novo antes de cada versão gravada no histórico.
+> Por que importa: o BACO recusa publicar pacotes e baixar pacotes novos pelo `npx`, mas o `node` ainda pode rodar qualquer programa com o seu usuário, e a trava não alcança o que um programa assim faz. Então as opções com mais liberdade têm um risco real: um teste ou pacote mal feito, ou um texto malicioso lido de fora, poderia ler arquivos seus ou mandar algo para a internet. Eu confiro tudo o que ele mudou e rodo os testes de novo antes de cada versão gravada no histórico.
 >
 > Opções:
 > (a) protegida: grava só na pasta da tarefa e só roda testes e comandos de leitura. Eu instalo as dependências e rodo os testes de tela por ele, o que gasta mais do meu lado. É a mais segura.

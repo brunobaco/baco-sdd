@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
-import { appendCost, agentRuns, writeMeasured } from '../skills/baco-sdd/scripts/commands/cost.mjs';
+import { appendCost, agentRuns, writeMeasured, usage as costUsage } from '../skills/baco-sdd/scripts/commands/cost.mjs';
 import { makeRepo } from './helpers/tmprepo.mjs';
 
 const capture = () => {
@@ -172,4 +172,8 @@ test('add says so when it creates custo.md, and only then', async () => {
   assert.doesNotMatch(second.stdout, /criado/);
   const json = JSON.parse((await call(dir, 'cost', 'add', 'ENT-001', ...base, '--phase', '7', '--model', 'x', '--json')).stdout);
   assert.equal(json.created, undefined);
+});
+
+test('usage: cost measure names --json, like cost history', () => {
+  assert.match(costUsage, /\[--write \[--label <etapa>\]\] \[--json\] \| baco cost history \[--json\]/);
 });

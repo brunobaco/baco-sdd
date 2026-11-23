@@ -112,16 +112,15 @@ function junitSnapshot(dir) {
 }
 const changedXml = (before, after) => [...after].filter(([f, mtime]) => before.get(f) !== mtime).map(([f]) => f);
 
-// Failing tests of the JUnit files a layer created or updated; an unreadable file is skipped.
-function junitFailures(dir, files) {
+// Every test case of the JUnit files a layer created or updated; an unreadable file is skipped.
+function junitCases(dir, files) {
   const out = [];
   for (const f of files) {
-    let cases;
-    try { cases = parseJUnit(readFileSync(join(dir, f), 'utf8')); } catch { continue; }
-    for (const c of cases) if (c.status === 'failed') out.push({ name: c.name, classname: c.classname, file: c.file, message: c.message });
+    try { out.push(...parseJUnit(readFileSync(join(dir, f), 'utf8'))); } catch { /* unreadable: skipped */ }
   }
   return out;
 }
+const failuresOf = (cases) => cases.filter((c) => c.status === 'failed').map((c) => ({ name: c.name, classname: c.classname, file: c.file, message: c.message }));
 
 // A new log file under <root>/.baco/logs/ for one layer; null when it cannot be created.
 function openLog(root, layer) {
@@ -142,11 +141,11 @@ const logsIgnored = (root) => spawnSync('git', ['check-ignore', '-q', `${LOGS_DI
 export const STAMP_FILE = `${LOGS_DIR}/bateria-completa.json`;
 
 // Pathspecs of what counts as code for the battery: everything except the delivery records
-// (<docs_root>/entregas/**) and Markdown anywhere (a Markdown file never changes a test result, and
-// the CI template ignores `**.md` too).
+// (<docs_root>/entregas/**) and the Markdown documents under <docs_root> (specs, QA files, plans).
+// Markdown elsewhere may be read by the code or a test (a prompt, a fixture), so it counts.
 export function codePathspecs(config) {
-  const docsRoot = String(config?.docs_root ?? 'docs').replace(/\/+$/, '');
-  return ['.', `:(exclude)${docsRoot}/entregas/**`, ':(exclude,glob)**/*.md'];
+  const docsRoot = String(config?.docs_root ?? 'docs').replace(/\/+$/, '') || 'docs';
+  return ['.', `:(exclude)${docsRoot}/entregas/**`, `:(exclude,glob)${docsRoot}/**/*.md`];
 }
 
 const gitText = (args, root) => {
@@ -271,6 +270,7 @@ export async function run(args, ctx) {
       dirty: treeDirty(ctx.root, ctx.config, junitDirRel),
     } : null;
     const batteryStart = Date.now();
+    let rerunNames = { passed: [], failed: [] };
     for (const { layer, command: base, fast } of planned.steps) {
       const command = extra.length ? `${base} ${extra.map(shellQuote).join(' ')}` : base;
       let waitedMs = 0;
@@ -311,9 +311,12 @@ export async function run(args, ctx) {
       const changed = changedXml(before, junitSnapshot(junitDir));
       const junitWritten = changed.length > 0;
       if (!junitWritten) say('runtests.no_junit', { layer, dir: junitDirRel });
-      const failures = junitFailures(junitDir, changed);
+      const cases = junitCases(junitDir, changed);
+      const failures = failuresOf(cases);
       const logRel = logFd !== null ? log.rel : null;
       runs.push({ layer, quick, command, exit: r.exit, junitWritten, seconds, waitedSeconds: round1(waitedMs), output: capture ? r.output : null, log: logRel, failures });
+      // Names of the tests that passed and failed, for the stamp's re-run entry (one layer only).
+      rerunNames = { passed: cases.filter((c) => c.status === 'passed').map((c) => c.name), failed: failures.map((f) => f.name) };
       if (r.exit === 0) messages.push({ key: 'runtests.passed', params: { layer, seconds } });
       else {
         messages.push({ key: 'runtests.failed', params: { layer, exit: r.exit ?? r.signal, seconds } });
@@ -341,7 +344,9 @@ export async function run(args, ctx) {
         } else if (rerun && runs.length === 1 && !stampBase.dirty) {
           const stamp = readStamp(ctx.root);
           if (stamp && stamp.head === stampBase.head && Array.isArray(stamp.reruns)) {
-            stamp.reruns.push({ at: new Date().toISOString(), layer: runs[0].layer, args: [...extra], exit: runs[0].exit });
+            // merge-check counts a failed test as flaky only when a re-run shows that same name passing;
+            // a re-run that selected no test has both lists empty and counts for nothing.
+            stamp.reruns.push({ at: new Date().toISOString(), layer: runs[0].layer, args: [...extra], exit: runs[0].exit, passed: rerunNames.passed, failed: rerunNames.failed });
             writeStamp(ctx.root, stamp);
             messages.push({ key: 'runtests.rerun_recorded', params: { path: STAMP_FILE, layer: runs[0].layer } });
           }

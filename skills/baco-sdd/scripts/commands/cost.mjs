@@ -6,7 +6,7 @@ import { tables, fold } from '../lib/markdown.mjs';
 import { git, mainCheckout, worktrees } from '../lib/git.mjs';
 import { claudeHome, codexSessionsDir, encodeProjectDir, measureUsage, opencodeDbPath, totals, TOOL_LEDGER } from '../lib/usage.mjs';
 
-export const usage = 'baco cost add <ENT-NNN> --phase <n> --agent <name> --model <m> --effort <e> [--harness <h>] [--turns n] [--tokens n] [--seconds n] [--note s] | baco cost summary | baco cost summary <ENT-NNN> | baco cost summary --project | baco cost measure [<ENT-NNN>] [--since <AAAA-MM-DD HH:MM>] [--until <AAAA-MM-DD HH:MM>] [--session <id>]... [--claude-dir <dir>]... [--codex-dir <dir> | --no-codex] [--opencode-db <arquivo> | --no-opencode] [--conductor-harness <claude-code|codex>] [--write [--label <etapa>]] | baco cost history [--json] [--cwd <dir>]';
+export const usage = 'baco cost add <ENT-NNN> --phase <n> --agent <name> --model <m> --effort <e> [--harness <h>] [--turns n] [--tokens n] [--seconds n] [--note s] | baco cost summary | baco cost summary <ENT-NNN> | baco cost summary --project | baco cost measure [<ENT-NNN>] [--since <AAAA-MM-DD HH:MM>] [--until <AAAA-MM-DD HH:MM>] [--session <id>]... [--claude-dir <dir>]... [--codex-dir <dir> | --no-codex] [--opencode-db <arquivo> | --no-opencode] [--conductor-harness <claude-code|codex>] [--write [--label <etapa>]] [--json] | baco cost history [--json] [--cwd <dir>]';
 
 const DASH = '—';
 const HARNESS_NAME = { 'claude-code': 'Claude', codex: 'Codex', antigravity: 'Antigravity', opencode: 'OpenCode' };

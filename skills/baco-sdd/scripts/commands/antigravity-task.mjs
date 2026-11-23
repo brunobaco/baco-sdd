@@ -37,21 +37,30 @@ function hooksAreOurs(file) {
 // shapes the read rules accept). So no `|`, `&&`, `;`, `>` or substitution passes.
 const BT = '`';
 const ARG = String.raw`(?:'[^'\n]*'|"[^"\n$` + BT + String.raw`\\]*"|[^ \t\n;&|<>$` + BT + String.raw`()'"\\]+)`;
-const commandRule = (head, guard = '') => `command(regex:^${head}(?: +${guard}${ARG})*$)`;
-// rede and livre: installs and browser tests by itself.
-const NETWORK_RULES = ['npm', 'npx', 'node'].map((c) => commandRule(c));
-// livre only: `git grep` without the option that opens a program (-O), and `find` without the actions
-// that run a program, delete or write a file.
-const LIVRE_RULES = [
-  commandRule('git grep', String.raw`(?!['"]?-[a-zA-Z0-9]*O|['"]?--open)`),
-  commandRule('find', String.raw`(?!['"]?-(?:exec|ok|delete|fprint|fls))`),
+const commandRule = (head, arg = ARG) => `command(regex:^${head}(?: +${arg})*$)`;
+// npx arguments: the same shapes, except that none may turn the registry download back on: no `--yes`
+// or `-y` (no long option starting with `y`, no short option group with a `y`) and no quoted text
+// starting with `-`. No lookahead: Antigravity's matcher may not support it.
+const WORD = String.raw`[^ \t\n;&|<>$` + BT + String.raw`()'"\\]`;
+const NPX_ARG = String.raw`(?:'(?:[^-'\n][^'\n]*)?'|"(?:[^-"\n$` + BT + String.raw`\\][^"\n$` + BT + String.raw`\\]*)?"|[^- \t\n;&|<>$` + BT + String.raw`()'"\\]${WORD}*|-[a-xzA-Z0-9]+|--|--[a-xz0-9]${WORD}*)`;
+// rede and livre: installs and browser tests by itself. npm only with the subcommands that install,
+// test, run a script or read the registry (never publish, unpublish, token, login, adduser, config,
+// owner, access, dist-tag, deprecate); npx only with `--no` or `--no-install`, so it runs what is
+// already installed and never downloads a package. `node` runs any program: the honest limit.
+const NETWORK_RULES = [
+  commandRule('npm (?:ci|install|i|test|run|ls|view)'),
+  `command(regex:^npx +--no(?:-install)?(?: +${NPX_ARG})*$)`,
+  commandRule('node'),
 ];
+// livre: the same command list. `git grep` and `find` are left out: their safe forms (without `-O`,
+// without `-exec`, `-delete` and the like) needed a lookahead, and reading is covered by the read rules.
+const LIVRE_RULES = [];
 
 // The task's permission rules: the read-only reviewer's rules, plus BACO's test runner (exact path,
 // plain arguments, no shell constructs), with the approval mode pinned, so the person's own
 // Antigravity settings cannot widen them (checked with CLI 1.5.10). protegida: no install, no git
-// write, no web. rede adds npm, npx and node; livre adds those plus `git grep` and `find`. The web
-// tools stay denied in every mode.
+// write, no web. rede and livre add npm (listed subcommands), npx (no download) and node; livre differs
+// only by having no write hook. The web tools stay denied in every mode.
 function taskSettings(sandbox) {
   const read = JSON.parse(readFileSync(READ_RULES, 'utf8'));
   const runTests = `command(regex:^node ${escapeRegex(BACO)} run-tests(?: +[^ \\t\\n;&|<>$\`()'"\\\\]+)*$)`;

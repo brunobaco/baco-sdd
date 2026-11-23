@@ -147,12 +147,18 @@ test('antigravity-task --sandbox rede: the write hook stays, and npm, npx and no
   for (const d of ['read_url(*)', 'execute_url(*)', 'download_url(*)']) assert.ok(s.permissions.deny.includes(d), d);
   const res = extraRules(task);
   assert.equal(res.length, 4, 'run-tests plus npm, npx and node');
-  for (const ok of ['npm install', 'npm ci', 'npm install -D vitest@2.1.0', 'npx playwright test --project chromium', 'node server.js', 'node -e "console.log(1)"', `node ${BACO} run-tests --layer e2e`]) {
+  for (const ok of ['npm install', 'npm ci', 'npm i', 'npm install -D vitest@2.1.0', 'npm test', 'npm run build', 'npm ls', 'npm view vitest version',
+    'npx --no playwright test --project chromium', 'npx --no-install vitest run', 'npx --no -p vitest vitest run', 'node server.js', 'node -e "console.log(1)"', `node ${BACO} run-tests --layer e2e`]) {
     assert.ok(allows(res, ok), ok);
   }
-  for (const bad of ['npm test; rm -rf x', 'npm test > x', 'npm test | tee x', 'npm test && git push', 'node $(id)', 'sudo npm install', 'git commit -m x', 'rm -rf x', 'curl http://x']) {
+  for (const bad of ['npm test; rm -rf x', 'npm test > x', 'npm test | tee x', 'npm test && git push', 'node $(id)', 'sudo npm install', 'git commit -m x', 'rm -rf x', 'curl http://x',
+    // npm: publishing, account and registry settings are refused; only the listed subcommands pass.
+    'npm', 'npm publish', 'npm unpublish pacote', 'npm token list', 'npm login', 'npm adduser', 'npm config set registry x', 'npm owner add a b', 'npm access public', 'npm dist-tag add a@1 b', 'npm deprecate a x', 'npm --prefix x publish', 'npm installx', 'npm run-script x', 'npm exec vitest run',
+    // npx: never a download from the registry (only --no / --no-install, and never --yes after it).
+    'npx playwright test', 'npx vitest', 'npx --yes vitest', 'npx -y vitest', 'npx --no --yes vitest', 'npx --no -y vitest', 'npx --no-install --yes=true vitest', "npx --no '--yes' vitest", 'npx --no "-y" vitest', 'npx --nope vitest', 'npx --no-installer vitest']) {
     assert.ok(!allows(res, bad), bad);
   }
+  for (const r of s.permissions.allow) assert.ok(!/\(\?[!=<]/.test(r), `no lookaround in a rule: ${r}`);
   assert.equal(git(task, 'status', '--porcelain', '--untracked-files=all'), '', 'nothing new for git');
 });
 
@@ -171,12 +177,16 @@ test('antigravity-task --sandbox livre: no write hook (a BACO one is removed), o
   assert.equal(s.toolPermission, 'request-review');
   for (const d of ['read_url(*)', 'execute_url(*)', 'download_url(*)']) assert.ok(s.permissions.deny.includes(d), d);
   const res = [...READ.permissions.allow.map(regexOf), ...extraRules(task)];
-  for (const ok of ['git status', 'git diff --stat', 'git log --oneline', 'git show HEAD', 'git grep -n foo', 'ls -la', 'grep -rn x src', 'cat a.js', 'head -5 a.js', 'tail -n 3 a.js', 'wc -l a.js', 'find . -name "*.js"', 'find src -type f', 'npm install', 'npx vitest run', 'node a.js', `node ${BACO} run-tests`]) {
+  for (const ok of ['git status', 'git diff --stat', 'git log --oneline', 'git show HEAD', 'ls -la', 'grep -rn x src', 'cat a.js', 'head -5 a.js', 'tail -n 3 a.js', 'wc -l a.js', 'npm install', 'npx --no vitest run', 'node a.js', `node ${BACO} run-tests`]) {
     assert.ok(allows(res, ok), ok);
   }
-  for (const bad of ['find . -delete', 'find . -exec rm {} +', 'find . -execdir rm {} +', 'find . -fprint x', 'find . -ok rm {} +', 'git grep -O vim foo', 'git grep --open-files-in-pager=vim x', 'git commit -m x', 'git push', 'rm -rf x', 'sudo true', 'gh pr list', 'npm test > x', 'mkdir x', 'cp a b']) {
+  // `git grep` and `find` are not in the list (their safe forms needed a lookahead, which Antigravity's
+  // matcher may not support); reading goes through grep, ls and cat.
+  for (const bad of ['find . -name "*.js"', 'find . -delete', 'find . -exec rm {} +', 'git grep -n foo', 'git grep -O vim foo', 'git commit -m x', 'git push', 'rm -rf x', 'sudo true', 'gh pr list', 'npm test > x', 'npm publish', 'npx vitest run', 'mkdir x', 'cp a b']) {
     assert.ok(!allows(res, bad), bad);
   }
+  assert.equal(extraRules(task).length, 4, 'livre: the same command list as rede');
+  for (const r of s.permissions.allow) assert.ok(!/\(\?[!=<]/.test(r), `no lookaround in a rule: ${r}`);
   assert.equal(git(task, 'status', '--porcelain', '--untracked-files=all'), '', 'nothing new for git');
   assert.equal((await run(repo, '.worktrees/T-001', '--clean')).code, 0);
   assert.ok(!existsSync(join(task, '.agents')));

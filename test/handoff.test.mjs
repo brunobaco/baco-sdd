@@ -587,6 +587,13 @@ test('import-pr-verdict imports the answer of the latest committed pr round, wit
   assert.deepEqual(JSON.parse(out.stdout), { verdict: 'ajustes', round: 1, fixes: ['FIX-01.md', 'FIX-02.md'], answer: '.baco/logs/revisao-pr/ENT-001-r01/resposta.md' });
   const v = read(join(dir, ENT, 'revisao/veredito-01.md'));
   assert.match(v, /"handoff":"handoff-01\.md"/);
+  // The footer says who gave the verdict: the agent reviewer here, the person with import-verdict.
+  assert.equal(JSON.parse(/<!-- baco:parsed (.*) -->\s*$/.exec(v)[1]).source, 'agent');
+  assert.equal(await main(['import-verdict', 'ENT-001', fx('veredito-ajustes.md'), '--cwd', dir], capture().io), 0);
+  const byPerson = read(join(dir, ENT, 'revisao/veredito-02.md'));
+  assert.equal(JSON.parse(/<!-- baco:parsed (.*) -->\s*$/.exec(byPerson)[1]).source, 'person');
+  rmSync(join(dir, ENT, 'revisao/veredito-02.md'));
+  for (const f of ['FIX-03.md', 'FIX-04.md']) rmSync(join(dir, ENT, 'tarefas', f));
   // The same round cannot be imported twice.
   const again = capture();
   assert.equal(await main(['import-pr-verdict', 'ENT-001', '--cwd', dir], again.io), 64);

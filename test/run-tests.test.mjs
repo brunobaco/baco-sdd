@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { makeRepo as makeRepoRaw, commit } from './helpers/tmprepo.mjs';
 import { parseLocalEnv, readLocalEnv } from '../skills/baco-sdd/scripts/lib/localenv.mjs';
 import { acquireQueue, QueueTimeoutError, QueueBlockedError } from '../skills/baco-sdd/scripts/lib/queue.mjs';
-import { shellQuote } from '../skills/baco-sdd/scripts/commands/run-tests.mjs';
+import { shellQuote, codePathspecs } from '../skills/baco-sdd/scripts/commands/run-tests.mjs';
 
 const BACO = fileURLToPath(new URL('../skills/baco-sdd/scripts/baco.mjs', import.meta.url));
 const LOCK = 'baco-test-queue.lock';
@@ -440,11 +440,13 @@ test('queueLockDir: /tmp/baco-queue by default, whatever TMPDIR says; BACO_QUEUE
 const STAMP = '.baco/logs/bateria-completa.json';
 const stampOf = (dir) => JSON.parse(read(dir, STAMP));
 const gitOut = (dir, ...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
-// `api` fails with one JUnit failure when run whole, and passes when given files (a re-run of what failed).
-const API_SH = 'mkdir -p .baco/junit\nif [ "$#" -gt 0 ]; then echo \'<testsuite/>\' > .baco/junit/api.xml; exit 0; fi\ncp fx/fail.xml .baco/junit/api.xml\nexit 1\n';
+// `api` fails with one JUnit failure when run whole, and passes when given files (a re-run of what
+// failed); given `vazio`, the re-run selects no test at all.
+const API_SH = 'mkdir -p .baco/junit\nif [ "$1" = vazio ]; then echo \'<testsuite/>\' > .baco/junit/api.xml; exit 0; fi\nif [ "$#" -gt 0 ]; then cp fx/pass.xml .baco/junit/api.xml; exit 0; fi\ncp fx/fail.xml .baco/junit/api.xml\nexit 1\n';
+const PASSING_XML = '<testsuite><testcase name="[CA-001] soma dois números" classname="soma" file="tests/soma.test.js"/><testcase name="[CA-003] pulada" classname="soma"><skipped/></testcase></testsuite>';
 const batteryRepo = () => makeRepo({
   ...config('tests:\n  unit: "mkdir -p .baco/junit && echo \'<testsuite/>\' > .baco/junit/unit.xml"\n  api: "sh fx/api.sh"\n'),
-  'fx/api.sh': API_SH, 'fx/fail.xml': FAILING_XML, 'src/app.js': 'x\n', 'README.md': 'leia\n',
+  'fx/api.sh': API_SH, 'fx/fail.xml': FAILING_XML, 'fx/pass.xml': PASSING_XML, 'src/app.js': 'x\n', 'README.md': 'leia\n',
 });
 
 test('battery stamp: --all without --quick records head, branch, dirty, seconds, passed and each layer', async () => {
@@ -476,16 +478,29 @@ test('battery stamp: not written with --quick or with --layer; a passing battery
   assert.equal(stampOf(dir).passed, true);
 });
 
-test('battery stamp: dirty only for uncommitted changes outside docs/entregas/ and outside Markdown', async () => {
+test('battery stamp: dirty only for uncommitted changes outside docs/entregas/ and outside Markdown under docs_root', async () => {
   const dir = await batteryRepo();
-  writeFileSync(join(dir, 'README.md'), 'mudou\n');
+  mkdirSync(join(dir, 'docs/qa'), { recursive: true });
+  writeFileSync(join(dir, 'docs/qa/cenarios.md'), '# QA\n');
+  writeFileSync(join(dir, 'docs/leia.md'), '# Docs\n');
   mkdirSync(join(dir, 'docs/entregas/ENT-001-a'), { recursive: true });
   writeFileSync(join(dir, 'docs/entregas/ENT-001-a/notas.json'), '{}');
   await cli(dir, ['--all']);
   assert.equal(stampOf(dir).dirty, false);
-  writeFileSync(join(dir, 'src/app.js'), 'y\n');
+  // Markdown outside docs_root can be code (a prompt, a fixture read by a test): it counts.
+  writeFileSync(join(dir, 'README.md'), 'mudou\n');
   await cli(dir, ['--all']);
-  assert.equal(stampOf(dir).dirty, true);
+  assert.equal(stampOf(dir).dirty, true, 'README.md at the root is not under docs_root');
+  gitOut(dir, 'checkout', '--', 'README.md');
+  mkdirSync(join(dir, 'src/prompts'), { recursive: true });
+  writeFileSync(join(dir, 'src/prompts/sistema.md'), 'responda curto\n');
+  await cli(dir, ['--all']);
+  assert.equal(stampOf(dir).dirty, true, 'a Markdown file in src counts');
+});
+
+test('codePathspecs: delivery records and Markdown under docs_root only', () => {
+  assert.deepEqual(codePathspecs({}), ['.', ':(exclude)docs/entregas/**', ':(exclude,glob)docs/**/*.md']);
+  assert.deepEqual(codePathspecs({ docs_root: 'documentos/' }), ['.', ':(exclude)documentos/entregas/**', ':(exclude,glob)documentos/**/*.md']);
 });
 
 test('battery stamp: a re-run of one layer with files, without --quick, on the same clean head is appended to reruns', async () => {
@@ -495,8 +510,15 @@ test('battery stamp: a re-run of one layer with files, without --quick, on the s
   assert.equal(r.code, 0, r.stderr);
   let s = stampOf(dir);
   assert.equal(s.reruns.length, 1);
-  assert.deepEqual({ ...s.reruns[0], at: 'x' }, { at: 'x', layer: 'api', args: ['tests/soma.test.js'], exit: 0 });
+  // The names of the tests that passed and failed, from the JUnit files the re-run wrote (a skipped one is neither).
+  assert.deepEqual({ ...s.reruns[0], at: 'x' }, { at: 'x', layer: 'api', args: ['tests/soma.test.js'], exit: 0, passed: ['[CA-001] soma dois números'], failed: [] });
   assert.ok(!Number.isNaN(Date.parse(s.reruns[0].at)));
+  // A re-run that selected no test is recorded with both lists empty.
+  await cli(dir, ['--layer', 'api', '--', 'vazio']);
+  s = stampOf(dir);
+  assert.deepEqual([s.reruns[1].passed, s.reruns[1].failed], [[], []]);
+  s.reruns.pop();
+  writeFileSync(join(dir, STAMP), JSON.stringify(s));
   // Not a re-run: --quick, no files, uncommitted code, another head.
   await cli(dir, ['--layer', 'api', '--quick', '--', 'tests/soma.test.js']);
   await cli(dir, ['--layer', 'api']);

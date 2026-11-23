@@ -5,7 +5,7 @@ import { orphansOf } from './trace.mjs';
 import { revParse, isAncestor, diffQuiet, showFile } from '../lib/git.mjs';
 import { loadTrace } from '../lib/tracefile.mjs';
 import { manualPendingRule, provenancePathspecs, parseYamlSubset, resolveConfig } from '../lib/config.mjs';
-import { readQa } from '../lib/qa.mjs';
+import { readQa, resolveSpecialistKind } from '../lib/qa.mjs';
 import { readText, headings, tables, fold } from '../lib/markdown.mjs';
 import { readWaiver } from '../lib/waiver.mjs';
 import { agentRuns } from './cost.mjs';
@@ -34,14 +34,18 @@ const otherFailed = (s) => ![...OTHER_PASSED, MANUAL_PENDING, ...NOT_RUN].includ
 
 // Pending scenarios across all criteria and the scenarios without a CA, deduplicated by id. A
 // "pending" criterion with no identifiable pending scenario is reported as not run (never silently ok).
-// A manual scenario flagged `specialist` (only a specialist QA runs it) goes to `specialist`, never
-// to `manual`: it is not asked to the person and never blocks a merge. `specialist`: [{ id, kind }].
-export function pendingItems(trace) {
+// A manual scenario flagged `specialist` (only a specialist QA runs it) whose kind is one of `kinds`
+// (the config's `qa.specialist`; a flag without a kind means the only entry when there is exactly one)
+// goes to `specialist`, never to `manual`: it is not asked to the person and never blocks a merge.
+// Any other flag is an ordinary manual scenario. `specialist`: [{ id, kind }], kind the config entry.
+export function pendingItems(trace, kinds = []) {
   const manual = new Map();
   const auto = new Map();
   const specialist = new Map();
+  const kindOf = (s) => (s.specialist === true ? resolveSpecialistKind(typeof s.specialistKind === 'string' ? s.specialistKind : null, kinds) : null);
   const add = (s) => {
-    if (s.result === MANUAL_PENDING && s.specialist === true) specialist.set(s.id, { id: s.id, kind: typeof s.specialistKind === 'string' && s.specialistKind ? s.specialistKind : null });
+    const kind = s.result === MANUAL_PENDING ? kindOf(s) : null;
+    if (kind !== null) specialist.set(s.id, { id: s.id, kind });
     else if (s.result === MANUAL_PENDING) manual.set(s.id, s);
     else if (NOT_RUN.includes(s.result)) auto.set(s.id, s);
     else return false;
@@ -59,7 +63,8 @@ export function pendingItems(trace) {
 
 // `waiver`: the human's recorded waiver of the external review ({ by, date, reason, current }) or
 // null. It counts only when there is no verdict and it is current; a stale one is named as a blocker.
-export function mergeDecision({ trace, verdict, rule, waiver = null }) {
+// `specialist`: the config's `qa.specialist` kinds (see pendingItems).
+export function mergeDecision({ trace, verdict, rule, waiver = null, specialist: kinds = [] }) {
   const blockers = [];
   const warnings = [];
   const cas = casOf(trace);
@@ -75,7 +80,7 @@ export function mergeDecision({ trace, verdict, rule, waiver = null }) {
       if (waiver) blockers.push('merge.waiver_stale');
     }
   } else if (verdict.verdict !== 'aprovado') blockers.push('merge.verdict_not_approved');
-  const pending = pendingItems(trace);
+  const pending = pendingItems(trace, kinds);
   // Fail safe: only an explicit 'ignore' skips and only 'warn' warns; anything else blocks.
   const target = rule === 'ignore' ? null : rule === 'warn' ? warnings : blockers;
   if (target) {
@@ -125,6 +130,15 @@ export function provenanceBlockers({ traces, verdict, head, entId, planSpecs, is
   if (!planSpecs.length) blockers.push('merge.no_plan_specs');
   else if (specsNotTraced.length) blockers.push('merge.spec_not_traced');
   return { blockers, specsNotTraced };
+}
+
+// The final decision: the merge decision's blockers plus the provenance blockers (R19), once each;
+// `specsNotTraced` only when that blocker is there. Shared with merge-check's `acceptance` condition.
+export function combineDecision(base, prov) {
+  const blockers = [...base.blockers, ...prov.blockers.filter((b) => !base.blockers.includes(b))];
+  const decision = { allowed: blockers.length === 0, blockers, warnings: base.warnings };
+  if (prov.specsNotTraced.length && blockers.includes('merge.spec_not_traced')) decision.specsNotTraced = prov.specsNotTraced;
+  return decision;
 }
 
 // Git refused the R26 diff only because of a `provenance.ignore` entry: a config problem, not a stale head.
@@ -216,14 +230,15 @@ export function extractWriterText(md) {
 
 // `waiver`: { by, date, reason, current } or null. `openItems`: from progresso.md. `agents`: from
 // custo.md ([{ agent, model, effort, harness, runs }]), or null when the delivery has no cost ledger.
-// `writerText`: the writer's text kept from the previous report (null: empty slot).
-export function renderAcceptance({ entId, target, trace, verdict, decision, lang = 'pt-BR', titles = new Map(), blockerParams = {}, waiver = null, openItems: items = [], agents = null, writerText = null }) {
+// `writerText`: the writer's text kept from the previous report (null: empty slot). `specialist`: the
+// config's `qa.specialist` kinds.
+export function renderAcceptance({ entId, target, trace, verdict, decision, lang = 'pt-BR', titles = new Map(), blockerParams = {}, waiver = null, openItems: items = [], agents = null, writerText = null, specialist: kinds = [] }) {
   const T = (key, params) => t(lang, key, params);
   const cas = casOf(trace);
   const count = (s) => cas.filter((c) => c.status === s).length;
   const proven = count('proven');
   const failed = cas.filter((c) => c.status === 'failed' || !STATUSES.includes(c.status)).length;
-  const pending = pendingItems(trace);
+  const pending = pendingItems(trace, kinds);
   const gloss = (v) => { const k = `acceptance.verdict.${v}`; return T(k) === k ? v : T(k); };
 
   const summary = [
@@ -400,10 +415,9 @@ export async function run(args, ctx) {
     if (!(e instanceof ProvenanceIgnoreError)) throw e;
     return { code: 65, data: {}, messages: [{ key: 'acceptance.provenance_ignore_failed', params: { message: e.message } }] };
   }
-  const base = mergeDecision({ trace, verdict, rule: manualPendingRule(ctx.config, target), waiver });
-  const blockers = [...base.blockers, ...prov.blockers.filter((b) => !base.blockers.includes(b))];
-  const decision = { allowed: blockers.length === 0, blockers, warnings: base.warnings };
-  if (prov.specsNotTraced.length && blockers.includes('merge.spec_not_traced')) decision.specsNotTraced = prov.specsNotTraced;
+  const specialist = ctx.config.qa?.specialist ?? [];
+  const decision = combineDecision(mergeDecision({ trace, verdict, rule: manualPendingRule(ctx.config, target), waiver, specialist }), prov);
+  const { blockers } = decision;
   const blockerParams = {
     'merge.spec_not_traced': { paths: prov.specsNotTraced.join(', ') },
     'merge.trace_other_delivery': { id: entId },
@@ -411,7 +425,7 @@ export async function run(args, ctx) {
   };
   const warningParams = {
     'merge.review_waived': { by: waiver?.by ?? '-', date: waiver?.date ?? '-', reason: noFinalDot(waiver?.reason ?? '-') },
-    'merge.specialist_pending': { items: pendingItems(trace).specialist.map((s) => s.id).join(', ') },
+    'merge.specialist_pending': { items: pendingItems(trace, specialist).specialist.map((s) => s.id).join(', ') },
   };
   const progressFile = join(dir, 'progresso.md');
   const items = existsSync(progressFile) ? openItems(readText(progressFile)) : [];
@@ -420,7 +434,7 @@ export async function run(args, ctx) {
   const out = join(dir, 'aceite.md');
   // A re-run keeps what the writer filled in its slot (when it can be identified).
   const writerText = existsSync(out) ? extractWriterText(readText(out)) : null;
-  writeFileSync(out, renderAcceptance({ entId, target, trace, verdict, decision, lang: ctx.lang, titles, blockerParams, waiver, openItems: items, agents, writerText }));
+  writeFileSync(out, renderAcceptance({ entId, target, trace, verdict, decision, lang: ctx.lang, titles, blockerParams, waiver, openItems: items, agents, writerText, specialist }));
   if (writerText) decision.writerKept = true;
 
   const messages = [

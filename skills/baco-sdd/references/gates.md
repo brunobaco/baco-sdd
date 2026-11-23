@@ -21,7 +21,7 @@ From the approved plan on, execution is autonomous ([implementation.md](implemen
 | `plan` | executing the delivery plan | on | yes |
 | `task_batch` | releasing the task batch | on | yes |
 | `each_task` | moving past each finished task | off | yes (turning it on adds stops) |
-| `before_pr` | marking the delivery's pull request ready to merge (the draft opened for the review in phase 7 is not a request to merge) | on | yes; also skipped, with the integration merge, when `delivery.integration_merge` is `auto`, the destination is the integration branch and `baco merge-check` exits 0 |
+| `before_pr` | marking the delivery's pull request ready to merge (the draft opened for the review in phase 7 is not a request to merge) | on | yes; also skipped, with the integration merge, when `delivery.integration_merge` is `auto`, the destination is the integration branch and `baco merge-check` exits 0 (every condition ok: battery, verdict, manual scenarios, acceptance report, nothing waiting, the PR's CI, policy) |
 | `irreversible_action` | an action that cannot be undone | on | never |
 | `merge_main` | merging into the main branch | on | never |
 
@@ -73,7 +73,7 @@ Code 3 (the external review loop reached `review.external_rounds_max`; every imp
 
 > A revisão externa já deu [N] voltas e ainda não foi aprovada. Para não ficar em círculo, preciso que você decida: [A: seguir mesmo assim com os pontos abertos], [B: mudar a spec ou o plano], [C: parar a entrega]. O que prefere?
 
-If the human chooses A, record it in `progresso.md`, under `Decisões registradas`, as one line that names `saída 3` and the verdict file of the round (date, `saída 3`, `veredito-NN`, open findings, who decided); `baco merge-check` reads that line. Delivery may then start without an `aprovado` verdict ([delivery.md](delivery.md), section 1), and the resulting `merge.verdict_not_approved` is still decided per blocker, as in the `acceptance-report` case below.
+If the human chooses A, record it in `progresso.md`, under `Decisões registradas`, as one line that names `saída 3` and the verdict file of the round (date, `saída 3`, `veredito-NN`, open findings, who decided); `baco merge-check` reads that line and names it in its `verdict` detail, but never treats it as a merge without the person: under `delivery.integration_merge: auto` the `verdict` condition is not ok, and the `acceptance` condition keeps `merge.verdict_not_approved`. Delivery may then start without an `aprovado` verdict ([delivery.md](delivery.md), section 1), and the resulting `merge.verdict_not_approved` is still decided per blocker, as in the `acceptance-report` case below.
 
 Rules for both:
 - Translate engine finding codes into plain pt-BR consequences ("um teste que prova um critério da spec foi alterado", not `TAGGED_TEST_CHANGED`).

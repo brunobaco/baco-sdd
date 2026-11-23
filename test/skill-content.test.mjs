@@ -864,6 +864,10 @@ test('antigravity: read-only reviewer call, resume, check with refusal, cost and
   for (const p of ['`agy` or `antigravity` on the PATH', '`.baco/antigravity/leitura.json`', '`Bash(antigravity -p * --settings .baco/antigravity/leitura.json *)`',
     '`Bash(antigravity *--dangerously-skip-permissions*)`', '`Bash(antigravity * --settings * --settings *)`',
     'as regras de leitura do BACO no Antigravity']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  // A `--mode` on the read-only call is asked in either order, and a second `--mode` on any call.
+  for (const bin of ['antigravity', 'agy']) {
+    for (const p of [`\`Bash(${bin} *leitura.json*--mode*)\``, `\`Bash(${bin} *--mode*leitura.json*)\``, `\`Bash(${bin} *--mode*--mode*)\``, `\`Bash(${bin} *--add-dir*)\``]) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  }
 });
 
 test('antigravity implementer: task folder prepared by the engine, guard hook, three sandbox values, checks and commit line', () => {
@@ -908,4 +912,23 @@ test('configuration interview: opening map, numbered questions in one format, pl
   assert.ok(conf.includes('Em palavras simples, combinamos isto:'), 'configure.md: plain final summary');
   // No em or en dash in what the agent says.
   for (const [name, text] of [['configure.md', conf], ['ambientes.md section 9', sec9]]) assert.ok(!/[–—]/.test(text), `${name}: no em or en dash`);
+});
+
+test('1.10.0 review fixes: specialist kinds, Antigravity npm/npx limit, conversation size numbers, merge-check conditions', () => {
+  // Specialist kinds: accessibility examples only; a security or permission check never goes there.
+  const q25 = ref('configure-questions-delivery.md').split('**25. Scenarios only a specialist runs**')[1].split('**26.')[0];
+  assert.ok(!/teste de seguran/i.test(q25), 'question 25: no security test as a specialist kind');
+  for (const p of ['leitor de tela', 'Conferência de segurança ou de permissão nunca entra aqui', 'A security or permission check never goes in this list', 'starts with `manual, especialista: <tipo>`']) assert.ok(q25.includes(p), `question 25: "${p}" missing`);
+  // Antigravity rede/livre: publishing and registry downloads refused, node still runs anything.
+  const amb = ref('ambientes.md');
+  for (const p of ['`npm` passes only with `ci`, `install`, `i`, `test`, `run`, `exec`, `ls` or `view`', '`npx --no ...` or `npx --no-install ...`', 'never downloads a package from the registry', 'can still run any program']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
+  assert.ok(!amb.includes('`git status|diff|log|show|grep`'), 'ambientes.md: git grep left the livre list');
+  const tools = ref('configure-questions-tools.md');
+  assert.ok(tools.includes('o BACO recusa publicar pacotes e baixar pacotes novos pelo `npx`, mas o `node` ainda pode rodar qualquer programa'), 'sandbox question: honest limit');
+  // Conversation size: no more 80% example numbers.
+  assert.ok(tools.includes('about 367 mil') && tools.includes('290 mil') && !tools.includes('320 mil'), 'configure-questions-tools.md: 367 mil / 290 mil example');
+  // merge-check conditions where they are listed.
+  const del = ref('delivery.md');
+  for (const p of ['`acceptance`', '`review.pr.reviewer: ambos`', 'fetching the destination from `origin`', 'the PR open and into that destination', 'not ok under `delivery.integration_merge: auto`']) assert.ok(del.includes(p), `delivery.md: "${p}" missing`);
+  assert.ok(ref('gates.md').includes('acceptance report, nothing waiting'), 'gates.md: merge-check conditions');
 });

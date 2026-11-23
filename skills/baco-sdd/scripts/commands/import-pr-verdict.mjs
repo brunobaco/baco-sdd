@@ -36,7 +36,7 @@ export async function run(args, ctx) {
   if (!existsSync(request) || statSync(answer).mtimeMs < statSync(request).mtimeMs) {
     return { code: 65, data: {}, messages: [{ key: 'prverdict.answer_stale', params: { path: answerRel } }] };
   }
-  const result = importVerdictText(readText(answer), entId, ctx, { requireScope: true });
+  const result = importVerdictText(readText(answer), entId, ctx, { requireScope: true, source: 'agent' });
   if (result.code === 0 || result.code === 3) result.data = { ...result.data, answer: answerRel };
   return result;
 }

@@ -190,7 +190,7 @@ export async function run(args, ctx) {
   const specCas = spec.definitions.filter((d) => d.kind === 'CA').map((d) => d.id);
   const unknown = caIds.filter((id) => !specCas.includes(id));
   if (unknown.length) return { code: 64, data: {}, messages: [{ key: 'trace.unknown_ca', params: { ids: unknown.join(', '), path: specArg } }] };
-  const qa = readQa(resolve(ctx.cwd, qaArg));
+  const qa = readQa(resolve(ctx.cwd, qaArg), { specialist: ctx.config?.qa?.specialist });
   const cases = junitFiles(args, ctx).flatMap((f) => parseJUnit(readText(f)));
   // R19 provenance: which code (HEAD), which spec and which delivery this trace proves.
   let head = null;

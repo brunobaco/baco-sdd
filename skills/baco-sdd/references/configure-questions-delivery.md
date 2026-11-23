@@ -177,9 +177,9 @@ Write `review.focus.always` and `review.focus.suggestion` as lists of strings. A
 
 > Pergunta [N] de [total] · Testes que só um especialista faz
 >
-> O que é: alguns cenários de teste à mão pedem um especialista, como conferir com um leitor de tela (a tecnologia que lê a tela em voz alta) ou fazer um teste de segurança. Aqui você lista os tipos de cenário que ficam com um especialista, não com você.
+> O que é: alguns cenários de teste à mão pedem um especialista, como conferir com um leitor de tela (a tecnologia que lê a tela em voz alta) ou o contraste das cores para quem enxerga pouco. Aqui você lista os tipos de cenário que ficam com um especialista, não com você.
 >
-> Por que importa: esses cenários nunca são pedidos a você e nunca travam uma junção, nem na linha principal. Eles viram um item pendente para o especialista e ficam fora dos resumos, e eu só os mostro se você pedir. Sem a lista, um cenário assim aparece para você como qualquer teste à mão.
+> Por que importa: esses cenários nunca são pedidos a você e nunca travam uma junção, nem na linha principal. Eles viram um item pendente para o especialista e ficam fora dos resumos, e eu só os mostro se você pedir. Sem a lista, um cenário assim aparece para você como qualquer teste à mão. Conferência de segurança ou de permissão nunca entra aqui: ela sempre trava a junção até ser feita.
 >
 > Opções:
 > (a) nenhum: todos os testes à mão são seus.
@@ -189,7 +189,7 @@ Write `review.focus.always` and `review.focus.suggestion` as lists of strings. A
 >
 > Padrão: (a) nenhum.
 
-Write the list under `qa.specialist`. A scenario marks itself with `Automação: manual, especialista` (the QA scenarios template).
+Write the list under `qa.specialist`. A security or permission check never goes in this list, even when the person names one: say in pt-BR that it must keep blocking the merge, and leave it out. A scenario marks itself with an `Automação` value that starts with `manual, especialista: <tipo>` (the QA scenarios template), and the kind must be one of this list (case and accents ignored); `manual, especialista` without a kind counts only when the list has exactly one kind, and means that one. Any other marker is an ordinary manual scenario, asked to the person.
 
 **26. The system uses AI** (`product.uses_ai`, a boolean, default `false`; skip it when phase 1 already answered it)
 

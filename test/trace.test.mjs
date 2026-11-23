@@ -35,9 +35,9 @@ test('trace with the spec as a loose argument exits 64 and shows the --spec/--qa
   assert.match(r.stderr, /--spec <spec\.md> --qa <qa\.md>/);
 });
 const byCa = (r) => Object.fromEntries(r.cas.map((c) => [c.ca, c]));
-const compute = async (qaText, xml = XML) => {
+const compute = async (qaText, xml = XML, qaOptions = {}) => {
   const dir = await repo({ 'qa.md': qaText });
-  return traceCoverage({ spec: readSpec(join(dir, 'spec.md')), qa: readQa(join(dir, 'qa.md')), cases: parseJUnit(xml) });
+  return traceCoverage({ spec: readSpec(join(dir, 'spec.md')), qa: readQa(join(dir, 'qa.md'), qaOptions), cases: parseJUnit(xml) });
 };
 // Fixture QA without the manual-pending (CT-002) and skipped (CT-004) scenarios.
 const QA_CLEAN = QA.replace(/### CT-EMP-002[\s\S]*?(?=### CT-EMP-003)/, '').replace(/### CT-EMP-004[\s\S]*?(?=## 8)/, '');
@@ -323,14 +323,25 @@ test('scenarios linked to no CA of the spec are listed with their result in othe
 test('a specialist scenario keeps manual_pending and is flagged specialist, with its kind; others carry no flag', async () => {
   const qa = withRn(QA).replace('- **AUTOMAÇÃO:** manual\n', '- **AUTOMAÇÃO:** manual, especialista: leitor de tela\n')
     .replace('- **Automação:** manual\n\n### CT-EMP-006', '- **Automação:** manual, especialista\n\n### CT-EMP-006');
-  const r = await compute(qa);
+  // One kind configured: the marker without a kind means that one.
+  const r = await compute(qa, XML, { specialist: ['leitor de tela'] });
   const s2 = byCa(r)['CA-EMP-001'].scenarios.find((s) => s.id === 'CT-EMP-002');
   assert.deepEqual([s2.result, s2.specialist, s2.specialistKind], ['manual_pending', true, 'leitor de tela']);
   const s5 = r.otherScenarios.find((s) => s.id === 'CT-EMP-005');
-  assert.deepEqual([s5.result, s5.specialist, 'specialistKind' in s5], ['manual_pending', true, false]);
+  assert.deepEqual([s5.result, s5.specialist, s5.specialistKind], ['manual_pending', true, 'leitor de tela']);
   const s1 = byCa(r)['CA-EMP-001'].scenarios.find((s) => s.id === 'CT-EMP-001');
   assert.equal('specialist' in s1, false);
   assert.equal(byCa(r)['CA-EMP-001'].status, 'pending');
+  // Two kinds: the marker without a kind is an ordinary manual scenario; no kind configured: none is.
+  const two = await compute(qa, XML, { specialist: ['leitor de tela', 'contraste de cor'] });
+  assert.equal('specialist' in two.otherScenarios.find((s) => s.id === 'CT-EMP-005'), false);
+  const none = await compute(qa);
+  assert.equal('specialist' in byCa(none)['CA-EMP-001'].scenarios.find((s) => s.id === 'CT-EMP-002'), false);
+  // The command reads the kinds from the config.
+  const dir = await repo({ 'qa.md': qa, '.baco/config.yaml': 'qa:\n  specialist: [leitor de tela, contraste de cor]\n' });
+  const out = await cli(dir, '--spec', 'spec.md', '--qa', 'qa.md', '--json');
+  const cli2 = JSON.parse(out.stdout).cas.find((c) => c.ca === 'CA-EMP-001').scenarios.find((s) => s.id === 'CT-EMP-002');
+  assert.deepEqual([cli2.specialist, cli2.specialistKind], [true, 'leitor de tela']);
 });
 
 // Review: a rejected automated scenario without a JUnit match must not read as "not run".

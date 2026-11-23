@@ -41,8 +41,10 @@ function fixFields(entId, name, finding, config) {
 // Parses a verdict text and records it for the delivery: veredito-NN.md with the parsed footer and one
 // FIX task per finding that is not a sugestão. Shared by import-verdict and import-pr-verdict.
 // `requireScope` (the agent reviewer's answer, `import-pr-verdict`): the answer must also say, in a
-// non-empty "O que foi conferido" section, what the reviewer checked.
-export function importVerdictText(text, entId, ctx, { requireScope = false } = {}) {
+// non-empty "O que foi conferido" section, what the reviewer checked. `source`: who gave the verdict,
+// recorded in the footer (`agent` from import-pr-verdict, `person` from import-verdict); a footer
+// written before it existed has none, read as unknown.
+export function importVerdictText(text, entId, ctx, { requireScope = false, source = null } = {}) {
   const dir = deliveryDir(ctx.root, ctx.config, entId);
   let parsed;
   try {
@@ -58,7 +60,7 @@ export function importVerdictText(text, entId, ctx, { requireScope = false } = {
   const num = nextNumber(revDir, 'veredito');
   // R21: this verdict answers the latest handoff that exists now; its head is what was reviewed.
   const answered = latestHandoff(revDir);
-  const footer = { ...parsed, handoff: answered?.name ?? null, reviewedHead: answered?.head ?? null };
+  const footer = { ...parsed, handoff: answered?.name ?? null, reviewedHead: answered?.head ?? null, ...(source ? { source } : {}) };
   writeFileSync(join(revDir, `veredito-${num}.md`), `${text.replace(/\s+$/, '')}\n\n<!-- baco:parsed ${JSON.stringify(footer).replace(/--/g, '-\\u002d')} -->\n`);
   const round = numberedFiles(revDir, 'veredito').length;
 
@@ -98,5 +100,5 @@ export async function run(args, ctx) {
   if (!entId || !ENT_ID.test(entId) || !source) return usageError();
   deliveryDir(ctx.root, ctx.config, entId); // a missing delivery fails before stdin is read
   const text = source === '-' ? readFileSync(0, 'utf8') : readText(resolve(ctx.cwd, source));
-  return importVerdictText(text, entId, ctx);
+  return importVerdictText(text, entId, ctx, { source: 'person' });
 }
