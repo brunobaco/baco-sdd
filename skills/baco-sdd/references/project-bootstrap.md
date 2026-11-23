@@ -26,6 +26,14 @@ Ask once, near the end of the interview, whether a technical decision is already
 
 Record each answer in the vision under "Restrições técnicas conhecidas", with its source (who said it, when) and the mark "ainda não confirmada pela arquitetura". No answer: write "nenhuma informada". Specs respect these constraints ([spec-model.md](spec-model.md)); phase 3 starts from them and confirms each one with the user ([architecture.md](architecture.md), step 1).
 
+### Use of AI
+
+Ask once whether the system will call an AI model (skip it when `product.uses_ai` is already set in `.baco/config.yaml`):
+
+> O sistema vai usar inteligência artificial em alguma parte? Por exemplo: resumir um texto, classificar um pedido, responder um cliente ou sugerir o próximo passo. Pergunto porque texto vindo de fora (um formulário, uma planilha, um e-mail) pode trazer instruções escondidas que a IA obedece, e aí a arquitetura e os testes precisam tratar disso.
+
+With a yes, write `product.uses_ai: true` in `.baco/config.yaml` (on the `baco/configuracao` branch, as in [configure.md](configure.md), "Write the file"), and note in the vision that the system uses AI. Later, whenever a spec or an ADR brings a call to an AI model while the key is `false` or missing, set it to `true` in the same branch of that work and tell the person in one sentence: "A spec [nome] faz o sistema chamar uma IA, então liguei o cuidado com injeção de instruções: a arquitetura, os testes e as revisões passam a tratar disso." With the key on, the requirements of [architecture.md](architecture.md) ("AI calls and prompt injection"), [spec-model.md](spec-model.md), [planning.md](planning.md) and [review-protocol.md](review-protocol.md) apply.
+
 ## 2. Choose the smallest useful structure
 
 The default structure follows this model. It is a ceiling, not a checklist: **create only what has real content**.

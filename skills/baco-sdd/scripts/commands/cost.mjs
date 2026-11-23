@@ -6,7 +6,7 @@ import { tables, fold } from '../lib/markdown.mjs';
 import { git, mainCheckout, worktrees } from '../lib/git.mjs';
 import { claudeHome, codexSessionsDir, encodeProjectDir, measureUsage, opencodeDbPath, totals, TOOL_LEDGER } from '../lib/usage.mjs';
 
-export const usage = 'baco cost add <ENT-NNN> --phase <n> --agent <name> --model <m> --effort <e> [--harness <h>] [--turns n] [--tokens n] [--seconds n] [--note s] | baco cost summary | baco cost summary <ENT-NNN> | baco cost summary --project | baco cost measure [<ENT-NNN>] [--since <AAAA-MM-DD HH:MM>] [--until <AAAA-MM-DD HH:MM>] [--session <id>]... [--claude-dir <dir>]... [--codex-dir <dir> | --no-codex] [--opencode-db <arquivo> | --no-opencode] [--conductor-harness <claude-code|codex>] [--write [--label <etapa>]] [--json] [--cwd <dir>]';
+export const usage = 'baco cost add <ENT-NNN> --phase <n> --agent <name> --model <m> --effort <e> [--harness <h>] [--turns n] [--tokens n] [--seconds n] [--note s] | baco cost summary | baco cost summary <ENT-NNN> | baco cost summary --project | baco cost measure [<ENT-NNN>] [--since <AAAA-MM-DD HH:MM>] [--until <AAAA-MM-DD HH:MM>] [--session <id>]... [--claude-dir <dir>]... [--codex-dir <dir> | --no-codex] [--opencode-db <arquivo> | --no-opencode] [--conductor-harness <claude-code|codex>] [--write [--label <etapa>]] [--json] | baco cost history [--json] [--cwd <dir>]';
 
 const DASH = '—';
 const HARNESS_NAME = { 'claude-code': 'Claude', codex: 'Codex', antigravity: 'Antigravity', opencode: 'OpenCode' };
@@ -119,6 +119,81 @@ function projectTotal(ctx) {
   for (const [k, a] of Object.entries(bySource)) messages.push({ key: 'cost.project_row', params: { label: k, ...a } });
   messages.push({ key: 'cost.measure_total', params: totalsParams(s) });
   return { code: 0, data: { measured: s, bySource }, messages };
+}
+
+// --- History (`cost history`): one row per delivery with a measured section, for the planner's
+// estimate. A measured row is classified by its `Quem` (a `baco:` prefix dropped, `_` read as `-`):
+// `condutor`; implementers (`implementer*`, `backend`, `frontend`); reviewers (`task-reviewer`,
+// `final-reviewer`, `pr-reviewer`, `simplifier`, also a harness call recorded with one of those roles
+// by `harness-answer --agent`); everything else is `others` (planner, auditors, `exec` and `avulsa`
+// sessions, whose role cannot be told).
+const REVIEWER_ROLES = ['task-reviewer', 'final-reviewer', 'pr-reviewer', 'simplifier'];
+export function costGroupOf(who) {
+  const w = fold(String(who ?? '')).trim().replace(/^baco:/, '').replace(/_/g, '-');
+  if (w === 'condutor') return 'conductor';
+  if (w.startsWith('implementer') || w === 'backend' || w === 'frontend') return 'implementers';
+  if (REVIEWER_ROLES.some((r) => w === r || w.startsWith(`${r}-`))) return 'reviewers';
+  return 'others';
+}
+
+// Counts from the delivery folder: product tasks (`tarefas/T-*`), INT, FIX and CI tasks (distinct
+// names, extension dropped), task reviews (`revisao/<TASK-ID>-revisao-NN.md`), final review rounds
+// (distinct NN of `revisao/revisao-final-NN[-part].md`) and PR rounds (`revisao/veredito-NN.md`).
+export function deliveryCounts(dir) {
+  const names = (sub) => { try { return readdirSync(join(dir, sub)); } catch { return []; } };
+  const tasks = [...new Set(names('tarefas').map((n) => n.replace(/\.md$/i, '')))];
+  const count = (prefix) => tasks.filter((n) => n.startsWith(`${prefix}-`)).length;
+  const reviews = names('revisao');
+  const finals = new Set(reviews.map((n) => /^revisao-final-(\d+)(?:-[^.]+)?\.md$/i.exec(n)?.[1]).filter(Boolean).map(Number));
+  return {
+    tasks: count('T'), int: count('INT'), fix: count('FIX'), ci: count('CI'),
+    taskReviews: reviews.filter((n) => /^.+-revisao-\d+\.md$/i.test(n)).length,
+    finalRounds: finals.size,
+    prRounds: reviews.filter((n) => /^veredito-\d+\.md$/i.test(n)).length,
+  };
+}
+
+const ratio = (a, b) => (b > 0 ? Math.round(a / b) : null);
+function historyEntry(tokens, counts) {
+  const allTasks = counts.tasks + counts.int + counts.fix + counts.ci;
+  return {
+    tokens, counts,
+    ratios: {
+      conductorPerTask: ratio(tokens.conductor, allTasks),
+      builderPerReview: ratio(tokens.implementers, counts.taskReviews),
+      reviewerPerReview: ratio(tokens.reviewers, counts.taskReviews + counts.finalRounds + counts.prRounds),
+    },
+  };
+}
+
+function history(ctx) {
+  const docs = join(ctx.root, ctx.config?.docs_root ?? 'docs');
+  let folders = [];
+  try { folders = readdirSync(join(docs, 'entregas'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort(); } catch { /* none */ }
+  const deliveries = [];
+  for (const folder of folders) {
+    const ent = /^(ENT-\d+)/.exec(folder)?.[1];
+    const dir = join(docs, 'entregas', folder);
+    const file = join(dir, 'custo.md');
+    if (!ent || !existsSync(file)) continue;
+    const rows = measuredRows(readFileSync(file, 'utf8'));
+    if (!rows || !rows.length) continue;
+    const tokens = { total: 0, conductor: 0, implementers: 0, reviewers: 0, others: 0 };
+    for (const r of rows) { tokens.total += r.total; tokens[costGroupOf(r.who)] += r.total; }
+    deliveries.push({ ent, folder, ...historyEntry(tokens, deliveryCounts(dir)) });
+  }
+  if (!deliveries.length) return { code: 1, data: { deliveries: [], total: null }, messages: [{ key: 'cost.history_none' }] };
+  const sum = (part) => Object.fromEntries(Object.keys(deliveries[0][part]).map((k) => [k, deliveries.reduce((a, d) => a + d[part][k], 0)]));
+  const total = historyEntry(sum('tokens'), sum('counts'));
+  const dash = (v) => (v === null ? DASH : v);
+  const params = (label, e) => ({
+    ent: label, ...e.tokens, tasks: `${e.counts.tasks}/${e.counts.int}/${e.counts.fix}/${e.counts.ci}`,
+    taskReviews: e.counts.taskReviews, finalRounds: e.counts.finalRounds, prRounds: e.counts.prRounds,
+    conductorPerTask: dash(e.ratios.conductorPerTask), builderPerReview: dash(e.ratios.builderPerReview), reviewerPerReview: dash(e.ratios.reviewerPerReview),
+  });
+  const messages = [{ key: 'cost.history_title' }, ...deliveries.map((d) => ({ key: 'cost.history_row', params: params(d.ent, d) }))];
+  if (deliveries.length > 1) messages.push({ key: 'cost.history_total', params: params(null, total) });
+  return { code: 0, data: { deliveries, total }, messages };
 }
 
 const blank = () => ({ turns: 0, tokens: 0, seconds: 0, runs: 0 });
@@ -357,6 +432,7 @@ const totalsParams = (s) => {
 export async function run(args, ctx) {
   const [sub, ent] = args._;
   if (sub === 'measure') return measure(args, ctx);
+  if (sub === 'history') return ent === undefined ? history(ctx) : bad('cli.usage', { usage });
   if (sub === 'summary' && args.flags.project === true && ent === undefined) {
     const s = summarizeMeasured(readFileSync(join(ctx.root, ctx.config?.docs_root ?? 'docs', PROJECT_FILE), 'utf8')); // ENOENT -> 65
     const messages = [{ key: 'cost.project_title' }];

@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, writeSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { constants } from 'node:os';
 import { join, resolve } from 'node:path';
 import { testLayers, layerCommand, queuedLayers, smokeCommand } from '../lib/config.mjs';
@@ -112,16 +112,15 @@ function junitSnapshot(dir) {
 }
 const changedXml = (before, after) => [...after].filter(([f, mtime]) => before.get(f) !== mtime).map(([f]) => f);
 
-// Failing tests of the JUnit files a layer created or updated; an unreadable file is skipped.
-function junitFailures(dir, files) {
+// Every test case of the JUnit files a layer created or updated; an unreadable file is skipped.
+function junitCases(dir, files) {
   const out = [];
   for (const f of files) {
-    let cases;
-    try { cases = parseJUnit(readFileSync(join(dir, f), 'utf8')); } catch { continue; }
-    for (const c of cases) if (c.status === 'failed') out.push({ name: c.name, classname: c.classname, file: c.file, message: c.message });
+    try { out.push(...parseJUnit(readFileSync(join(dir, f), 'utf8'))); } catch { /* unreadable: skipped */ }
   }
   return out;
 }
+const failuresOf = (cases) => cases.filter((c) => c.status === 'failed').map((c) => ({ name: c.name, classname: c.classname, file: c.file, message: c.message }));
 
 // A new log file under <root>/.baco/logs/ for one layer; null when it cannot be created.
 function openLog(root, layer) {
@@ -137,6 +136,41 @@ function openLog(root, layer) {
 
 // `git check-ignore -q`: 0 = ignored, 1 = not ignored, anything else = cannot tell (no warning).
 const logsIgnored = (root) => spawnSync('git', ['check-ignore', '-q', `${LOGS_DIR}/x.log`], { cwd: root, stdio: 'ignore' }).status !== 1;
+
+// Battery stamp: written by a full `--all` run (no --quick, no extra args), read by `baco merge-check`.
+export const STAMP_FILE = `${LOGS_DIR}/bateria-completa.json`;
+
+// Pathspecs of what counts as code for the battery: everything except the delivery records
+// (<docs_root>/entregas/**) and the Markdown documents under <docs_root> (specs, QA files, plans).
+// Markdown elsewhere may be read by the code or a test (a prompt, a fixture), so it counts.
+export function codePathspecs(config) {
+  const docsRoot = String(config?.docs_root ?? 'docs').replace(/\/+$/, '') || 'docs';
+  return ['.', `:(exclude)${docsRoot}/entregas/**`, `:(exclude,glob)${docsRoot}/**/*.md`];
+}
+
+const gitText = (args, root) => {
+  const r = spawnSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  return r.status === 0 ? r.stdout.trim() : null;
+};
+
+// Uncommitted changes to code (codePathspecs), leaving out what the engine and the tests write
+// (.baco/logs/, the JUnit folder). When git cannot tell, the tree counts as dirty (fail safe).
+function treeDirty(root, config, junitDirRel) {
+  const specs = [...codePathspecs(config), `:(exclude)${LOGS_DIR}/**`];
+  const junit = String(junitDirRel ?? '').replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/\/+$/, '');
+  if (junit && !junit.startsWith('/') && !junit.startsWith('..')) specs.push(`:(exclude)${junit}/**`);
+  const out = gitText(['status', '--porcelain', '--untracked-files=all', '--', ...specs], root);
+  return out === null ? true : out !== '';
+}
+
+function readStamp(root) {
+  try { return JSON.parse(readFileSync(join(root, STAMP_FILE), 'utf8')); } catch { return null; }
+}
+
+function writeStamp(root, stamp) {
+  mkdirSync(join(root, LOGS_DIR), { recursive: true });
+  writeFileSync(join(root, STAMP_FILE), JSON.stringify(stamp, null, 2) + '\n');
+}
 
 // A failing test's whole message, blank edges trimmed, at most MESSAGE_LINES lines; the lines after
 // the first are indented under the summary line.
@@ -226,6 +260,17 @@ export async function run(args, ctx) {
     // Without --verbose, the child output goes to a log file and only a summary is printed.
     const logging = !verbose;
     if (logging && !logsIgnored(ctx.root)) say('runtests.logs_not_ignored', { path: `${LOGS_DIR}/` });
+    // A full battery (--all, no --quick, no extra args) writes the stamp; one layer with files after
+    // `--`, without --quick, on the stamp's head and a clean tree, is a re-run of tests that failed.
+    const fullBattery = !quick && args.flags.all === true && extra.length === 0;
+    const rerun = !quick && args.flags.layer !== undefined && extra.length > 0;
+    const stampBase = fullBattery || rerun ? {
+      head: gitText(['rev-parse', 'HEAD'], ctx.root),
+      branch: gitText(['rev-parse', '--abbrev-ref', 'HEAD'], ctx.root),
+      dirty: treeDirty(ctx.root, ctx.config, junitDirRel),
+    } : null;
+    const batteryStart = Date.now();
+    let rerunNames = { passed: [], failed: [] };
     for (const { layer, command: base, fast } of planned.steps) {
       const command = extra.length ? `${base} ${extra.map(shellQuote).join(' ')}` : base;
       let waitedMs = 0;
@@ -266,9 +311,12 @@ export async function run(args, ctx) {
       const changed = changedXml(before, junitSnapshot(junitDir));
       const junitWritten = changed.length > 0;
       if (!junitWritten) say('runtests.no_junit', { layer, dir: junitDirRel });
-      const failures = junitFailures(junitDir, changed);
+      const cases = junitCases(junitDir, changed);
+      const failures = failuresOf(cases);
       const logRel = logFd !== null ? log.rel : null;
       runs.push({ layer, quick, command, exit: r.exit, junitWritten, seconds, waitedSeconds: round1(waitedMs), output: capture ? r.output : null, log: logRel, failures });
+      // Names of the tests that passed and failed, for the stamp's re-run entry (one layer only).
+      rerunNames = { passed: cases.filter((c) => c.status === 'passed').map((c) => c.name), failed: failures.map((f) => f.name) };
       if (r.exit === 0) messages.push({ key: 'runtests.passed', params: { layer, seconds } });
       else {
         messages.push({ key: 'runtests.failed', params: { layer, exit: r.exit ?? r.signal, seconds } });
@@ -278,6 +326,34 @@ export async function run(args, ctx) {
         if (!failures.length && r.output !== null && r.output.trim()) messages.push({ key: 'runtests.output_tail', params: { layer, lines: TAIL_LINES, text: lastLines(r.output, TAIL_LINES) } });
       }
       if (logRel) messages.push({ key: 'runtests.log', params: { layer, path: logRel } });
+    }
+    if (stampBase?.head) {
+      try {
+        if (fullBattery) {
+          // A layer that did not run (queue or spawn error) is recorded with exit null: never a pass.
+          const layers = planned.steps.map(({ layer }) => {
+            const r = runs.find((x) => x.layer === layer);
+            return r ? { layer, exit: r.exit, seconds: r.seconds, failures: r.failures.map((f) => ({ name: f.name, file: f.file ?? null })) }
+              : { layer, exit: null, seconds: 0, failures: [] };
+          });
+          writeStamp(ctx.root, {
+            at: new Date().toISOString(), head: stampBase.head, branch: stampBase.branch, dirty: stampBase.dirty,
+            seconds: round1(Date.now() - batteryStart), passed: layers.every((l) => l.exit === 0), layers, reruns: [],
+          });
+          messages.push({ key: 'runtests.stamp_written', params: { path: STAMP_FILE, head: stampBase.head.slice(0, 12) } });
+        } else if (rerun && runs.length === 1 && !stampBase.dirty) {
+          const stamp = readStamp(ctx.root);
+          if (stamp && stamp.head === stampBase.head && Array.isArray(stamp.reruns)) {
+            // merge-check counts a failed test as flaky only when a re-run shows that same name passing;
+            // a re-run that selected no test has both lists empty and counts for nothing.
+            stamp.reruns.push({ at: new Date().toISOString(), layer: runs[0].layer, args: [...extra], exit: runs[0].exit, passed: rerunNames.passed, failed: rerunNames.failed });
+            writeStamp(ctx.root, stamp);
+            messages.push({ key: 'runtests.rerun_recorded', params: { path: STAMP_FILE, layer: runs[0].layer } });
+          }
+        }
+      } catch (error) {
+        say('runtests.stamp_failed', { path: STAMP_FILE, message: error.message });
+      }
     }
     return { code, data: { runs }, messages };
   } finally {

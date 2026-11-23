@@ -44,7 +44,8 @@ test('unknown command exits 64', async () => {
 test('--help lists every command with its summary and exits 0', async () => {
   const { io, out } = capture();
   assert.equal(await main(['--help'], io), 0);
-  assert.equal(COMMANDS.length, 20);
+  assert.equal(COMMANDS.length, 21);
+  assert.ok(COMMANDS.includes('merge-check'));
   assert.ok(COMMANDS.includes('harness-answer'));
   assert.ok(COMMANDS.includes('antigravity-task'));
   assert.ok(COMMANDS.includes('board'));

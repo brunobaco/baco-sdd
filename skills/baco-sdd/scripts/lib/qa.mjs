@@ -50,7 +50,41 @@ function layerOf(value) {
   return found.length === 1 ? found[0] : null;
 }
 
-export function readQa(path) {
+// The kind a specialist marker stands for, among the configured `qa.specialist` kinds: the entry equal
+// to `kind` once folded (case and accents); with no kind, the only entry when there is exactly one.
+// null when it matches none: then the scenario is an ordinary manual one.
+export function resolveSpecialistKind(kind, kinds) {
+  const list = (Array.isArray(kinds) ? kinds : []).filter((k) => typeof k === 'string' && k.trim());
+  const given = typeof kind === 'string' ? fold(kind).replace(/\s+/g, ' ').trim() : '';
+  if (!given) return list.length === 1 ? list[0] : null;
+  return list.find((k) => fold(k).replace(/\s+/g, ' ').trim() === given) ?? null;
+}
+
+// The raw specialist marker of an `Automação` value: it counts only when the value STARTS with
+// `manual, especialista`, optionally `manual, especialista: <tipo>` (emphasis and backticks ignored);
+// after the word, only the end, `:` and the kind, or a note after `;`, `(` or `.`. Returns
+// { marked, kind } (kind: the folded text after the colon, or null; resolveSpecialistKind names it).
+function specialistMarker(value) {
+  const text = fold(String(value ?? '').replace(/[`*_]/g, '')).trim();
+  const m = /^manual\s*,\s*especialista(?:\s*$|\s*[;(.]|\s*:\s*([^;()]*))/u.exec(text);
+  if (!m) return { marked: false, kind: null };
+  const kind = (m[1] ?? '').trim().replace(/[\s.,]+$/, '');
+  return { marked: true, kind: kind || null };
+}
+
+// A specialist scenario: a manual one with the marker above whose kind is one of `kinds` (the config's
+// `qa.specialist`). Only a specialist QA runs it: never asked to the person and never a merge blocker.
+// `kind` is the configured entry it stands for.
+function specialistOf(word, value, kinds) {
+  if (word !== 'manual') return { specialist: false, kind: null };
+  const mark = specialistMarker(value);
+  if (!mark.marked) return { specialist: false, kind: null };
+  const kind = resolveSpecialistKind(mark.kind, kinds);
+  return kind === null ? { specialist: false, kind: null } : { specialist: true, kind };
+}
+
+// `specialist`: the config's `qa.specialist` kinds (default none: no scenario is a specialist one).
+export function readQa(path, { specialist: kinds = [] } = {}) {
   const md = readText(path);
   const lines = md.split('\n');
   const heads = headings(md);
@@ -65,15 +99,19 @@ export function readQa(path) {
     const auto = field(block, QA_AUTOMATION_FIELD);
     const word = auto === null ? '' : fold(auto.replace(/[`*]/g, '').trim().split(/[\s(:;,.]+/)[0] ?? '');
     const testRefs = testPaths(auto);
+    const automation = AUTOMATION.includes(word) ? word : null;
+    const special = specialistOf(automation, auto, kinds);
     scenarios.push({
       id: m[1],
       title: m[2].trim(),
       line: h.line,
       contracts: contracts ? expandRefs(contracts) : [],
-      automation: AUTOMATION.includes(word) ? word : null,
+      automation,
       testRefs,
       testRef: testRefs[0] ?? null,
       layer: layerOf(auto),
+      specialist: special.specialist,
+      specialistKind: special.kind,
     });
   });
 

@@ -187,27 +187,27 @@ Map: início do projeto `project_start`; arquitetura `architecture`; plano `plan
 
 > Pergunta [N] de [total] · Testes feitos à mão
 >
-> O que é: alguns cenários de teste só uma pessoa consegue executar, como conferir um e-mail que chegou ou testar no celular. Aqui você decide o que eu faço se um deles ainda não foi feito quando a entrega vai ser juntada. A decisão é por lugar: primeiro a linha principal, depois as outras.
+> O que é: alguns cenários de teste só uma pessoa consegue executar, como conferir um e-mail que chegou ou testar no celular. Aqui você decide o que eu faço se um deles ainda não foi feito quando a entrega vai ser juntada. A decisão é pela linha onde a entrega termina, que é [a de integração, `nome`, ou a principal, `nome`, conforme `delivery.target`; antes da pergunta 23, a de integração, que é o padrão].
 >
-> Por que importa: um teste à mão que ficou para trás pode esconder um defeito que só aparece no celular ou no e-mail de verdade.
+> Por que importa: um teste à mão que ficou para trás pode esconder um defeito que só aparece no celular ou no e-mail de verdade. Os cenários que só um especialista faz não entram aqui: eles nunca travam.
 >
 > Opções:
-> (a) travar: a junção espera até alguém executar e registrar o resultado. É mais seguro e pode segurar a entrega.
+> (a) travar: a junção no destino espera até alguém executar e registrar o resultado. É mais seguro e pode segurar a entrega.
 > (b) avisar: eu mostro o que falta e deixo juntar. É mais rápido e deixa o teste para depois.
 >
-> Minha recomendação: [a opção para a linha principal e o motivo ligado a este projeto].
+> Minha recomendação: [a opção para o destino da entrega e o motivo ligado a este projeto; para a linha de integração que publica um ambiente de teste, (b) costuma servir, porque o teste à mão acontece nesse ambiente].
 >
 > Padrão: travar na linha principal e só avisar nas outras, inclusive na de integração.
 >
-> Na linha principal, (a) travar ou (b) avisar?
+> No destino da entrega ([nome da linha]), (a) travar ou (b) avisar?
 
-Then the others (follow-up):
+Then the other line (follow-up), main when the destination is the integration branch, and the integration branch when the destination is main:
 
 > Pergunta [N] de [total] · Testes feitos à mão (continuação)
 >
-> E nas outras linhas, inclusive a de integração: (a) travar ou (b) avisar? Se quiser a de integração diferente das demais, me diga. O padrão aqui é (b) avisar.
+> E na [linha principal / linha de integração] e nas demais: (a) travar ou (b) avisar? O padrão da principal é (a) travar, o das outras é (b) avisar.
 
-Ask first about the main branch, then about the others. Main -> `main`; others -> `"*"`. Write `integration` only when the person wants the integration branch different from the rest. Never edit this key later to make a merge pass ([gates.md](gates.md)).
+Ask first about the delivery's destination, then about the other. The role keys are `main`, `integration` and `"*"`: write the answer for the destination under its role key (`integration` or `main`), the other under its own key, and `"*"` as `warn` unless the person says otherwise. Write `integration` only when it differs from `"*"`, or when it is the destination. A rule on the destination is what `baco merge-check` and the acceptance report apply to the merge ([gates.md](gates.md)). When question 23 later changes the destination, come back to this one for the new destination. Never edit this key later to make a merge pass.
 
 **7. Test commands per layer** (`tests.<layer>`, for example `unit`, `e2e_web`; quick version in `tests_quick.<layer>`)
 

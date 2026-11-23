@@ -12,7 +12,7 @@ import { parseYamlSubset, resolveConfig } from '../lib/config.mjs';
 import { globToRegExp } from '../lib/glob.mjs';
 import { diffSpecs } from './spec-diff.mjs';
 
-export const usage = 'baco guard-tests --base <ref> [--head HEAD] [--task-base <ref>] [--allow <ID>]... [--allow-from-spec <spec.md>@<ref>] [--json] [--cwd <dir>]';
+export const usage = 'baco guard-tests --base <ref> [--head HEAD] [--task-base <ref>] [--allow <ID>]... [--allow-from-spec <spec.md>@<ref>]... [--json] [--cwd <dir>]';
 export const needsRepo = true;
 
 const SKIP_RES = [
@@ -379,9 +379,10 @@ export async function run(args, ctx) {
     return { code: 64, data: {}, messages: [{ key: 'cli.usage', params: { usage } }] };
   }
   const allowed = new Set(list(args.flags.allow));
+  // Repeatable: the allowed IDs are the union of every spec's changed criteria (and their scenarios).
   const fromSpec = args.flags['allow-from-spec'];
-  if (fromSpec !== undefined) {
-    const ids = typeof fromSpec === 'string' ? allowedFromSpec(fromSpec, ctx) : null;
+  for (const spec of fromSpec === undefined ? [] : [].concat(fromSpec)) {
+    const ids = typeof spec === 'string' ? allowedFromSpec(spec, ctx) : null;
     if (ids === null) return { code: 64, data: {}, messages: [{ key: 'guard.bad_allow_spec' }] };
     for (const id of ids) allowed.add(id);
   }

@@ -356,7 +356,7 @@ test('no orphan references', () => {
 // Plan 2.1: ideas from the video.
 const ref = (name) => read(join(SKILL_ROOT, 'references', name));
 // Phase 0: the rules in configure.md, the questions in the two files it points to.
-const CONFIGURE_FILES = ['configure.md', 'configure-questions.md', 'configure-questions-tools.md'];
+const CONFIGURE_FILES = ['configure.md', 'configure-questions.md', 'configure-questions-tools.md', 'configure-questions-delivery.md'];
 const configureAll = () => CONFIGURE_FILES.map(ref).join('\n');
 const ENTRY_LABELS = ['O quê', 'Para quem', 'Por quê', 'Fica de fora', 'Como saber se deu certo'];
 const ID_RE = /\b(?:RF|RN|RNF|INV|CA|CT|P)-(?:[A-Z]{2,6}-)?\d{3}\b/;
@@ -665,7 +665,7 @@ test('review roles write only their own report and return verdict, counts and pa
 
 test('conversation size: threshold, asking, auto switch in construction, title sequence, short request', () => {
   const skill = read(join(SKILL_ROOT, 'SKILL.md'));
-  for (const p of ['## Conversation size', '`context.handoff_at`', 'default 400000', 'again every further 100000 tokens', 'Never stop a step halfway', 'ask whether to continue in a new conversation', '`context.auto_handoff` is true', 'Human stops', 'even below the threshold', '[dispatch.md](references/dispatch.md), section 3']) assert.ok(skill.includes(p), `SKILL.md: "${p}" missing`);
+  for (const p of ['## Conversation size', '`context.handoff_at`', 'default 290000', 'again every further 100000 tokens', 'Never stop a step halfway', 'ask whether to continue in a new conversation', '`context.auto_handoff` is true', 'Human stops', 'even below the threshold', '[dispatch.md](references/dispatch.md), section 3']) assert.ok(skill.includes(p), `SKILL.md: "${p}" missing`);
   for (const p of ['"Spec XYZ Desenvolvimento 02", then "03"', 'Outside the Ratoeira you cannot open or name a conversation', 'by search, never whole']) assert.ok(ref('dispatch.md').includes(p), `dispatch.md: "${p}" missing`);
   const impl = ref('implementation.md');
   for (const p of ['**Conversation size.**', '`context.auto_handoff` on, in the Ratoeira.** Do not ask and do not dispatch a new task', '`context.auto_handoff` on, outside the Ratoeira.**', 'keep going with the run in this conversation, dispatching tasks as usual', '`context.auto_handoff` off or missing.** Finish the task you are running', 'Keep going with the run while you wait', '`parado para conversa nova`', '`Trocas de conversa`', 'Conversa anterior: <identificador>', 'Never stop a run only to wait for a person to paste it', 'switches to a new conversation']) assert.ok(impl.includes(p), `implementation.md: "${p}" missing`);
@@ -673,7 +673,7 @@ test('conversation size: threshold, asking, auto switch in construction, title s
   const hook = read(join(SKILL_ROOT, '..', '..', 'hooks', 'context-size.mjs'));
   assert.ok(hook.includes('Conversation size') && !/and stop\b/.test(hook), 'hook note points to the rule, without "stop"');
   const conf = configureAll();
-  for (const p of ['**8. Conversation size**', 'a partir de 400 mil tokens de contexto, sugiro continuar numa conversa nova', 'posso trocar para uma conversa nova sem te perguntar']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  for (const p of ['**8. Conversation size**', 'a partir de 290 mil tokens de contexto, sugiro continuar numa conversa nova', 'posso trocar para uma conversa nova sem te perguntar']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   const prog = read(join(TEMPLATES, 'progresso.md'));
   for (const p of ['**Trocas de conversa:**', 'parado para conversa nova']) assert.ok(prog.includes(p), `progresso.md: "${p}" missing`);
 });
@@ -864,15 +864,19 @@ test('antigravity: read-only reviewer call, resume, check with refusal, cost and
   for (const p of ['`agy` or `antigravity` on the PATH', '`.baco/antigravity/leitura.json`', '`Bash(antigravity -p * --settings .baco/antigravity/leitura.json *)`',
     '`Bash(antigravity *--dangerously-skip-permissions*)`', '`Bash(antigravity * --settings * --settings *)`',
     'as regras de leitura do BACO no Antigravity']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  // A `--mode` on the read-only call is asked in either order, and a second `--mode` on any call.
+  for (const bin of ['antigravity', 'agy']) {
+    for (const p of [`\`Bash(${bin} *leitura.json*--mode*)\``, `\`Bash(${bin} *--mode*leitura.json*)\``, `\`Bash(${bin} *--mode*--mode*)\``, `\`Bash(${bin} *--add-dir*)\``]) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  }
 });
 
-test('antigravity implementer: task folder prepared by the engine, guard hook, protegida only, checks and commit line', () => {
+test('antigravity implementer: task folder prepared by the engine, guard hook, three sandbox values, checks and commit line', () => {
   const amb = read('skills/baco-sdd/references/ambientes.md');
   const conf = configureAll();
   for (const p of ['baco antigravity-task <task folder>', 'baco antigravity-task <task folder> --clean', '--settings .agents/baco-construcao.json',
-    'Antigravity builds only in `protegida`', '`trava: sim`', 'antigravity-fora.txt', 'Implementado por: antigravity, <model>',
-    'the tests it runs are code', 'git init -q -b baco/verificacao']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
-  for (const p of ['`Bash(antigravity -p * --settings .agents/baco-construcao.json *)`', 'Antigravity builds only in `protegida`']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+    'Antigravity has the same three values', '--sandbox', '`trava: sim`', 'antigravity-fora.txt',
+    'the tests it runs are code', 'git init -q -b baco/verificacao', 'Implemented-by: antigravity, <model>']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
+  for (const p of ['`Bash(antigravity -p * --settings .agents/baco-construcao.json * --mode accept-edits --print-timeout 0 *)`', 'Liberdade do Antigravity ao construir']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
   assert.ok(!conf.includes('Antigravity takes only read-only roles for now'), 'configure.md: the read-only-only rule is gone');
 });
 
@@ -908,4 +912,23 @@ test('configuration interview: opening map, numbered questions in one format, pl
   assert.ok(conf.includes('Em palavras simples, combinamos isto:'), 'configure.md: plain final summary');
   // No em or en dash in what the agent says.
   for (const [name, text] of [['configure.md', conf], ['ambientes.md section 9', sec9]]) assert.ok(!/[–—]/.test(text), `${name}: no em or en dash`);
+});
+
+test('1.10.0 review fixes: specialist kinds, Antigravity npm/npx limit, conversation size numbers, merge-check conditions', () => {
+  // Specialist kinds: accessibility examples only; a security or permission check never goes there.
+  const q25 = ref('configure-questions-delivery.md').split('**25. Scenarios only a specialist runs**')[1].split('**26.')[0];
+  assert.ok(!/teste de seguran/i.test(q25), 'question 25: no security test as a specialist kind');
+  for (const p of ['leitor de tela', 'Conferência de segurança ou de permissão nunca entra aqui', 'A security or permission check never goes in this list', 'starts with `manual, especialista: <tipo>`']) assert.ok(q25.includes(p), `question 25: "${p}" missing`);
+  // Antigravity rede/livre: publishing and registry downloads refused, node still runs anything.
+  const amb = ref('ambientes.md');
+  for (const p of ['`npm` passes only with `ci`, `install`, `i`, `test`, `run`, `ls` or `view`', '`npx --no ...` or `npx --no-install ...`', 'never downloads a package from the registry', 'can still run any program']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
+  assert.ok(!amb.includes('`git status|diff|log|show|grep`'), 'ambientes.md: git grep left the livre list');
+  const tools = ref('configure-questions-tools.md');
+  assert.ok(tools.includes('o BACO recusa publicar pacotes e baixar pacotes novos pelo `npx`, mas o `node` ainda pode rodar qualquer programa'), 'sandbox question: honest limit');
+  // Conversation size: no more 80% example numbers.
+  assert.ok(tools.includes('about 367 mil') && tools.includes('290 mil') && !tools.includes('320 mil'), 'configure-questions-tools.md: 367 mil / 290 mil example');
+  // merge-check conditions where they are listed.
+  const del = ref('delivery.md');
+  for (const p of ['`acceptance`', '`review.pr.reviewer: ambos`', 'fetching the destination from `origin`', 'the PR open and into that destination', 'not ok under `delivery.integration_merge: auto`']) assert.ok(del.includes(p), `delivery.md: "${p}" missing`);
+  assert.ok(ref('gates.md').includes('acceptance report, nothing waiting'), 'gates.md: merge-check conditions');
 });

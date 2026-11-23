@@ -338,23 +338,23 @@ test('the pt-BR template documents provenance.ignore and loads to the defaults',
 });
 
 // context: conversation size handoff.
-test('context: defaults are handoff_at 400000 and auto_handoff false', () => {
-  assert.deepEqual(DEFAULTS.context, { handoff_at: 400000, auto_handoff: false });
+test('context: defaults are handoff_at 290000 and auto_handoff false', () => {
+  assert.deepEqual(DEFAULTS.context, { handoff_at: 290000, auto_handoff: false });
   const cfg = loadConfig(rootWith());
-  assert.deepEqual(cfg.context, { handoff_at: 400000, auto_handoff: false });
+  assert.deepEqual(cfg.context, { handoff_at: 290000, auto_handoff: false });
 });
 
 test('context: a positive integer handoff_at and a boolean auto_handoff load', () => {
   const cfg = loadConfig(rootWith('context:\n  handoff_at: 250000\n  auto_handoff: on\n'));
   assert.deepEqual(cfg.context, { handoff_at: 250000, auto_handoff: true });
   assert.deepEqual(cfg.warnings, []);
-  assert.equal(loadConfig(rootWith('context:\n  auto_handoff: false\n')).context.handoff_at, 400000);
+  assert.equal(loadConfig(rootWith('context:\n  auto_handoff: false\n')).context.handoff_at, 290000);
 });
 
 test('context: invalid values warn in the existing style and keep the default for that key', () => {
   for (const bad of ['0', '-5', '1.5', 'muito', '"300000"', '[1]']) {
     const cfg = loadConfig(rootWith(`context:\n  handoff_at: ${bad}\n  auto_handoff: on\n`));
-    assert.equal(cfg.context.handoff_at, 400000, bad);
+    assert.equal(cfg.context.handoff_at, 290000, bad);
     assert.equal(cfg.context.auto_handoff, true, bad);
     assert.deepEqual(cfg.warnings, [{ key: 'config.invalid_section', params: { section: 'context.handoff_at' } }], bad);
   }
@@ -371,7 +371,7 @@ test('context: invalid values warn in the existing style and keep the default fo
 test('the pt-BR template documents context and loads to the defaults', () => {
   const text = readFileSync(new URL('../skills/baco-sdd/templates/pt-BR/config.yaml', import.meta.url), 'utf8');
   assert.match(text, /^context:/m);
-  assert.match(text, /handoff_at: 400000/);
+  assert.match(text, /handoff_at: 290000/);
   assert.match(text, /auto_handoff: off/);
   const cfg = loadConfig(rootWith(text));
   assert.deepEqual(cfg.context, DEFAULTS.context);
@@ -447,7 +447,10 @@ test('harnesses: an invalid sandbox falls back to protegida (the strictest) with
 
 // review.pr: who reviews the delivery's pull request, and whether findings are fixed on their own.
 test('review.pr: defaults are agente and auto_fix true; valid values load', () => {
-  const rest = { task_rounds: { mechanical: 2, standard: 3, risky: 4 }, last_round_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true } };
+  const rest = {
+    task_rounds: { mechanical: 2, standard: 3, risky: 4 }, last_round_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true },
+    focus: { always: [], suggestion: [] }, final_rounds_max: 2,
+  };
   assert.deepEqual(DEFAULTS.review, { external_rounds_max: 3, ...rest });
   assert.deepEqual(loadConfig(rootWith('review:\n  external_rounds_max: 2\n')).review, { external_rounds_max: 2, ...rest });
   for (const reviewer of ['agente', 'pessoa', 'ambos']) {
@@ -593,7 +596,7 @@ test('github.project: bad values warn and fall back', async () => {
 // 1.8.0: how the plan splits the tasks (planning.task_split), tool profiles (harnesses.<name>.tool)
 // and the ordered reserve list of each role (roles).
 test('planning.task_split: defaults to funcionalidade; front-back loads; a bad value falls back with a warning', async () => {
-  assert.deepEqual(DEFAULTS.planning, { task_split: 'funcionalidade' });
+  assert.equal(DEFAULTS.planning.task_split, 'funcionalidade');
   assert.equal(loadConfig(rootWith()).planning.task_split, 'funcionalidade');
   const fb = loadConfig(rootWith('planning:\n  task_split: front-back\n'));
   assert.equal(fb.planning.task_split, 'front-back');
@@ -696,4 +699,127 @@ test('roles: an entry that is not text or has an empty model is dropped with a w
     { key: 'config.invalid_section', params: { section: 'roles.task_reviewer' } },
     { key: 'config.invalid_section', params: { section: 'roles.final_reviewer' } },
   ]);
+});
+
+// 1.10.0: risk criterion, delivery size, spec freeze, review focus, final rounds, test runs, CI
+// minutes, delivery destination and specialist QA.
+const invalid = (section) => ({ key: 'config.invalid_section', params: { section } });
+
+test('1.10.0 defaults: planning, review, test_runs, ci, delivery and qa', () => {
+  assert.deepEqual(DEFAULTS.planning, { task_split: 'funcionalidade', risk: {}, max_tasks: 8, max_criteria: 60, freeze_specs: true });
+  assert.deepEqual(DEFAULTS.review.focus, { always: [], suggestion: [] });
+  assert.equal(DEFAULTS.review.final_rounds_max, 2);
+  assert.deepEqual(DEFAULTS.test_runs, { screen_task_full: false, ci_full: 'merge' });
+  assert.deepEqual(DEFAULTS.ci, { monthly_minutes: null });
+  assert.deepEqual(DEFAULTS.delivery, { target: 'integration', integration_merge: 'ask' });
+  assert.deepEqual(DEFAULTS.qa, { specialist: [] });
+  const cfg = loadConfig(rootWith());
+  for (const k of ['planning', 'test_runs', 'ci', 'delivery', 'qa']) assert.deepEqual(cfg[k], DEFAULTS[k], k);
+  assert.deepEqual(cfg.review.focus, DEFAULTS.review.focus);
+  assert.deepEqual(cfg.warnings, []);
+});
+
+test('1.10.0 keys: valid values load as written', () => {
+  const cfg = loadConfig(rootWith([
+    'planning:',
+    '  risk:',
+    '    arriscada: "login, permissão, separação entre clientes"',
+    '    mecânica: "texto de tela, estilo"',
+    '  max_tasks: 5',
+    '  max_criteria: 40',
+    '  freeze_specs: off',
+    'review:',
+    '  focus:',
+    '    always: ["login", "dado de outro cliente"]',
+    '    suggestion:',
+    '      - virada da meia-noite',
+    '  final_rounds_max: 3',
+    'test_runs:',
+    '  screen_task_full: on',
+    '  ci_full: manual',
+    'ci:',
+    '  monthly_minutes: 2000',
+    'delivery:',
+    '  target: main',
+    '  integration_merge: auto',
+    'qa:',
+    '  specialist: ["leitor de tela", contraste]',
+    '',
+  ].join('\n')));
+  assert.deepEqual(cfg.warnings, []);
+  assert.deepEqual(cfg.planning, {
+    task_split: 'funcionalidade',
+    risk: { arriscada: 'login, permissão, separação entre clientes', mecanica: 'texto de tela, estilo' },
+    max_tasks: 5, max_criteria: 40, freeze_specs: false,
+  });
+  assert.deepEqual(cfg.review.focus, { always: ['login', 'dado de outro cliente'], suggestion: ['virada da meia-noite'] });
+  assert.equal(cfg.review.final_rounds_max, 3);
+  assert.equal(cfg.review.external_rounds_max, 3);
+  assert.deepEqual(cfg.test_runs, { screen_task_full: true, ci_full: 'manual' });
+  assert.deepEqual(cfg.ci, { monthly_minutes: 2000 });
+  assert.deepEqual(cfg.delivery, { target: 'main', integration_merge: 'auto' });
+  assert.deepEqual(cfg.qa, { specialist: ['leitor de tela', 'contraste'] });
+  // A single text is a one-element list; a half-filled focus keeps the other list empty.
+  const one = loadConfig(rootWith('review:\n  focus:\n    always: login\nqa:\n  specialist: leitor de tela\n'));
+  assert.deepEqual(one.review.focus, { always: ['login'], suggestion: [] });
+  assert.deepEqual(one.qa.specialist, ['leitor de tela']);
+  assert.deepEqual(one.warnings, []);
+});
+
+test('1.10.0 keys: a bad value is dropped (the default stays) with config.invalid_section naming it', () => {
+  const cases = [
+    ['planning:\n  max_tasks: 0\n', 'planning.max_tasks', (c) => c.planning.max_tasks === 8],
+    ['planning:\n  max_tasks: 2.5\n', 'planning.max_tasks', (c) => c.planning.max_tasks === 8],
+    ['planning:\n  max_criteria: muitos\n', 'planning.max_criteria', (c) => c.planning.max_criteria === 60],
+    ['planning:\n  freeze_specs: sim\n', 'planning.freeze_specs', (c) => c.planning.freeze_specs === true],
+    ['planning:\n  risk: alto\n', 'planning.risk', (c) => JSON.stringify(c.planning.risk) === '{}'],
+    ['planning:\n  risk:\n    padrao: "o resto"\n    arriscada: login\n', 'planning.risk.padrao', (c) => JSON.stringify(c.planning.risk) === '{"arriscada":"login"}'],
+    ['planning:\n  risk:\n    arriscada: ""\n', 'planning.risk.arriscada', (c) => JSON.stringify(c.planning.risk) === '{}'],
+    ['planning:\n  risk:\n    mecanica: [a, b]\n', 'planning.risk.mecanica', (c) => JSON.stringify(c.planning.risk) === '{}'],
+    ['review:\n  focus: login\n', 'review.focus', (c) => c.review.focus.always.length === 0],
+    ['review:\n  focus:\n    always: { a: b }\n', 'review.focus.always', (c) => c.review.focus.always.length === 0],
+    ['review:\n  focus:\n    suggestion: [ok, ""]\n', 'review.focus.suggestion', (c) => JSON.stringify(c.review.focus.suggestion) === '["ok"]'],
+    ['review:\n  focus:\n    outra: [x]\n', 'review.focus.outra', (c) => !('outra' in c.review.focus)],
+    ['review:\n  final_rounds_max: 0\n', 'review.final_rounds_max', (c) => c.review.final_rounds_max === 2],
+    ['test_runs:\n  screen_task_full: "true"\n', 'test_runs.screen_task_full', (c) => c.test_runs.screen_task_full === false],
+    ['test_runs:\n  ci_full: sempre\n', 'test_runs.ci_full', (c) => c.test_runs.ci_full === 'merge'],
+    ['test_runs: on\n', 'test_runs', (c) => c.test_runs.ci_full === 'merge'],
+    ['ci:\n  monthly_minutes: -1\n', 'ci.monthly_minutes', (c) => c.ci.monthly_minutes === null],
+    ['ci:\n  monthly_minutes: "2000"\n', 'ci.monthly_minutes', (c) => c.ci.monthly_minutes === null],
+    ['ci: 2000\n', 'ci', (c) => c.ci.monthly_minutes === null],
+    ['delivery:\n  target: develop\n', 'delivery.target', (c) => c.delivery.target === 'integration'],
+    ['delivery:\n  integration_merge: sempre\n', 'delivery.integration_merge', (c) => c.delivery.integration_merge === 'ask'],
+    ['delivery: [main]\n', 'delivery', (c) => c.delivery.target === 'integration'],
+    ['qa:\n  specialist: { a: b }\n', 'qa.specialist', (c) => c.qa.specialist.length === 0],
+    ['qa: leitor\n', 'qa', (c) => c.qa.specialist.length === 0],
+  ];
+  for (const [yaml, section, check] of cases) {
+    const cfg = loadConfig(rootWith(yaml));
+    assert.deepEqual(cfg.warnings, [invalid(section)], yaml);
+    assert.ok(check(cfg), yaml);
+  }
+});
+
+// product.uses_ai: the system being built calls an AI model (turns on the prompt-injection requirements).
+test('product.uses_ai: default false, a boolean loads, a bad value is dropped with config.invalid_section', () => {
+  assert.deepEqual(DEFAULTS.product, { uses_ai: false });
+  const none = loadConfig(rootWith());
+  assert.deepEqual(none.product, { uses_ai: false });
+  assert.deepEqual(none.warnings, []);
+  const on = loadConfig(rootWith('product:\n  uses_ai: on\n'));
+  assert.equal(on.product.uses_ai, true);
+  assert.deepEqual(on.warnings, []);
+  const empty = loadConfig(rootWith('product:\n  uses_ai:\n'));
+  assert.equal(empty.product.uses_ai, false);
+  assert.deepEqual(empty.warnings, []);
+  for (const [yaml, section] of [
+    ['product:\n  uses_ai: sim\n', 'product.uses_ai'],
+    ['product:\n  uses_ai: "true"\n', 'product.uses_ai'],
+    ['product:\n  uses_ai: 1\n', 'product.uses_ai'],
+    ['product: true\n', 'product'],
+  ]) {
+    const cfg = loadConfig(rootWith(yaml));
+    assert.deepEqual(cfg.warnings, [invalid(section)], yaml);
+    assert.equal(cfg.product.uses_ai, false, yaml);
+  }
 });

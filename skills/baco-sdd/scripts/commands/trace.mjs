@@ -112,7 +112,12 @@ export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown
     }
   }
   const files = layerFiles(qa);
-  const withLayer = (sc, o) => (sc.layer ? { ...o, layer: sc.layer } : o);
+  // Optional fields only when they apply: the declared layer and the specialist flag (with its kind).
+  const withLayer = (sc, o) => {
+    const out = sc.layer ? { ...o, layer: sc.layer } : o;
+    if (!sc.specialist) return out;
+    return sc.specialistKind ? { ...out, specialist: true, specialistKind: sc.specialistKind } : { ...out, specialist: true };
+  };
   const cas = spec.definitions.filter((d) => d.kind === 'CA').map((d) => {
     const scenarios = [];
     for (const sc of qa.scenarios.filter((s) => s.contracts.includes(d.id))) {
@@ -185,7 +190,7 @@ export async function run(args, ctx) {
   const specCas = spec.definitions.filter((d) => d.kind === 'CA').map((d) => d.id);
   const unknown = caIds.filter((id) => !specCas.includes(id));
   if (unknown.length) return { code: 64, data: {}, messages: [{ key: 'trace.unknown_ca', params: { ids: unknown.join(', '), path: specArg } }] };
-  const qa = readQa(resolve(ctx.cwd, qaArg));
+  const qa = readQa(resolve(ctx.cwd, qaArg), { specialist: ctx.config?.qa?.specialist });
   const cases = junitFiles(args, ctx).flatMap((f) => parseJUnit(readText(f)));
   // R19 provenance: which code (HEAD), which spec and which delivery this trace proves.
   let head = null;

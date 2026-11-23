@@ -40,9 +40,13 @@ export const DEFAULTS = {
   // task_rounds: the project's default maximum of reviews of a task, counting the first, per risk
   // class (the plan of a delivery may change it); last_round_importante: a task whose last review has only
   // `importante` open is merged with the findings as pending items (seguir) or waits for the person (parar).
+  // focus: the project's review focus, `always` (classes every review looks at) and `suggestion`
+  // (classes whose finding is a `sugestão` unless it touches an `always` item); final_rounds_max: the
+  // internal final review runs whole once, then at most (N-1) delta rounds.
   review: {
     external_rounds_max: 3, task_rounds: { mechanical: 2, standard: 3, risky: 4 },
     last_round_importante: 'seguir', pr: { reviewer: 'agente', auto_fix: true },
+    focus: { always: [], suggestion: [] }, final_rounds_max: 2,
   },
   // AI tools (harnesses) available to the project, by name: `models` maps the BACO levels (forte,
   // medio, leve) to that tool's model names; `implementers` allows it to run implementers when it is
@@ -53,8 +57,12 @@ export const DEFAULTS = {
   harnesses: {},
   // How the plan splits the tasks: funcionalidade (each task delivers a whole behavior, server and
   // screen together) or front-back (each behavior becomes a back-end task and a front-end task, with
-  // the API contract first, so the two run in parallel).
-  planning: { task_split: 'funcionalidade' },
+  // the API contract first, so the two run in parallel). risk: the project's own criterion, free text,
+  // for the classes `arriscada` and `mecanica` (`padrao` is everything else; a missing class uses the
+  // generic criterion). max_tasks / max_criteria: above them the planner proposes splitting the
+  // delivery. freeze_specs: after the plan is approved, a spec change goes to the next delivery unless
+  // the person decides to bring it in.
+  planning: { task_split: 'funcionalidade', risk: {}, max_tasks: 8, max_criteria: 60, freeze_specs: true },
   // Who does each role, in order of preference: `<harness>` or `<harness>/<model>`. The next entry
   // takes over when the previous one is out of quota. The plan shows the lists and the person may
   // change them for one delivery when approving it. Empty: the plan decides as before.
@@ -63,10 +71,24 @@ export const DEFAULTS = {
   provenance: { ignore: [] },
   // Conversation size (input + cache tokens of the last answer) from which the conductor suggests,
   // or with auto_handoff makes during construction, the switch to a new conversation.
-  context: { handoff_at: 400000, auto_handoff: false },
+  context: { handoff_at: 290000, auto_handoff: false },
   // github.project: the GitHub Project board that mirrors the delivery's tasks (owner, number,
   // field, status). Unset by default; used only with `github` in `tracker`. See githubProject().
   github: {},
+  // screen_task_full: a task that changes a screen runs its own tests in every browser project once,
+  // before its merge. ci_full: merge (the full battery runs in CI on the integration merge) or manual
+  // (CI runs the quick battery; the full one only by hand).
+  test_runs: { screen_task_full: false, ci_full: 'merge' },
+  // monthly_minutes: the CI plan's monthly minutes, for the plan's CI estimate (null: unknown).
+  ci: { monthly_minutes: null },
+  // target: where the delivery ends (integration or main). integration_merge: ask, or auto (before_pr
+  // and the merge into the integration branch go on alone when `baco merge-check` says clean).
+  delivery: { target: 'integration', integration_merge: 'ask' },
+  // specialist: kinds of manual scenario only a specialist QA runs (never asked, never a blocker).
+  qa: { specialist: [] },
+  // uses_ai: the system being built calls an AI model; turns on the prompt-injection requirements of
+  // the architecture, the specs, the plan and the reviews.
+  product: { uses_ai: false },
 };
 
 // Status options of the board, by event: published (phase 5), started (building), review (task
@@ -220,7 +242,7 @@ function deepMerge(base, over) {
 }
 
 // Sections that must be maps; any other non-null value is ignored (defaults kept) with a warning.
-const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github', 'planning', 'roles'];
+const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github', 'planning', 'roles', 'test_runs', 'ci', 'delivery', 'qa', 'product'];
 // List settings where a single scalar is accepted as a one-element list.
 const LIST_SETTINGS = [['branches', 'protected'], ['tests', 'patterns'], ['tests', 'queue']];
 
@@ -316,13 +338,65 @@ export function harnessTool(config, name) {
   return typeof tool === 'string' && tool ? tool : name;
 }
 
+const invalidSection = (section) => ({ key: 'config.invalid_section', params: { section } });
+const positiveInt = (v) => Number.isInteger(v) && v >= 1;
+const isBool = (v) => typeof v === 'boolean';
+const oneOf = (list) => (v) => list.includes(v);
+
+// Drops each key of the map `section` (named `name`) whose value fails its check, so the default
+// stays, with config.invalid_section naming `<name>.<key>`. Absent and empty (null) keys are left alone.
+function checkKeys(name, section, checks, warnings) {
+  const out = { ...section };
+  for (const [key, ok] of Object.entries(checks)) {
+    if (out[key] === undefined || out[key] === null || ok(out[key])) continue;
+    delete out[key];
+    warnings.push(invalidSection(`${name}.${key}`));
+  }
+  return out;
+}
+
+// A list of non-empty texts (one text is a one-element list). Items that are not text, or are empty,
+// are dropped with one config.invalid_section naming `section`; a value that is neither a list nor a
+// text gives undefined (the default stays) with the same warning.
+function textList(value, section, warnings) {
+  const items = Array.isArray(value) ? value : typeof value === 'string' ? [value] : null;
+  if (items === null) { warnings.push(invalidSection(section)); return undefined; }
+  const out = [];
+  let bad = false;
+  for (const item of items) {
+    const text = typeof item === 'string' ? item.trim() : '';
+    if (!text) bad = true;
+    else if (!out.includes(text)) out.push(text);
+  }
+  if (bad) warnings.push(invalidSection(section));
+  return out;
+}
+
 // `planning.task_split`: funcionalidade or front-back; anything else falls back to funcionalidade.
+// `planning.risk`: a map with the classes `arriscada` and `mecanica` (`mecânica` and any case are
+// folded), each a non-empty text; another class, an empty or non-text value, or a risk that is not a
+// map is dropped with config.invalid_section. `max_tasks` and `max_criteria`: integers >= 1;
+// `freeze_specs`: a boolean.
+const RISK_CLASSES = ['arriscada', 'mecanica'];
 function normalizePlanning(planning, warnings) {
-  const out = { ...planning };
+  const out = checkKeys('planning', planning, { max_tasks: positiveInt, max_criteria: positiveInt, freeze_specs: isBool }, warnings);
   const split = planning.task_split;
   if (split !== undefined && split !== null && !TASK_SPLITS.includes(split)) {
     warnings.push({ key: 'config.task_split_invalid', params: { value: String(split) } });
     out.task_split = 'funcionalidade';
+  }
+  const risk = planning.risk;
+  if (risk !== undefined && risk !== null) {
+    if (!isPlainObject(risk)) { delete out.risk; warnings.push(invalidSection('planning.risk')); }
+    else {
+      out.risk = {};
+      for (const [cls, text] of Object.entries(risk)) {
+        const key = fold(cls);
+        const value = typeof text === 'string' ? text.trim() : '';
+        if (!RISK_CLASSES.includes(key) || !value) warnings.push(invalidSection(`planning.risk.${cls}`));
+        else out.risk[key] = value;
+      }
+    }
   }
   return out;
 }
@@ -417,7 +491,7 @@ export function githubProject(config) {
 // absent) falls back to `parar`, the choice that waits for the person. `task_rounds`: a class whose
 // value is not a positive whole number keeps its default, with a warning.
 function normalizeReview(review, warnings) {
-  const out = { ...review };
+  const out = checkKeys('review', review, { final_rounds_max: positiveInt }, warnings);
   delete out.round5_importante;
   const last = review.last_round_importante ?? review.round5_importante;
   if (last !== undefined && last !== null) {
@@ -439,6 +513,22 @@ function normalizeReview(review, warnings) {
         warnings.push({ key: 'config.invalid_section', params: { section: `review.task_rounds.${cls}` } });
       }
       out.task_rounds = rounds;
+    }
+  }
+  // `final_rounds_max` (checked above): an integer >= 1. `focus`: a map with the lists `always` and
+  // `suggestion` (see textList); another key, or a focus that is not a map, is dropped with
+  // config.invalid_section.
+  const focus = review.focus;
+  if (focus !== undefined && focus !== null) {
+    if (!isPlainObject(focus)) { delete out.focus; warnings.push(invalidSection('review.focus')); }
+    else {
+      out.focus = {};
+      for (const [key, value] of Object.entries(focus)) {
+        if (!['always', 'suggestion'].includes(key)) { warnings.push(invalidSection(`review.focus.${key}`)); continue; }
+        if (value === undefined || value === null) continue;
+        const list = textList(value, `review.focus.${key}`, warnings);
+        if (list !== undefined) out.focus[key] = list;
+      }
     }
   }
   const pr = review.pr;
@@ -585,17 +675,24 @@ export function resolveConfig(parsed) {
     if (ignore === undefined) delete user.provenance.ignore;
     else user.provenance.ignore = ignore;
   }
-  // context.handoff_at must be a positive integer, context.auto_handoff a boolean; a bad value is
-  // dropped (the default stays) with config.invalid_section.
-  if (isPlainObject(user.context)) {
-    const context = { ...user.context };
-    const checks = { handoff_at: (v) => Number.isInteger(v) && v > 0, auto_handoff: (v) => typeof v === 'boolean' };
-    for (const [key, ok] of Object.entries(checks)) {
-      if (context[key] === undefined || context[key] === null || ok(context[key])) continue;
-      delete context[key];
-      warnings.push({ key: 'config.invalid_section', params: { section: `context.${key}` } });
-    }
-    user = { ...user, context };
+  // Plain keys checked by type; a bad value is dropped (the default stays) with config.invalid_section.
+  const SECTION_CHECKS = {
+    context: { handoff_at: positiveInt, auto_handoff: isBool },
+    test_runs: { screen_task_full: isBool, ci_full: oneOf(['merge', 'manual']) },
+    ci: { monthly_minutes: positiveInt },
+    delivery: { target: oneOf(['integration', 'main']), integration_merge: oneOf(['ask', 'auto']) },
+    product: { uses_ai: isBool },
+  };
+  for (const [section, checks] of Object.entries(SECTION_CHECKS)) {
+    if (isPlainObject(user[section])) user = { ...user, [section]: checkKeys(section, user[section], checks, warnings) };
+  }
+  // qa.specialist: a list of non-empty texts (see textList).
+  if (isPlainObject(user.qa) && user.qa.specialist !== undefined && user.qa.specialist !== null) {
+    const qa = { ...user.qa };
+    const list = textList(qa.specialist, 'qa.specialist', warnings);
+    if (list === undefined) delete qa.specialist;
+    else qa.specialist = list;
+    user = { ...user, qa };
   }
   if (isPlainObject(user.gates)) {
     for (const gate of MANDATORY_GATES) {

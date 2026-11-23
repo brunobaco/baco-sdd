@@ -260,6 +260,31 @@ test('--allow-from-spec without a QA file allows only CA IDs; bad ref exits 65; 
   assert.equal((await guard(dir, '--base', 'HEAD~1', '--allow-from-spec', 'docs/specs/spec-x.md')).code, 64);
 });
 
+test('--allow-from-spec is repeatable: the allowed IDs are the union of every spec; one bad value exits 64', async () => {
+  const specB = (text) => `# Spec B\n\n## Critérios de aceite\n\n- **CA-010:** ${text}\n`;
+  const dir = await makeRepo({
+    'docs/specs/spec-a.md': SPEC('antigo'),
+    'docs/specs/spec-b.md': specB('antigo'),
+    'a.test.js': "it('[CA-001] a', () => {\n  assert.equal(1, 1);\n});\n",
+    'b.test.js': "it('[CA-010] b', () => {\n  assert.equal(1, 1);\n});\n",
+  });
+  commit(dir, {
+    'docs/specs/spec-a.md': SPEC('novo'),
+    'docs/specs/spec-b.md': specB('novo'),
+    'a.test.js': "it('[CA-001] a', () => {\n  assert.equal(1, 2);\n});\n",
+    'b.test.js': "it('[CA-010] b', () => {\n  assert.equal(1, 2);\n});\n",
+  }, 'two specs change');
+  const one = await guard(dir, '--base', 'HEAD~1', '--allow-from-spec', 'docs/specs/spec-a.md@HEAD~1');
+  assert.deepEqual(one.data.findings.map((f) => f.id), ['CA-010']);
+  const both = await guard(dir, '--base', 'HEAD~1', '--allow-from-spec', 'docs/specs/spec-a.md@HEAD~1', '--allow-from-spec', 'docs/specs/spec-b.md@HEAD~1');
+  assert.equal(both.code, 0);
+  assert.deepEqual(both.data.findings, []);
+  const bad = await guard(dir, '--base', 'HEAD~1', '--allow-from-spec', 'docs/specs/spec-a.md@HEAD~1', '--allow-from-spec', 'docs/specs/spec-b.md');
+  assert.equal(bad.code, 64);
+  const { usage } = await import('../skills/baco-sdd/scripts/commands/guard-tests.mjs');
+  assert.match(usage, /\[--allow-from-spec <spec\.md>@<ref>\]\.\.\./);
+});
+
 test('guard-tests requires --base (64) and bad base is 65', async () => {
   const dir = await makeRepo({ 'a.md': 'x' });
   assert.equal((await guard(dir)).code, 64);

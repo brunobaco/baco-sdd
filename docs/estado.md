@@ -1,6 +1,6 @@
 # Estado do trabalho
 
-Atualizado em 2026-11-22.
+Atualizado em 2026-11-24.
 
 ## Pronto
 
@@ -26,6 +26,10 @@ Atualizado em 2026-11-22.
 
 13. Versão 1.8.0: divisão das tarefas em back-end e front-end (`planning.task_split: front-back`, com o contrato da API antes e as duas partes em paralelo), papéis com reservas por cota (`roles`, a reserva assume sem parar a entrega e o revisor nunca é da mesma família de quem construiu) e perfis por família de modelo (`harnesses.<nome>.tool`). 695 testes do motor passando. Publicada (marca `v1.8.0` e release com o pacote da skill). Ainda sem entrega real com a divisão e as reservas: a primeira entrega que usar serve de teste.
 
+14. Versão 1.9.0: o custo de uma entrega inclui o Antigravity (chamadas anotadas pelo `harness-answer`) e o OpenCode (banco dele), e a configuração fica didática, uma pergunta por vez com o que é, por que importa e a recomendação. Publicada (marca `v1.9.0` e release com o pacote da skill).
+
+15. Versão 1.10.0: critério de risco e foco de revisão do projeto (`planning.risk`, `review.focus`), limite da revisão final (`review.final_rounds_max`), bateria completa uma vez com carimbo do motor (`test_runs`), `baco merge-check` e junção automática na integração quando limpa (`delivery`; na principal sempre pergunta), tamanho e congelamento da entrega, famílias de modelo, Antigravity em `rede`, cenários de especialista que nunca bloqueiam (`qa.specialist`), `guard-tests` com várias specs, `baco cost history` com estimativa em três partes e minutos de CI, resumo da conversa medido pela janela menos 33 mil tokens (padrão 290000), arquivos das ferramentas conferidos ao abrir a sessão, aviso de versão nova e texto de fora como dado em todos os papéis, com ADR, critérios de ataque e foco de revisão para sistema que chama uma IA (`product.uses_ai`). 760 testes do motor passando. Publicada (marca `v1.10.0` e release com o pacote da skill).
+
 ## Em andamento
 
 Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. A etapa 3 saiu na 1.3.0: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa, e continua opcional (decisão de 2026-11-18). Falta:
@@ -50,4 +54,4 @@ Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versã
 
 ## Próximo passo
 
-Uma entrega real com o Antigravity construindo e o Claude conduzindo, já com o custo dele medido, num projeto real configurado com a fase 0 nova (o que cobre também a etapa 4).
+A primeira entrega real com a 1.10.0 serve de teste: divisão em back-end e front-end, junção automática na integração e o Antigravity construindo na caixa `rede`, com o custo medido, num projeto real configurado com a fase 0 nova (o que cobre também a etapa 4).

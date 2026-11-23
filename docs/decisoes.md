@@ -165,3 +165,27 @@ A configuração passa a fazer uma pergunta por vez, numerada, sempre no formato
 ## 2026-11-22 | Evals só para o que quebrar na entrega real
 
 Os evals ainda não escritos (conversa que passa do limite, retomada, harness por tarefa e outros) ficam para depois da primeira entrega real com o Antigravity construindo, e só para o que quebrar ou der trabalho nela. Motivo: a entrega real passa por essas situações ao vivo e testa melhor; escrever os dez antes custa caro e protege partes que ainda podem mudar. A revisão do PR continua no modo `pr`: o `repositorio` garante o isolamento, mas leva cada rodada pela pessoa.
+
+## 2026-11-23 | Bateria completa uma vez, com carimbo do motor
+
+A bateria completa roda uma vez, depois do último veredito aprovado, e o motor grava um carimbo (commit, tempo, falhas) que o `baco merge-check` confere. Antes ela rodava a cada rodada externa, e a mesma bateria rodava duas vezes sobre o mesmo código. Cada rodada externa passa a receber só os testes da tarefa e a bateria rápida do CI do PR. O CI completo na junção segue como padrão (`test_runs.ci_full: merge`), com a opção de rodar só à mão (`manual`). Descartado: manter o CI completo em toda junção na integração como única opção, que gasta minutos do plano de CI em projetos com bateria longa.
+
+## 2026-11-23 | Junção automática na integração só quando limpa; na principal, sempre pergunta
+
+Com `delivery.integration_merge: auto`, o condutor junta na linha de integração sem perguntar apenas quando o `baco merge-check` sai limpo (bateria válida, veredito aprovado ou dispensado, nenhum cenário manual bloqueando, nada esperando a pessoa, CI do PR verde, política ligada). Qualquer condição fora volta a perguntar. Motivo: a junção na integração é reversível e publica só num ambiente de teste, e a conferência é mecânica. Descartado: desligar a parada de junção na principal; ela nunca desliga.
+
+## 2026-11-23 | Cenário manual de especialista nunca bloqueia
+
+Cenário manual que só um QA especialista roda (`qa.specialist`) fica fora do que é perguntado à pessoa e nunca bloqueia junção, nem na principal; vira pendência própria no relatório de aceite. Motivo: a pessoa de negócio não tem como executá-lo, e travar a entrega esperando alguém que não está no fluxo a parava sem ganho. Descartado: bloquear a junção na principal por esse tipo de cenário.
+
+## 2026-11-23 | Antigravity na caixa `rede`
+
+O Antigravity ganha a caixa `rede`: a mesma trava de gravação na pasta da tarefa, mais `npm`, `npx` e `node` nas regras de comando, para instalar e rodar os testes de navegador sozinho. Limite dito à pessoa: a trava vale só para as ferramentas de arquivo dele, e `node` roda qualquer programa com o usuário da pessoa, então é mais fraca que a `rede` do Codex, que é uma caixa do sistema. Substitui, para a `rede` e a `livre`, o descarte de 2026-11-20, tomado quando ainda não havia como aceitar esse limite de forma explícita.
+
+## 2026-11-23 | Ponto do resumo da conversa medido pela janela menos 33 mil tokens
+
+O gancho de tamanho da conversa usa o ponto em que o Claude Code resume sozinho, medido em 18 resumos automáticos entre 366 mil e 375 mil tokens com janela de 400 mil: a janela configurada menos cerca de 33 mil tokens. O padrão de `context.handoff_at` cai de 400000 para 290000, e a configuração sugere `autoCompactWindow: 400000` nas configurações da pessoa, só com o ok dela. Descartado: considerar 80% da janela, que era o que se supunha e errava o ponto em dezenas de milhares de tokens.
+
+## 2026-11-23 | Texto de fora é dado; sistema que chama uma IA precisa de defesa contra injeção de instruções
+
+Todo texto que vem de fora (página, e-mail, issue, documento, resposta de ferramenta) é dado para todos os papéis, nunca ordem. Em sistema que chama uma IA (`product.uses_ai`), o BACO pede um ADR de injeção de instruções, critérios de ataque na spec e foco fixo na revisão. Fontes: OWASP LLM01:2025 e o guia de prevenção do projeto, e as orientações da Anthropic e da OpenAI sobre o tema. Descartado: tratar a defesa como regra só do condutor, já que quem lê o texto de fora é qualquer papel.

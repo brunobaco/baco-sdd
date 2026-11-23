@@ -76,6 +76,8 @@ For each RF/RN/INV → CA/QA link, confirm the verification covers the **same ac
 
 Example: if the rule allows a request up to the seventh day inclusive, an acceptance criterion denying the eighth day does not prove the authorization on the seventh. Add or adjust a scenario for the allowed limit; do not create dozens of equivalent CAs to look broad. Define data sets, dates and specific results when precision is needed to verify the behavior.
 
+**Capability that sends text to an AI.** When a capability has the system send text to an AI model (and `product.uses_ai` is on, or this spec turns it on, [project-bootstrap.md](project-bootstrap.md), "Use of AI"), its criteria and QA scenarios include attacks: malicious instructions in a form field, in an imported spreadsheet, in an item coming from an external integration (as the capability receives them). Each states the expected behavior in business words: the system does not perform the injected action; an answer outside the expected format is refused; an action that needs confirmation waits for the person; the attempt is recorded. The protections themselves belong to the ADR ([architecture.md](architecture.md), "AI calls and prompt injection"), not to the spec.
+
 ## Pending items and spec state
 
 Record a pending item only when it affects a verifiable outcome and cannot legitimately be decided now: **ID, question, reason, affected operation, consequence, owner when known, and destination/resume condition**. State what remains contractually defined and what is blocked. Do not create a parallel product backlog; use the available canonical record (for future ideas, `governanca/anotacoes-futuras.md` when it exists) and reconcile it at the final gate.

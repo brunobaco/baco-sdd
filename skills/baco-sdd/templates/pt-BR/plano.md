@@ -8,6 +8,8 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o plano real)
 - Início: a hora em que o planejamento desta entrega começou, tirada do comando `date`. É daí que o motor mede nas conversas o custo real da entrega (`baco cost measure`).
 - O plano só vale depois que uma pessoa aprova. Recomendação da IA não conta como aprovação.
 - Classe da tarefa: mecânica (troca simples, sem decisão), padrão (trabalho comum) ou arriscada (mexe em dados, login, dinheiro ou algo difícil de desfazer). A classe define o nível e o esforço.
+- Por que esta classe: uma linha por tarefa, nos detalhes dela, dizendo qual critério decidiu a classe (o de `planning.risk` da configuração, quando existe, ou o critério geral). Quem aprova pode contestar a classe aqui.
+- Foco de revisão: copie `review.focus` da configuração nas duas listas (sempre olhar e sugestão) e acrescente o que é próprio desta entrega.
 - Harness e modelo: a ferramenta de IA (por exemplo Claude Code, Codex) e o modelo real que roda cada tarefa e cada papel, tirados de `harnesses` em `.baco/config.yaml`, seguidos das reservas em ordem quando a configuração tem `roles` (a reserva assume só se a cota da anterior acabar). Ficam decididos aqui e são aprovados com o plano; na construção ninguém troca fora dessa lista. Uma ferramenta que não é a do agente principal só faz papéis que leem e revisam, a não ser que a configuração diga `implementers: on` para ela.
 - Divisão das tarefas: por funcionalidade (cada tarefa leva servidor e tela juntos) ou back-end e front-end separados (`planning.task_split: front-back`), com a parte de cada tarefa (contrato, back-end ou front-end) nos detalhes dela. Quem aprova o plano pode trocar a divisão, as listas de cada papel e qualquer modelo só para esta entrega; o plano diz o que difere da configuração e por quê.
 - Parada humana: uma tarefa que exige que uma pessoa olhe o resultado antes de seguir leva `Parada humana: sim` (com o motivo) no arquivo dela. O padrão é `não`. Quem aprova o plano aprova também essas paradas.
@@ -37,7 +39,17 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o plano real)
 
 ## Foco de revisão
 
-- `<o que a revisão deve olhar com mais cuidado nesta entrega, por exemplo: permissões, valores em dinheiro>`
+**Sempre olhar** (de `review.focus.always`):
+
+- `<item da configuração, por exemplo: login, permissão, dado de outro cliente; apague a lista se estiver vazia>`
+
+**Sugestão** (de `review.focus.suggestion`; um achado desta classe é só sugestão, a menos que toque um item de "sempre olhar"):
+
+- `<item da configuração, por exemplo: virada da meia-noite; apague a lista se estiver vazia>`
+
+**Desta entrega:**
+
+- `<o que a revisão deve olhar com mais cuidado só nesta entrega, por exemplo: valores em dinheiro>`
 
 ## Entregas e tarefas
 
@@ -53,6 +65,7 @@ Uma subseção por tarefa, com o que o publicador copia para o arquivo dela (ele
 ### `T-001`
 
 - **Parte:** `<só com back-end e front-end separados: contrato, back-end ou front-end; senão, apague a linha>`
+- **Por que esta classe:** `<uma linha: o critério que decidiu mecânica, padrão ou arriscada, por exemplo "arriscada: mexe em login (planning.risk)">`
 - **Resultado esperado:** `<o que existe ou funciona depois desta tarefa, em linguagem simples>`
 - **Critério de pronto:** `<como conferir, por exemplo: o teste [CT-XYZ-001] passa>`
 - **Testes da tarefa:** `<os testes que ela cria, com o caminho, e os que já existem nos arquivos que ela mexe>`
@@ -69,7 +82,9 @@ Tarefa com parada humana leva a palavra `PARADA` ao lado do código na coluna `T
 
 **Condutor:** `<a ferramenta e o modelo da conversa principal; se a conta dela acabar, quem continua: na Ratoeira, a próxima conta da fila de contas (e, se for outro agente, que o BACO segue sem os agentes e os ganchos do plugin); fora dela, a entrega para até a cota voltar>`
 
-**Estimativa de uso da cota:** `<faixa tirada do custo das entregas anteriores, ou "sem histórico">`
+**Estimativa de uso da cota:** `<em três partes, tiradas de baco cost history: o condutor por tarefa, os construtores por revisão e os revisores por revisão, com as revisões esperadas por tarefa; ou "sem histórico">`
+
+**Estimativa de minutos de CI:** `<minutos de uma rodada rápida e de uma completa (de gh run list das entregas anteriores) vezes os envios e junções esperados, comparados com ci.monthly_minutes e com o que já foi usado no mês, se a pessoa souber; ou "sem histórico">`
 
 ## Faixas paralelas
 

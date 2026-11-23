@@ -33,6 +33,7 @@ Start from the vision's "Restrições técnicas conhecidas": treat each as a fac
 - Platforms: web, mobile (iOS, Android or both), integrations.
 - Budget: the monthly amount the owner accepts to pay.
 - Others the specs impose: availability, offline use, files, notifications, auditing.
+- Use of AI: the system sends text to an AI model (`product.uses_ai`, or a spec that asks for it); see "AI calls and prompt injection".
 
 Ask the user only what the documents do not answer and the choice depends on: team, budget, expected scale, where the data must live. One question at a time, in business words:
 
@@ -119,11 +120,34 @@ A browser that runs on the developer's machine may not open in the environment w
 
 Commit the config change together with the architecture documents, before the first delivery plan records its `**Base:**`. A later change to the `tests` or `tests_quick` section or to `app.smoke` makes `guard-tests` stop with a human gate (see `gates.md`, `CONFIG_TESTS_CHANGED`), so settle the commands here.
 
+## AI calls and prompt injection
+
+When `product.uses_ai` is on, or a spec has the system send text to an AI model (to summarize, classify, answer, pick a next step or call tools), that call is an important choice: it gets an ADR, or a section "Injeção de instruções" in the ADR of the call ([adr.md](../templates/pt-BR/adr.md)). Prompt injection is text that reaches the model from outside (a form field, an imported spreadsheet, an email, a web page, an item from an integration, content other users saved, a file) carrying instructions the model then follows. No measure eliminates it: assume some attacks succeed and limit what they can do. Filters and classifiers that look for attacks are an extra layer, never the boundary. The ADR covers, in business words:
+
+1. **Sources and trust.** Each text that reaches the model, where it comes from (the system itself, the logged-in person, another user, a third party) and how much it is trusted.
+2. **What the answer may do.** Only suggest to a person, or write and act (save, send, call another system). The less it does alone, the smaller the damage.
+3. **Instruction apart from data.** Untrusted text never goes into the system or developer instructions: only in the user turn or in tool-result blocks, labeled with its source, with third-party strings JSON-encoded so they cannot break out of the label.
+4. **Fixed output.** A format (schema, closed lists of values) the code checks before use; an answer outside it is refused. The answer is untrusted too: validated or escaped before it reaches the database, HTML, SQL, a shell or another call.
+5. **Least privilege.** No secret, tool or data the call does not need; the call that reads untrusted text gets no write tools where possible; permission checks live in code, outside the model, with the rights of the person the call serves.
+6. **Confirmation.** An impactful action (send, pay, delete, change a permission, share data) shows the person the exact action, target and arguments, and waits for a yes.
+7. **Record.** What was sent and received and what was done, without credentials or personal data the record does not need.
+8. **Adversarial tests.** The spec's attack scenarios ([spec-model.md](spec-model.md), "Acceptance and semantic coverage") run as automated tests where they can.
+
+The devil's advocate attacks this ADR; the plan puts `prompt injection` in `Foco de revisão` ([planning.md](planning.md), section 7); the final review checks each measure against the code ([review-protocol.md](review-protocol.md), "Review focus and reviews of a fix"). A spec that brings the first AI call while `product.uses_ai` is off turns it on, and you tell the person ([project-bootstrap.md](project-bootstrap.md), "Use of AI").
+
+Sources:
+- OWASP, "LLM01:2025 Prompt Injection", OWASP Top 10 for LLM Applications 2025: https://genai.owasp.org/llmrisk/llm01-prompt-injection/
+- OWASP Cheat Sheet Series, "LLM Prompt Injection Prevention Cheat Sheet": https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html
+- Anthropic, "Mitigate jailbreaks and prompt injections" (Claude API docs): https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/mitigate-jailbreaks
+- Anthropic, Claude Code "Security": https://code.claude.com/docs/en/security
+- OpenAI, "Safety in building agents": https://developers.openai.com/api/docs/guides/agent-builder-safety
+- OpenAI, "Designing AI agents to resist prompt injection" (2026-03-11): https://openai.com/index/designing-agents-to-resist-prompt-injection/
+
 ## Devil's advocate
 
 Before the human sees anything, run the role [devils-advocate](roles/devils-advocate.md) on the proposal (Suggest) or on your verdict (Validate). Give it the factor table, the stack, the ADR drafts, the approved specs and the per-browser result of the homologation check; no conversation history.
 
-- It attacks: a chosen browser never opened in the homologation environment ("browser not checked in the environment"), wrong factor weights, a requirement the stack cannot meet, cost that grows faster than the budget, lock-in, a choice that is hard to reverse, a test tool with no JUnit output, a missing factor, an alternative listed only to lose (straw-man) and, in a Revisit or a technical change, no comparison with keeping things as they are (keep as is).
+- It attacks: a chosen browser never opened in the homologation environment ("browser not checked in the environment"), wrong factor weights, a requirement the stack cannot meet, cost that grows faster than the budget, lock-in, a choice that is hard to reverse, a test tool with no JUnit output, a missing factor, an alternative listed only to lose (straw-man), an AI call whose ADR misses a measure of "AI calls and prompt injection" or treats a filter as the boundary and, in a Revisit or a technical change, no comparison with keeping things as they are (keep as is).
 - For each objection, either change the proposal and ADR, or keep it and write the reason in the ADR's Por quê. Never drop an objection silently.
 - Show the human the objections that remain open, in plain words, with your answer to each. Report this as `proposto`, never as verified.
 
@@ -180,6 +204,7 @@ Trigger: a technical decision that changes no behavior: change hosting, database
 4. The trace checks every CA of the spec file. A spec that is not fully built (state other than `implementada`, or `Versão` ahead of `Versão implementada`) has CAs with no test, and those block the acceptance. Then either wait until that spec's delivery is done, or ask the human how to cut the change; never mark those CAs as covered.
 5. The level is at least `normal`, and `completo` when the change is costly to undo (database, login provider, hosting).
 6. If the change would alter behavior, stop: it is a spec evolution first ([spec-change.md](spec-change.md)).
+7. When phase 0 changes `test_runs` in the config and an accepted ADR states what runs when (for example that the full battery runs on every merge), offer the person a new ADR that supersedes that item, with the new rule and the reason. It goes through the `architecture` gate like any ADR: the person approves it, and you never write or accept it alone.
 
 ## Hand-off
 

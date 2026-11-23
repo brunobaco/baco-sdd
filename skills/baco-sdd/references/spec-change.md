@@ -42,6 +42,8 @@ Tests: the test of a CA **modified or removed in the spec** may be changed, beca
 
 ## 4. Spec changed along the way
 
+**Freeze.** With `planning.freeze_specs` on (default), a spec change after the plan is approved goes to the next delivery: the current delivery keeps the planned version, and the catalog shows the new version as ahead of `Versão implementada`. Only when the person decides to bring it in, asked once with the cost in plain words (which tasks reopen, which released tests change), does the rest of this section apply. With `freeze_specs: false`, it applies as written.
+
 **Plan made, not yet executed.** The plan header records `**Specs:** path@version`. Run:
 
 ```
@@ -50,9 +52,9 @@ baco plan-freshness <ENT-NNN>
 
 Exit 0: the plan is fresh. Exit 1: the plan is **stale** (`stale` lists `path`, `planned` and `current` versions; a missing file or unparsable version also counts as stale; a plan with no specs listed fails too). A stale plan is not executed: mark it stale and replan only the difference between the planned and the current version, then go back to the `plan` gate. The procedure (finding the commit that holds the planned version, then `baco spec-diff <spec> --base <sha>`) is in [planning.md](planning.md), "Re-planning a stale plan"; do not use `--base auto` for it.
 
-**Execution in progress.** Stop the execution and ask the human to choose; never decide alone:
+**Execution in progress.** Stop the execution and ask the human to choose; never decide alone (with the freeze on, ask once, as above, and say that option 1 is the default):
 
-> A spec [nome] mudou da versão [X] para a [Y] enquanto esta entrega estava em andamento. Posso: (1) **terminar na versão [X]** e deixar a mudança para uma próxima entrega, ou (2) **parar e replanejar agora** para incluir a mudança. O que prefere?
+> A spec [nome] mudou da versão [X] para a [Y] enquanto esta entrega estava em andamento. Posso: (1) **terminar na versão [X]** e deixar a mudança para uma próxima entrega, ou (2) **parar e replanejar agora** para incluir a mudança, o que reabre [tarefas] e libera [testes]. O que prefere?
 
 Record the choice in the delivery's `progresso.md`. With (1), the plan keeps its header and the catalog will show `Versão implementada` at `X`; with (2), update the plan header, replan the difference and pass the `plan` gate again.
 
