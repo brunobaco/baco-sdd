@@ -34,22 +34,27 @@ const otherFailed = (s) => ![...OTHER_PASSED, MANUAL_PENDING, ...NOT_RUN].includ
 
 // Pending scenarios across all criteria and the scenarios without a CA, deduplicated by id. A
 // "pending" criterion with no identifiable pending scenario is reported as not run (never silently ok).
-function pendingItems(trace) {
+// A manual scenario flagged `specialist` (only a specialist QA runs it) goes to `specialist`, never
+// to `manual`: it is not asked to the person and never blocks a merge. `specialist`: [{ id, kind }].
+export function pendingItems(trace) {
   const manual = new Map();
   const auto = new Map();
+  const specialist = new Map();
+  const add = (s) => {
+    if (s.result === MANUAL_PENDING && s.specialist === true) specialist.set(s.id, { id: s.id, kind: typeof s.specialistKind === 'string' && s.specialistKind ? s.specialistKind : null });
+    else if (s.result === MANUAL_PENDING) manual.set(s.id, s);
+    else if (NOT_RUN.includes(s.result)) auto.set(s.id, s);
+    else return false;
+    return true;
+  };
   for (const ca of casOf(trace)) {
     let found = false;
-    for (const s of scenariosOf(ca)) {
-      if (s.result === MANUAL_PENDING) { manual.set(s.id, s); found = true; }
-      else if (NOT_RUN.includes(s.result)) { auto.set(s.id, s); found = true; }
-    }
+    for (const s of scenariosOf(ca)) if (add(s)) found = true;
     if (ca.status === 'pending' && !found) auto.set(ca.ca, { id: ca.ca });
   }
-  for (const s of othersOf(trace)) {
-    if (s.result === MANUAL_PENDING) manual.set(s.id, s);
-    else if (NOT_RUN.includes(s.result)) auto.set(s.id, s);
-  }
-  return { manual: [...manual.keys()], auto: [...auto.keys()] };
+  for (const s of othersOf(trace)) add(s);
+  for (const id of specialist.keys()) if (manual.has(id)) specialist.delete(id);
+  return { manual: [...manual.keys()], auto: [...auto.keys()], specialist: [...specialist.values()] };
 }
 
 // `waiver`: the human's recorded waiver of the external review ({ by, date, reason, current }) or
@@ -77,6 +82,8 @@ export function mergeDecision({ trace, verdict, rule, waiver = null }) {
     if (pending.manual.length) target.push('merge.manual_pending');
     if (pending.auto.length) target.push('merge.not_run');
   }
+  // Specialist scenarios: whatever the rule and the target, a warning, never a blocker.
+  if (pending.specialist.length) warnings.push('merge.specialist_pending');
   return { allowed: blockers.length === 0, blockers, warnings };
 }
 
@@ -262,6 +269,15 @@ export function renderAcceptance({ entId, target, trace, verdict, decision, lang
   const manual = pending.manual.length
     ? [T('acceptance.manual.intro'), '', ...pending.manual.map((id) => (titles.get(id) ? `- [ ] ${id}: ${titles.get(id)}` : `- [ ] ${id}`))]
     : [T('acceptance.manual.none')];
+  // Only when there is one: scenarios left for a specialist QA (not asked to the person, never a blocker).
+  const specialistRows = pending.specialist.length ? [
+    '',
+    `## ${T('acceptance.h.specialist')}`,
+    '',
+    T('acceptance.specialist.intro'),
+    '',
+    ...pending.specialist.map(({ id, kind }) => `- ${id}${titles.get(id) ? `: ${titles.get(id)}` : ''}${kind ? ` (${kind})` : ''}`),
+  ] : [];
 
   let review;
   if (!verdict && waiver?.current) review = [T('acceptance.review.waived', { by: waiver.by, date: waiver.date, reason: noFinalDot(waiver.reason) })];
@@ -313,6 +329,7 @@ export function renderAcceptance({ entId, target, trace, verdict, decision, lang
     `## ${T('acceptance.h.manual')}`,
     '',
     ...manual,
+    ...specialistRows,
     '',
     `## ${T('acceptance.h.review')}`,
     '',
@@ -392,7 +409,10 @@ export async function run(args, ctx) {
     'merge.trace_other_delivery': { id: entId },
     'merge.waiver_stale': { by: waiver?.by ?? '-', date: waiver?.date ?? '-' },
   };
-  const warningParams = { 'merge.review_waived': { by: waiver?.by ?? '-', date: waiver?.date ?? '-', reason: noFinalDot(waiver?.reason ?? '-') } };
+  const warningParams = {
+    'merge.review_waived': { by: waiver?.by ?? '-', date: waiver?.date ?? '-', reason: noFinalDot(waiver?.reason ?? '-') },
+    'merge.specialist_pending': { items: pendingItems(trace).specialist.map((s) => s.id).join(', ') },
+  };
   const progressFile = join(dir, 'progresso.md');
   const items = existsSync(progressFile) ? openItems(readText(progressFile)) : [];
   const costFile = join(dir, 'custo.md');

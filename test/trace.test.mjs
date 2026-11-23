@@ -319,6 +319,20 @@ test('scenarios linked to no CA of the spec are listed with their result in othe
   assert.deepEqual(failed.otherScenarios[0].evidence, { date: '2026-11-13', where: 'homologação', delivery: 'ENT-001' });
 });
 
+// 1.10.0: a specialist scenario keeps manual_pending but is flagged, with or without a CA.
+test('a specialist scenario keeps manual_pending and is flagged specialist, with its kind; others carry no flag', async () => {
+  const qa = withRn(QA).replace('- **AUTOMAÇÃO:** manual\n', '- **AUTOMAÇÃO:** manual, especialista: leitor de tela\n')
+    .replace('- **Automação:** manual\n\n### CT-EMP-006', '- **Automação:** manual, especialista\n\n### CT-EMP-006');
+  const r = await compute(qa);
+  const s2 = byCa(r)['CA-EMP-001'].scenarios.find((s) => s.id === 'CT-EMP-002');
+  assert.deepEqual([s2.result, s2.specialist, s2.specialistKind], ['manual_pending', true, 'leitor de tela']);
+  const s5 = r.otherScenarios.find((s) => s.id === 'CT-EMP-005');
+  assert.deepEqual([s5.result, s5.specialist, 'specialistKind' in s5], ['manual_pending', true, false]);
+  const s1 = byCa(r)['CA-EMP-001'].scenarios.find((s) => s.id === 'CT-EMP-001');
+  assert.equal('specialist' in s1, false);
+  assert.equal(byCa(r)['CA-EMP-001'].status, 'pending');
+});
+
 // Review: a rejected automated scenario without a JUnit match must not read as "not run".
 test('a rejected evidence row fails an automated scenario that has no JUnit match, with or without a CA', async () => {
   const rej = withRn(QA_CLEAN) + '| CT-EMP-006 | reprovado | 2026-11-13 | homologação | ENT-001 |\n| CT-EMP-001 | reprovado | 2026-11-13 | homologação | ENT-001 |\n';

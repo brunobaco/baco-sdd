@@ -38,9 +38,12 @@ gates:
 
 # O que fazer quando um cenário manual ainda não foi executado por uma pessoa.
 # "block" = não deixa juntar; "warn" = avisa e deixa seguir.
+#   A regra vale pelo destino da entrega (veja "delivery"): "integration" é a branch de integração,
+#   "main" a principal. Cenário que só um especialista faz ("qa") nunca entra aqui nem bloqueia.
 manual_pending:
   main: block             # na branch principal: bloqueia
   "*": warn               # em develop e em qualquer outra branch: só avisa
+  # integration: warn     # só se a branch de integração tiver uma regra diferente das demais
 
 # Comandos que rodam os testes. Cada comando precisa gravar o próprio relatório JUnit
 # dentro da pasta .baco/junit; sem esse arquivo, os testes contam como "não rodaram".
@@ -84,15 +87,22 @@ models:
 # "sandbox" diz o quanto ela é livre quando constrói: protegida (grava só na pasta da tarefa, sem
 # internet), rede (a mesma pasta, com internet e porta local; padrão) ou livre (sem caixa, só as regras
 # de comando do BACO).
+# Um modelo pode ser escrito como família (um nome que aparece nos nomes dos modelos, como sol, terra,
+# luna ou neon): o plano de cada entrega usa a versão mais nova dela que a ferramenta lista.
+# Um nome exato também vale.
 # Modelo que só existe nesta máquina não entra aqui: fica nas configurações da própria ferramenta.
 harnesses:
   claude-code:
     models: { forte: opus, medio: sonnet, leve: haiku }
     implementers: on
   # codex:
-  #   models: { forte: <modelo mais capaz>, medio: <intermediário>, leve: <mais rápido> }
+  #   models: { forte: sol, medio: terra, leve: luna }   # famílias de exemplo
   #   implementers: off
   #   sandbox: rede
+  # antigravity:
+  #   models: { forte: neon, medio: neon, leve: neon }   # família de exemplo
+  #   implementers: off
+  #   sandbox: protegida   # protegida (padrão), rede (libera npm, npx e node) ou livre (sem trava de gravação)
   # opencode:
   #   models: { forte: <provedor/modelo>, medio: <provedor/modelo>, leve: <provedor/modelo> }
   #   implementers: off
@@ -112,6 +122,16 @@ harnesses:
 # O plano de cada entrega mostra a divisão, e você pode mudar só para aquela entrega ao aprovar.
 planning:
   task_split: funcionalidade
+  # O que conta como tarefa arriscada ou mecânica neste projeto, com as suas palavras e exemplos.
+  # Tudo o mais é padrão. Sem isto, vale o critério genérico do método.
+  # risk:
+  #   arriscada: "login, permissão, separação entre clientes, dado pessoal cifrado, migração com dados"
+  #   mecanica: "texto de tela, estilo, renomear sem mudar comportamento"
+  # Acima destes limites, o plano propõe dividir a entrega em duas.
+  # max_tasks: 8
+  # max_criteria: 60
+  # Depois que o plano é aprovado, uma mudança de spec vai para a próxima entrega, a não ser que você decida trazê-la.
+  # freeze_specs: true
 
 # Quem faz cada papel, em ordem de preferência: o nome de uma ferramenta de "harnesses", ou
 # ferramenta/modelo para fixar um modelo. Se a cota de uma acabar, a seguinte continua o trabalho.
@@ -130,6 +150,14 @@ roles:
 
 review:
   external_rounds_max: 3  # quantas rodadas de revisão externa antes de pedir decisão a uma pessoa
+  # Revisão final interna: roda inteira uma vez e depois no máximo (N-1) rodadas só do que as correções
+  # mudaram. Passando disso, o que não for crítico vira pendência; um crítico espera você.
+  # final_rounds_max: 2
+  # O que as revisões procuram. "always": achado grave se aparecer. "suggestion": caso raro que só vira
+  # sugestão, a não ser que toque um item de "always". Listas de frases curtas.
+  # focus:
+  #   always: ["login", "permissão", "dado de outro cliente", "dado pessoal à mostra"]
+  #   suggestion: ["concorrência de milissegundos", "virada da meia-noite", "resposta perdida depois de gravar"]
   # Máximo de revisões de cada tarefa, por tipo, contando a primeira (3 = a primeira e mais duas,
   # depois de cada correção). É a sugestão do plano de cada entrega, que você pode mudar ao aprovar
   # o plano. Só a correção antes da última revisão usa um nível de IA acima.
@@ -151,9 +179,31 @@ review:
 provenance:
   # ignore: [docs/registro-da-rodada.md, "logs/**"]
 
+# Onde rodam os testes além das tarefas.
+# test_runs:
+#   screen_task_full: false   # true = a tarefa que muda uma tela roda os testes dela em todos os navegadores, uma vez, antes de ser juntada
+#   ci_full: merge            # merge = a bateria completa roda no CI a cada junção na integração; manual = só quando alguém dispara
+#                             # (o CI roda a rápida no PR e na junção, e a completa fica para antes de promover para a principal)
+
+# Minutos por mês do plano de CI do GitHub (só para repositório privado), para a estimativa do plano.
+# ci:
+#   monthly_minutes: 2000
+
+# Onde a entrega termina e se a junção na integração acontece sem perguntar.
+# Juntar na principal sempre pergunta, mesmo com "auto".
+# delivery:
+#   target: integration       # integration (padrão) ou main
+#   integration_merge: ask    # ask (padrão) ou auto: com auto, se o "baco merge-check" disser que está tudo certo, junta sem perguntar
+
+# Tipos de cenário manual que só um QA especialista executa. Nunca são pedidos a você, nunca bloqueiam
+# uma junção (nem na principal) e ficam como pendência do especialista.
+# qa:
+#   specialist: ["leitor de tela"]
+
 # Tamanho da conversa. Conversa muito longa fica mais cara a cada passo e lembra pior dos detalhes;
 # como o estado do trabalho fica salvo nos arquivos, continuar numa conversa nova custa pouco.
 context:
-  handoff_at: 400000   # a partir de quantos tokens de contexto sugerir continuar numa conversa nova
+  handoff_at: 290000   # a partir de quantos tokens de contexto sugerir continuar numa conversa nova
+                       # (feito para autoCompactWindow: 400000 nas configurações do seu Claude Code)
   auto_handoff: off    # on = durante a construção, trocar de conversa sem perguntar
 

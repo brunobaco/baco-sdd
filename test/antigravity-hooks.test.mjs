@@ -132,7 +132,9 @@ test('context-size (antigravity): warns past the threshold as an injected system
 
 test('baco-context (antigravity): the BACO note at the start of a main conversation, nothing for a subagent or outside a project', async () => {
   const repo = await repoWith({ '.baco/config.yaml': 'language: pt-BR\n' });
-  const main = hook('baco-context', base('SessionStart', repo, transcript([mainLine])));
+  // The hook records the plugin version per conversation under os.tmpdir(): keep it in the test's folder.
+  const state = tmp();
+  const main = hook('baco-context', base('SessionStart', repo, transcript([mainLine])), { TMPDIR: state, HOME: state });
   assert.match(out(main).injectSteps[0].systemMessage.systemMessage, /BACO-SDD/);
   assert.deepEqual(out(hook('baco-context', base('SessionStart', repo, transcript([subLine])))), {});
   const plain = await repoWith({ 'a.txt': 'x' });

@@ -17,8 +17,9 @@ Purpose: review the delivery's pull request (PR) as the external look, after the
 - Read the change only from `mudancas.diff`; read the specs, QA scenarios and ADRs it lists, and the code around each change, in the project itself.
 - When a finding is about an architecture decision (an ADR that no longer matches the code), ask for a new ADR that supersedes the old one, never for an edit of an accepted ADR: an accepted decision is not rewritten; the old one only gets its status changed to superseded, with a link to the new one.
 - Manual cases the request lists as not yet run are run by a person in the acceptance, before the merge, and the engine refuses the merge without them: their missing record is not a finding. Report it only when a manual case is claimed as passed without a record.
-- From the second round on, check only the corrections and what they touch.
+- From the second round on, check only what the corrections promise and what they may have broken; do not look for new edge cases.
 - Grade each finding as `pedido.md` says, which follows [review-protocol.md](../review-protocol.md), "Severity of code findings": how likely it is in normal use and what it does. An atypical case is never `crítico`, unless the spec asks for that case.
+- When `.baco/config.yaml` has `review.focus`, read it (the config only, never `docs/entregas/`): `always` items get the most attention; a finding of a kind listed in `suggestion` is a `sugestão` unless it also touches an `always` item ([review-protocol.md](../review-protocol.md), "Review focus and reviews of a fix").
 - Never say a command works or fails (install, build, test) from reading alone: run it only if it writes nothing in the project and cite the output; otherwise say in the finding that it was not verified ([review-protocol.md](../review-protocol.md), "Claims about commands").
 
 ## Don't

@@ -7,6 +7,7 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o QA real)
 - Escreva um cenário para cada critério de aceite. Não invente cobertura, data, resultado nem quem executou.
 - Automação: `automatizado` quer dizer que existe um teste escrito (informe o caminho entre crases). `manual` quer dizer roteiro para uma pessoa executar, passo a passo, e anotar o resultado na tabela de evidências. `pendente` quer dizer que ainda não se decidiu.
 - No cenário automatizado, a mesma linha diz a camada do teste: `regra` (teste de unidade, por dentro do código) ou `navegador` (teste no navegador). Cenário cujo "Então" é o que a pessoa vê na tela é `navegador`. O motor só dá o cenário como provado por um teste dessa camada: um cenário `navegador` precisa de um teste de um arquivo declarado como `navegador`.
+- Cenário manual que só um QA especialista executa (um tipo listado em `qa.specialist` da configuração, por exemplo leitor de tela): escreva `manual, especialista` ou `manual, especialista: <tipo>`. Ele nunca é pedido à pessoa, não bloqueia nenhuma junção (nem a da principal), aparece como pendência para o especialista e fica fora dos resumos.
 - Quando um teste automático cobre o cenário, o título do teste leva o ID entre colchetes, por exemplo `[CT-XYZ-001]`.
 - O QA descreve só os cenários em vigor: cenário retirado sai do arquivo, e o texto anterior fica no Git. O número de um CT novo vem da linha `Próximos números livres`, que avança na mesma edição.
 - A tabela de evidências começa vazia. Só entra linha depois que o cenário foi de fato executado.

@@ -50,6 +50,18 @@ function layerOf(value) {
   return found.length === 1 ? found[0] : null;
 }
 
+// A specialist scenario: a manual one whose `Automação` value carries the word `especialista`
+// (`manual, especialista` or `manual, especialista: <tipo>`). Only a specialist QA runs it: never
+// asked to the person and never a merge blocker. `kind` is the text after `especialista:`, or null.
+function specialistOf(word, value) {
+  if (word !== 'manual') return { specialist: false, kind: null };
+  const text = String(value ?? '').replace(/[`*]/g, '');
+  const m = /(?:^|[^\p{L}\p{N}])especialista(?![\p{L}\p{N}])\s*(?::\s*([^;()]*))?/iu.exec(text);
+  if (!m) return { specialist: false, kind: null };
+  const kind = (m[1] ?? '').trim().replace(/[\s.,]+$/, '');
+  return { specialist: true, kind: kind || null };
+}
+
 export function readQa(path) {
   const md = readText(path);
   const lines = md.split('\n');
@@ -65,15 +77,19 @@ export function readQa(path) {
     const auto = field(block, QA_AUTOMATION_FIELD);
     const word = auto === null ? '' : fold(auto.replace(/[`*]/g, '').trim().split(/[\s(:;,.]+/)[0] ?? '');
     const testRefs = testPaths(auto);
+    const automation = AUTOMATION.includes(word) ? word : null;
+    const special = specialistOf(automation, auto);
     scenarios.push({
       id: m[1],
       title: m[2].trim(),
       line: h.line,
       contracts: contracts ? expandRefs(contracts) : [],
-      automation: AUTOMATION.includes(word) ? word : null,
+      automation,
       testRefs,
       testRef: testRefs[0] ?? null,
       layer: layerOf(auto),
+      specialist: special.specialist,
+      specialistKind: special.kind,
     });
   });
 

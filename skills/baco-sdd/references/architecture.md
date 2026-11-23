@@ -180,6 +180,7 @@ Trigger: a technical decision that changes no behavior: change hosting, database
 4. The trace checks every CA of the spec file. A spec that is not fully built (state other than `implementada`, or `Versão` ahead of `Versão implementada`) has CAs with no test, and those block the acceptance. Then either wait until that spec's delivery is done, or ask the human how to cut the change; never mark those CAs as covered.
 5. The level is at least `normal`, and `completo` when the change is costly to undo (database, login provider, hosting).
 6. If the change would alter behavior, stop: it is a spec evolution first ([spec-change.md](spec-change.md)).
+7. When phase 0 changes `test_runs` in the config and an accepted ADR states what runs when (for example that the full battery runs on every merge), offer the person a new ADR that supersedes that item, with the new rule and the reason. It goes through the `architecture` gate like any ADR: the person approves it, and you never write or accept it alone.
 
 ## Hand-off
 

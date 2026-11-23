@@ -2,11 +2,13 @@
 
 Questions 8 to 12B of the configuration interview: conversation size, AI tools and review. Load this file when you run the interview, after [configure.md](configure.md), whose "How to ask" rules (numbering, format, plain words, "não entendi") apply to every block here. Questions 1 to 7B are in [configure-questions.md](configure-questions.md); 13 and 14 in [ambientes.md](ambientes.md), section 9.
 
-**8. Conversation size** (`context.handoff_at`, default 400000; `context.auto_handoff`, default `off`)
+**8. Conversation size** (`context.handoff_at`, default 290000; `context.auto_handoff`, default `off`)
 
-Before showing the default, in Claude Code read the `autoCompactWindow` setting (`.claude/settings.local.json` of the project, then `.claude/settings.json`, then `~/.claude/settings.json`; the first that has it wins; a missing or unreadable file is skipped). Claude Code summarizes the conversation by itself at about 80% of that window, before a larger `handoff_at` would ever fire. The warning is read only after the step that crossed the line, and a step adds 10000 to 20000 tokens, so the plugin hook warns 30000 tokens before that point: the value that really counts (the effective limit) is the smaller of `handoff_at` and 80% of `autoCompactWindow` minus 30000 (with a window of 400000: 320000 minus 30000, 290000). The hook names both numbers in its warning.
+Before showing the default, in Claude Code read the `autoCompactWindow` setting (`.claude/settings.local.json` of the project, then `.claude/settings.json`, then `~/.claude/settings.json`; the first that has it wins; a missing or unreadable file is skipped). Claude Code summarizes the conversation by itself at about that window minus 33000 tokens (measured: 18 automatic summaries between 366000 and 375000 with a window of 400000), before a larger `handoff_at` would ever fire. The warning is read only after the step that crossed the line, and a step adds 10000 to 20000 tokens, so the plugin hook warns 30000 tokens before that point: the value that really counts (the effective limit) is the smaller of `handoff_at` and `autoCompactWindow` minus 33000 minus 30000 (with a window of 400000: 337000). The hook names both numbers in its warning.
 
-When the setting exists, propose that effective limit as the value and write it as `handoff_at`, not the plain default: a `handoff_at` above it is never reached and misleads whoever reads the configuration. When the person's answer is above the effective limit, explain in pt-BR that the Claude Code would summarize the conversation before that and the warning will come at the effective limit anyway, and write the effective limit (or a smaller value they choose).
+When the setting exists, propose the smaller of the default 290000 and that effective limit as the value and write it as `handoff_at`: a `handoff_at` above the effective limit is never reached and misleads whoever reads the configuration. When the person's answer is above the effective limit, explain in pt-BR that the Claude Code would summarize the conversation before that and the warning will come at the effective limit anyway, and write the effective limit (or a smaller value they choose).
+
+Suggest a window of 400000 (follow-up after the question, below) when `autoCompactWindow` is missing or smaller: the default 290000 is made for that window, leaving room to finish the step and save the state before the summary. The setting belongs to the person's Claude Code, outside the project: write it only with their ok, into `~/.claude/settings.json` (keeping what the file has), and say that it applies from the next conversation.
 
 The context does not start at zero: the host's instructions, tools and skills already take some room before the first question (in some environments close to 130000 tokens). The room for work is the limit minus that starting size, so with a limit near 300000 the first switch may come before the plan is written. Say this in one sentence when the person picks a small value.
 
@@ -19,12 +21,12 @@ Show the default first, then ask the two questions one at a time:
 > Por que importa: conversa muito longa fica mais cara a cada passo e lembra pior dos detalhes. Como tudo fica salvo nos arquivos, continuar numa conversa nova custa pouco.
 >
 > Opções:
-> (a) o padrão: a partir de 400 mil tokens de contexto, sugiro continuar numa conversa nova.
+> (a) o padrão: a partir de 290 mil tokens de contexto, sugiro continuar numa conversa nova.
 > (b) outro valor (diga qual): um valor menor troca mais cedo e mais vezes; um maior deixa a conversa crescer mais, mais cara e com mais chance de esquecer detalhes.
 >
 > Minha recomendação: [a opção e o motivo ligado a este projeto, por exemplo: (a), porque o projeto é pequeno e cada entrega cabe numa conversa].
 >
-> Padrão: (a) 400 mil tokens.
+> Padrão: (a) 290 mil tokens.
 
 When `autoCompactWindow` exists, use this wording instead, filling the brackets (for example 320 mil and 290 mil):
 
@@ -32,7 +34,7 @@ When `autoCompactWindow` exists, use this wording instead, filling the brackets 
 >
 > O que é: a IA mede o texto em tokens, pedaços pequenos de texto, mais ou menos do tamanho de uma sílaba. O contexto é tudo o que esta conversa já tem: as suas mensagens, as minhas e os arquivos que eu li.
 >
-> Por que importa: conversa muito longa fica mais cara a cada passo e lembra pior dos detalhes. Como tudo fica salvo nos arquivos, continuar numa conversa nova custa pouco. O seu Claude Code resume a conversa sozinho perto de [80% da janela de resumo automático] tokens. Lembre que a conversa já começa com uma parte ocupada pelas instruções e ferramentas, então a primeira troca pode vir cedo.
+> Por que importa: conversa muito longa fica mais cara a cada passo e lembra pior dos detalhes. Como tudo fica salvo nos arquivos, continuar numa conversa nova custa pouco. O seu Claude Code resume a conversa sozinho perto de [janela de resumo automático menos 33 mil] tokens. Lembre que a conversa já começa com uma parte ocupada pelas instruções e ferramentas, então a primeira troca pode vir cedo.
 >
 > Opções:
 > (a) avisar em [limite efetivo] tokens: dá tempo de terminar o passo e trocar de conversa antes do resumo automático.
@@ -58,7 +60,13 @@ Then the second question:
 >
 > Padrão: (a) perguntar antes.
 
-A number -> `handoff_at` (a positive whole number of tokens; above the effective limit, the effective limit, as said above); "pode ser o padrão" keeps 400000, or the effective limit when `autoCompactWindow` exists. Yes to the second -> `auto_handoff: on`; otherwise `off`. Outside the Ratoeira the agent cannot open a conversation by itself, so say that there the switch is only suggested, with a ready request to paste. The plugin hook reads these keys in Claude Code; in another host they guide the agent only.
+When `autoCompactWindow` is missing or below 400000, ask this follow-up after the first answer:
+
+> Pergunta [N] de [total] · Tamanho da conversa (continuação)
+>
+> O Claude Code resume a conversa sozinho, e o ponto em que isso acontece depende de uma configuração dele, a janela de resumo automático. [Está em X / Não está definida.] Com 400 mil, o aviso de troca de conversa vem em 290 mil, com folga para eu terminar o passo e salvar onde parei antes do resumo. Esta configuração é do seu Claude Code, não do projeto, e vale para todos os seus projetos. Posso gravar `autoCompactWindow: 400000` no seu arquivo de configurações do Claude Code? Se preferir, deixo como está e o aviso vem mais cedo.
+
+A number -> `handoff_at` (a positive whole number of tokens; above the effective limit, the effective limit, as said above); "pode ser o padrão" keeps 290000, or the effective limit when `autoCompactWindow` exists and gives a smaller one. A yes to the follow-up writes `autoCompactWindow: 400000` into `~/.claude/settings.json`, outside the project, and a no changes nothing. Yes to the second -> `auto_handoff: on`; otherwise `off`. Outside the Ratoeira the agent cannot open a conversation by itself, so say that there the switch is only suggested, with a ready request to paste. The plugin hook reads these keys in Claude Code; in another host they guide the agent only.
 
 **9. AI tools** (`harnesses`)
 
@@ -113,6 +121,8 @@ For each tool the user wants, list its models from the tool itself and recommend
 >
 > Cada ferramenta tem vários modelos, que são as versões da IA: umas mais capazes e caras, outras mais rápidas e baratas. Eu organizo os modelos em três níveis: forte, médio e leve. No [ferramenta], recomendo: forte = [modelo], para revisar e decidir o que é difícil; médio = [modelo], para o trabalho comum; leve = [modelo], para tarefas simples e buscas. Pode ser assim?
 
+Save the models as families, not exact names, when the tool has them: Codex `{ forte: sol, medio: terra, leve: luna }` style, Antigravity `{ forte: neon, medio: neon, leve: neon }` style, Claude Code its aliases (`opus`, `sonnet`, `haiku`). A family is a name that appears in the model names (`sol`, `neon`); the plan resolves it to the newest exact model in the tool's list, so a newer version needs no change here ([ambientes.md](ambientes.md), section 5, "Model families"). Show the person the exact model each family resolves to today, and write an exact name only when they ask to pin one. Say it in the follow-up above: "recomendo a família X; o plano usa sempre a versão mais nova dela".
+
 Save each approved tool under `harnesses.<name>` with its `models`; a tool with models of more than one maker gets one entry per family, when the person wants ([ambientes.md](ambientes.md), section 9). The tool you run in gets `implementers: on`. Every other tool gets `implementers: off` and only reviews and searches, never changes code, until it has been tested end to end with BACO; set `on` only when the user asks for it after such a test and its write check (below) passed, and say what it changes:
 
 > Por enquanto, as outras ferramentas só revisam e procuram informação; quem constrói (escreve o código das tarefas) é a ferramenta em que eu estou. Quando você tiver testado uma delas de ponta a ponta, posso liberar para ela construir também.
@@ -134,11 +144,24 @@ When a tool other than yours gets `implementers: on` (now or later), ask how fre
 >
 > Padrão: (b) rede.
 
-Save the answer as `sandbox` (`protegida`, `rede` or `livre`). A tool with no command-rules mechanism of its own takes only `protegida`; say so. For Codex, whenever it is listed in `harnesses`, copy [templates/codex/baco.rules](../templates/codex/baco.rules) to `.codex/rules/baco.rules` in the project; it is committed with the setup ([configure.md](configure.md), step 7 of "Write the file"), so every task folder carries it. For Antigravity, whenever it is listed in `harnesses`, copy [templates/antigravity/leitura.json](../templates/antigravity/leitura.json) to `.baco/antigravity/leitura.json`, committed the same way: it is the read-only mode of its calls ([ambientes.md](ambientes.md), section 5). Antigravity builds only in `protegida`: its terminal sandbox does not start on every machine, so BACO keeps it inside the task folder with a hook and command rules instead ([ambientes.md](ambientes.md), section 5, "Sandbox"). When the person turns its `implementers` on, do not ask the sandbox question; save `sandbox: protegida` and tell them, in plain words:
+Save the answer as `sandbox` (`protegida`, `rede` or `livre`). A tool with no command-rules mechanism of its own takes only `protegida`; say so. For Codex, whenever it is listed in `harnesses`, copy [templates/codex/baco.rules](../templates/codex/baco.rules) to `.codex/rules/baco.rules` in the project; it is committed with the setup ([configure.md](configure.md), step 7 of "Write the file"), so every task folder carries it. For Antigravity, whenever it is listed in `harnesses`, copy [templates/antigravity/leitura.json](../templates/antigravity/leitura.json) to `.baco/antigravity/leitura.json`, committed the same way: it is the read-only mode of its calls ([ambientes.md](ambientes.md), section 5). Antigravity has its own three values, made of BACO's hook and command rules because its terminal sandbox does not start on every machine ([ambientes.md](ambientes.md), section 5, "Sandbox"). When the person turns its `implementers` on, ask this instead of the generic question above, recommending `rede` and defaulting to `protegida` (also for a profile of it, such as `antigravity-claude`):
 
-> O Antigravity pode construir, mas só do jeito protegido: ele grava só na pasta da tarefa (uma trava do BACO recusa o resto), roda só os testes e comandos de leitura, e eu instalo as dependências (os pacotes de que o projeto precisa) por ele.
+> Pergunta [N] de [total] · Liberdade do Antigravity ao construir
 >
-> Uma coisa fica aberta: os testes que ele escreve e roda são programas que rodam com o seu usuário, então um teste mal feito ainda poderia ler arquivos seus ou acessar a internet. Eu confiro tudo o que ele mudou e rodo os testes de novo antes de cada commit (cada versão gravada no histórico do código).
+> O que é: quando o Antigravity construir, ele roda comandos no computador. O Antigravity não tem uma caixa de verdade aqui: o BACO usa uma trava que só vale para as ferramentas dele de gravar arquivos (elas só gravam na pasta da tarefa) e uma lista de comandos permitidos.
+>
+> Por que importa: o `node` e o `npx` podem rodar qualquer programa com o seu usuário, e a trava não alcança o que um programa assim faz. Então as opções com mais liberdade têm um risco real: um teste ou pacote mal feito, ou um texto malicioso lido de fora, poderia ler arquivos seus ou mandar algo para a internet. Eu confiro tudo o que ele mudou e rodo os testes de novo antes de cada versão gravada no histórico.
+>
+> Opções:
+> (a) protegida: grava só na pasta da tarefa e só roda testes e comandos de leitura. Eu instalo as dependências e rodo os testes de tela por ele, o que gasta mais do meu lado. É a mais segura.
+> (b) rede: a mesma trava de gravação, mais `npm`, `npx` e `node` liberados. Ele instala e roda os testes de tela sozinho, e o trabalho sai mais rápido; em troca, o risco acima. É mais fraca do que a rede do Codex, que tem uma caixa de verdade.
+> (c) livre: sem a trava de gravação, só a lista fechada de comandos. Grava onde o seu usuário pode. Só para quem aceita isso.
+>
+> Minha recomendação: (b) rede, [motivo ligado a este projeto, por exemplo: porque as telas têm testes no navegador que ele precisa rodar].
+>
+> Padrão: (a) protegida.
+
+Save the answer as `sandbox` (`protegida`, `rede` or `livre`). The check of each value is in [ambientes.md](ambientes.md), section 5.
 
 Then check each tool other than yours on this machine, before any plan relies on it ([ambientes.md](ambientes.md), section 5, "Check before relying on it"): the read call always, the write call only for a tool marked `implementers: on`, in its configured `sandbox`, which also tries a network fetch, binding a local port and a forbidden command, and records `rede`, `porta` and `regra` in `.baco/logs/harnesses.md` (a missing capability is reported, never fixed by widening the sandbox beyond its value) (also when the user turns it on later; `on` takes effect only after that check passed). Say the result in one line per tool. A tool that fails stays in the config, but no plan gives it work until a new check passes; tell the person with the message of that section and never widen its sandbox beyond the configured value.
 
@@ -162,6 +185,8 @@ Then check each tool other than yours on this machine, before any plan relies on
 With (a), set `implementers: on` and `sandbox: rede` for Codex (its write check must pass with `rede: sim`, `porta: sim` and `regra: sim`) and keep every review role on Claude. With (b), record the PR reviewer on `codex` (its model and effort in the agents table of the plan) and leave `implementers: off` for Codex. The plan shows the split for approval like any other.
 
 When the user later says they added a subscription, come back to this question for that tool only.
+
+For a back-end and front-end split, the example of `roles` with three reviewer entries (`task_reviewer: [codex, antigravity, claude-code]`) is in [ambientes.md](ambientes.md), section 9, under question 14.
 
 **10. Review of the delivery's PR** (`review.pr.reviewer`, default `agente`; `review.pr.auto_fix`, default `on`)
 

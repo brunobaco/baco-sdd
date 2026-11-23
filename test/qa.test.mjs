@@ -29,6 +29,23 @@ test('readQa reads every backticked path of the Automação line', () => {
   assert.deepEqual(by['CT-003'].testRefs, []);
 });
 
+test('readQa marks a specialist scenario: `manual, especialista` with an optional kind', () => {
+  const md = [
+    '# QA', '',
+    '### CT-001 | sem tipo', '', '- **Contratos:** CA-001', '- **Automação:** manual, especialista', '',
+    '### CT-002 | com tipo', '', '- **Contratos:** CA-001', '- **Automação:** manual, Especialista: leitor de tela', '',
+    '### CT-003 | manual comum', '', '- **Contratos:** CA-001', '- **Automação:** manual', '',
+    '### CT-004 | automatizado não é especialista', '', '- **Contratos:** CA-001', '- **Automação:** automatizado (`tests/especialista.test.ts`)', '',
+    '### CT-005 | tipo entre crases', '', '- **Contratos:** CA-001', '- **Automação:** manual, especialista: `contraste de cor`', '',
+  ].join('\n');
+  const by = Object.fromEntries(readQa(tmpFile(md)).scenarios.map((s) => [s.id, s]));
+  assert.deepEqual([by['CT-001'].automation, by['CT-001'].specialist, by['CT-001'].specialistKind], ['manual', true, null]);
+  assert.deepEqual([by['CT-002'].automation, by['CT-002'].specialist, by['CT-002'].specialistKind], ['manual', true, 'leitor de tela']);
+  assert.deepEqual([by['CT-003'].specialist, by['CT-003'].specialistKind], [false, null]);
+  assert.deepEqual([by['CT-004'].specialist, by['CT-004'].specialistKind], [false, null]);
+  assert.equal(by['CT-005'].specialistKind, 'contraste de cor');
+});
+
 test('readQa keeps a backticked test path with spaces; a layer label is still not a path', () => {
   const md = '# QA\n\n### CT-001 | x\n\n- **Contratos:** CA-001\n- **Automação:** automatizado, camada `regra` (`tests/order flow.test.ts`, `tests/other.test.ts`, `navegador`)\n';
   const [s] = readQa(tmpFile(md)).scenarios;

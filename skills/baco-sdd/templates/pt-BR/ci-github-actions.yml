@@ -7,7 +7,17 @@ name: Testes
 
 on:
   push:
+    paths-ignore: ['**.md']         # mudança só em documento não roda a rotina
   pull_request:
+    paths-ignore: ['**.md']
+  workflow_dispatch:                # permite rodar à mão, pela aba Actions
+
+# ADAPTE (uma linha só): quando a bateria completa roda, como em `test_runs.ci_full` do config.yaml.
+#   merge  = completa na junção da branch de integração (padrão); no pull request roda só a rápida.
+#   manual = a junção na integração roda a rápida e publica; a completa só à mão (workflow_dispatch),
+#            recomendado antes de promover para a principal.
+env:
+  BATERIA_COMPLETA: merge           # ADAPTE: merge ou manual (o mesmo valor de test_runs.ci_full)
 
 jobs:
   testes:
@@ -32,7 +42,16 @@ jobs:
         run: npx vitest run --reporter=junit --outputFile=.baco/junit/unit.xml   # ADAPTE: o mesmo comando de tests.unit no config.yaml
 
       # ADAPTE: apague este passo se o projeto não tem testes de navegador.
-      - name: Rodar testes do site no navegador
+      - name: Rodar testes do site no navegador (rápida: só o Chromium)
+        # Roda quando NÃO é a hora da bateria completa: pull request, ou junção na integração com `manual`.
+        if: github.event_name != 'workflow_dispatch' && !(github.event_name == 'push' && github.ref == 'refs/heads/develop' && env.BATERIA_COMPLETA == 'merge')   # ADAPTE: `develop` é a branch de integração (branches.integration)
+        run: |
+          npx playwright install --with-deps chromium
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE=.baco/junit/e2e-web.xml npx playwright test --project=chromium --reporter=junit   # ADAPTE: o nome do projeto Chromium do Playwright
+
+      - name: Rodar testes do site no navegador (completa: todos os navegadores)
+        # Roda na junção na integração com `merge`, e sempre que alguém disparar à mão.
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/develop' && env.BATERIA_COMPLETA == 'merge')   # ADAPTE: a mesma branch de integração
         run: |
           npx playwright install --with-deps
           PLAYWRIGHT_JUNIT_OUTPUT_FILE=.baco/junit/e2e-web.xml npx playwright test --reporter=junit

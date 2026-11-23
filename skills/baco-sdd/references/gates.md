@@ -9,9 +9,9 @@ The routine approvals are (the table below is authoritative):
 - the architecture (`architecture`)
 - the plan (`plan`)
 - the task batch (`task_batch`)
-- the pull request (`before_pr`, then `merge_main` for the merge itself)
+- the pull request (`before_pr`, then the merge itself: `merge_main` into the main branch, a plain "posso juntar?" into the integration branch)
 
-From the approved plan on, execution is autonomous ([implementation.md](implementation.md), section 7): tasks, the internal reviews, the review of the delivery's PR by an agent (with its fix rounds when `review.pr.auto_fix` is on) and the acceptance report run on their own until the delivery is ready for the person to test, and the run stops when the review waits for a person or earlier only when there is no way around (a never-off gate is next and nothing else can move, or everything left depends on something blocked). After each task there is no stop (`each_task` is off by default; the human may turn it on). The human can say "pare" at any time.
+From the approved plan on, execution is autonomous ([implementation.md](implementation.md), section 7): tasks, the internal reviews, the review of the delivery's PR by an agent (with its fix rounds when `review.pr.auto_fix` is on), the full battery and the acceptance report run on their own until the delivery is ready for the person to test (with `delivery.integration_merge: auto`, through `before_pr` and the merge into the integration branch when `baco merge-check` exits 0, [delivery.md](delivery.md), "Ready to test"), and the run stops when the review waits for a person or earlier only when there is no way around (a never-off gate is next and nothing else can move, or everything left depends on something blocked). After each task there is no stop (`each_task` is off by default; the human may turn it on). The human can say "pare" at any time.
 
 | Gate key | Stops before | Default | Can be turned off |
 |---|---|---|---|
@@ -21,7 +21,7 @@ From the approved plan on, execution is autonomous ([implementation.md](implemen
 | `plan` | executing the delivery plan | on | yes |
 | `task_batch` | releasing the task batch | on | yes |
 | `each_task` | moving past each finished task | off | yes (turning it on adds stops) |
-| `before_pr` | marking the delivery's pull request ready to merge (the draft opened for the review in phase 7 is not a request to merge) | on | yes |
+| `before_pr` | marking the delivery's pull request ready to merge (the draft opened for the review in phase 7 is not a request to merge) | on | yes; also skipped, with the integration merge, when `delivery.integration_merge` is `auto`, the destination is the integration branch and `baco merge-check` exits 0 |
 | `irreversible_action` | an action that cannot be undone | on | never |
 | `merge_main` | merging into the main branch | on | never |
 
@@ -41,7 +41,7 @@ In the same way, a reversible product doubt proceeds with your recommendation, r
 
 > Essa parada eu não consigo desligar: ela protege você de erro sem volta. Posso desligar as outras (como a de cada tarefa).
 
-Irreversible actions are: destructive migration, data deletion, production deploy. Before any of them, stop, say exactly what will be lost or changed and whether it can be restored, and wait for an explicit "sim". In autonomous execution they are never done alone: they are queued for the end-of-run summary, and the work that does not depend on them goes on. The rule for merging into main is configurable (for example how a pending manual scenario is treated, `manual_pending`), but the human approval of the merge is not.
+Irreversible actions are: destructive migration, data deletion, production deploy. Before any of them, stop, say exactly what will be lost or changed and whether it can be restored, and wait for an explicit "sim". In autonomous execution they are never done alone: they are queued for the end-of-run summary, and the work that does not depend on them goes on. The rule for merging into main is configurable (for example how a pending manual scenario is treated, `manual_pending`), but the human approval of the merge is not. `delivery.integration_merge: auto` covers only the integration branch: `baco merge-check` with main as target never exits 0 ("a junção na principal sempre pede a pessoa").
 
 ## A recommendation never counts as approval
 
@@ -88,7 +88,7 @@ Special case: `CONFIG_TESTS_CHANGED` (the `tests` section, the `tests_quick` sec
 2. If the human explicitly approves (a clear "sim", not silence): record in the delivery's `progresso.md` the date, the finding (`CONFIG_TESTS_CHANGED` or `CONFIG_PROVENANCE_CHANGED`) and who approved, then proceed for that finding only. The exit stays 2; that one recorded approval is the legal way past it.
 3. If the human does not approve: revert the change to `tests`, `tests_quick` and `app.smoke` in `.baco/config.yaml`, re-run `guard-tests` and continue only on 0.
 
-Special case: `acceptance-report` exit 2. Its blockers other than a failure (exit 1 is never accepted) may be accepted by an explicit human decision **per blocker**, after you fixed everything fixable ([delivery.md](delivery.md), section 3). Show each remaining blocker in plain pt-BR, with what it risks, and ask about it separately; one "sim" never covers several. Record in the delivery's `progresso.md`, for each accepted blocker: date, blocker (message key), who decided. The exit stays 2; the recorded decision is the legal way past it, and the merge approval must name it. Never accepted: `merge.no_verdict` without a recorded waiver (only the human waives the external review, with `baco waive-review`, [review.md](review.md), section 4; a current waiver turns the blocker into the warning `merge.review_waived`, and a stale one, `merge.waiver_stale`, needs the human's decision again); `merge.stale_trace` (re-tracing is mechanical: re-run `baco trace`); `merge.not_run` (an automated test that did not run proves nothing, whatever the rule; fix the command or test and re-run); a manual scenario still pending under rule `block` for the target branch (it must be executed and its evidence recorded). Never edit `manual_pending`, `--target` or a trace to reach 0.
+Special case: `acceptance-report` exit 2. Its blockers other than a failure (exit 1 is never accepted) may be accepted by an explicit human decision **per blocker**, after you fixed everything fixable ([delivery.md](delivery.md), section 3). Show each remaining blocker in plain pt-BR, with what it risks, and ask about it separately; one "sim" never covers several. Record in the delivery's `progresso.md`, for each accepted blocker: date, blocker (message key), who decided. The exit stays 2; the recorded decision is the legal way past it, and the merge approval must name it. Never accepted: `merge.no_verdict` without a recorded waiver (only the human waives the external review, with `baco waive-review`, [review.md](review.md), section 4; a current waiver turns the blocker into the warning `merge.review_waived`, and a stale one, `merge.waiver_stale`, needs the human's decision again); `merge.stale_trace` (re-tracing is mechanical: re-run `baco trace`); `merge.not_run` (an automated test that did not run proves nothing, whatever the rule; fix the command or test and re-run); a manual scenario still pending under rule `block` for the target branch (it must be executed and its evidence recorded; a specialist scenario never blocks, [delivery.md](delivery.md), section 2). Never edit `manual_pending`, `--target` or a trace to reach 0.
 
 ## Branch protection
 

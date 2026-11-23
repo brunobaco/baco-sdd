@@ -97,6 +97,54 @@ test('render: titles from qa, warn lists pending, no verdict wording', () => {
   assert.match(md2, /CT-EMP-003/);
 });
 
+// 1.10.0: specialist scenarios never count as manual pending; they warn, never block, in their own section.
+const specialistSc = (id, kind) => ({ ...sc(id, 'manual_pending', 'manual'), specialist: true, ...(kind ? { specialistKind: kind } : {}) });
+const specialistTrace = () => ({
+  ...trace([ca('CA-001', 'proven', [sc('CT-001', 'passed')]), ca('CA-002', 'pending', [specialistSc('CT-002', 'leitor de tela')])]),
+  otherScenarios: [{ ...specialistSc('CT-009'), contracts: ['RN-001'] }],
+});
+
+test('specialist scenarios: never merge.manual_pending, only the non-blocking warning merge.specialist_pending, on any rule', () => {
+  for (const rule of ['block', 'warn', 'ignore', 'blok']) {
+    const d = mergeDecision({ trace: specialistTrace(), verdict: ok, rule });
+    assert.deepEqual(d, { allowed: true, blockers: [], warnings: ['merge.specialist_pending'] }, rule);
+  }
+  const mixed = trace([ca('CA-001', 'pending', [specialistSc('CT-002'), sc('CT-003', 'manual_pending', 'manual')])]);
+  assert.deepEqual(mergeDecision({ trace: mixed, verdict: ok, rule: 'block' }).blockers, ['merge.manual_pending']);
+  assert.deepEqual(mergeDecision({ trace: mixed, verdict: ok, rule: 'block' }).warnings, ['merge.specialist_pending']);
+  // A specialist scenario that was run counts like any other result.
+  const run = trace([ca('CA-001', 'proven', [{ ...specialistSc('CT-002'), result: 'manual_ok' }])]);
+  assert.deepEqual(mergeDecision({ trace: run, verdict: ok, rule: 'block' }), { allowed: true, blockers: [], warnings: [] });
+});
+
+test('render: specialist scenarios get their own section, out of the manual checklist, the summary and the risks', () => {
+  const t0 = specialistTrace();
+  const d = mergeDecision({ trace: t0, verdict: ok, rule: 'warn' });
+  const md = renderAcceptance({ entId: 'ENT-001', target: 'main', trace: t0, verdict: ok, decision: d, lang: 'pt-BR', titles: new Map([['CT-002', 'Ler o formulário em voz alta']]) });
+  assert.match(md, /## Fica com QA especialista\n\n[^\n]*\n\n- CT-002: Ler o formulário em voz alta \(leitor de tela\)\n- CT-009\n/);
+  assert.match(md, /Nenhum teste manual pendente/);
+  assert.doesNotMatch(md, /- \[ \] CT-002/);
+  const risks = md.slice(md.indexOf('## Riscos'), md.indexOf('## Agentes'));
+  assert.doesNotMatch(risks, /CT-002|CT-009/);
+  const summary = md.slice(md.indexOf('## Resumo'), md.indexOf('## Critérios'));
+  assert.doesNotMatch(summary, /CT-002|CT-009/);
+  const none = renderAcceptance({ entId: 'ENT-001', target: 'main', trace: provenTrace(), verdict: ok, decision: mergeDecision({ trace: provenTrace(), verdict: ok, rule: 'block' }), lang: 'en' });
+  assert.doesNotMatch(none, /specialist/i);
+  const en = renderAcceptance({ entId: 'ENT-001', target: 'main', trace: t0, verdict: ok, decision: d, lang: 'en' });
+  assert.match(en, /## Left for specialist QA/);
+});
+
+test('command: a specialist scenario on main exits 0 with the merge.specialist_pending warning naming it', async () => {
+  const tr = stamp(specialistTrace());
+  const dir = await setup({ 'trace-spec.json': JSON.stringify(tr), [`${ENT}/revisao/veredito-01.md`]: verdictFile('aprovado') });
+  const c = capture();
+  assert.equal(await main(['acceptance-report', 'ENT-001', '--target', 'main', '--trace', 'trace-spec.json', '--cwd', dir, '--json'], c.io), 0);
+  assert.deepEqual(JSON.parse(c.out.stdout).warnings, ['merge.specialist_pending']);
+  const text = capture();
+  await main(['acceptance-report', 'ENT-001', '--target', 'main', '--trace', 'trace-spec.json', '--cwd', dir], text.io);
+  assert.match(text.out.stdout + text.out.stderr, /QA especialista.*CT-002, CT-009/s);
+});
+
 // Traces and verdicts carry provenance (R19): they must name the current HEAD and this delivery.
 // '@HEAD@' is replaced by the repo HEAD after the initial commit (files are rewritten in place,
 // which leaves HEAD unchanged).

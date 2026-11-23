@@ -112,7 +112,12 @@ export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown
     }
   }
   const files = layerFiles(qa);
-  const withLayer = (sc, o) => (sc.layer ? { ...o, layer: sc.layer } : o);
+  // Optional fields only when they apply: the declared layer and the specialist flag (with its kind).
+  const withLayer = (sc, o) => {
+    const out = sc.layer ? { ...o, layer: sc.layer } : o;
+    if (!sc.specialist) return out;
+    return sc.specialistKind ? { ...out, specialist: true, specialistKind: sc.specialistKind } : { ...out, specialist: true };
+  };
   const cas = spec.definitions.filter((d) => d.kind === 'CA').map((d) => {
     const scenarios = [];
     for (const sc of qa.scenarios.filter((s) => s.contracts.includes(d.id))) {

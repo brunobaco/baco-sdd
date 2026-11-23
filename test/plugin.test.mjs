@@ -250,7 +250,7 @@ test('final review: invalid config keeps the default protection', async () => {
 test('final review: core dispatch and permission text are exact and conditional', () => {
   const skill = read(join(SKILL_ROOT, 'SKILL.md'));
   assert.ok(skill.includes('`models.<class>`'), 'SKILL.md: must name models.<class>');
-  const check = skill.slice(skill.indexOf('**Skill files.**'), skill.indexOf('6. **State.**'));
+  const check = skill.slice(skill.indexOf('**Skill files.**'), skill.indexOf('7. **State.**'));
   assert.ok(check.indexOf('In Claude Code with the `baco` plugin') >= 0 && check.indexOf('In Claude Code with the `baco` plugin') < check.indexOf('Read(~/.claude'), 'check 4: remedy must be conditional');
 });
 

@@ -1,11 +1,11 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync, utimesSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { makeRepo as makeRepoRaw } from './helpers/tmprepo.mjs';
+import { makeRepo as makeRepoRaw, commit } from './helpers/tmprepo.mjs';
 import { parseLocalEnv, readLocalEnv } from '../skills/baco-sdd/scripts/lib/localenv.mjs';
 import { acquireQueue, QueueTimeoutError, QueueBlockedError } from '../skills/baco-sdd/scripts/lib/queue.mjs';
 import { shellQuote } from '../skills/baco-sdd/scripts/commands/run-tests.mjs';
@@ -132,7 +132,8 @@ test('--verbose passes the child output through; a failure exits 1; --all contin
   assert.match(r.stderr, /err-unit/);
   assert.match(r.stdout, /out-api/);
   assert.ok(existsSync(join(dir, 'api-ran')));
-  assert.ok(!existsSync(join(dir, '.baco/logs')), '--verbose writes no log');
+  const logs = existsSync(join(dir, '.baco/logs')) ? readdirSync(join(dir, '.baco/logs')) : [];
+  assert.deepEqual(logs.filter((f) => f.endsWith('.log')), [], '--verbose writes no log');
   const json = await cli(dir, ['--all', '--json']);
   const data = JSON.parse(json.stdout);
   assert.deepEqual(data.runs.map((x) => [x.layer, x.exit]), [['unit', 3], ['api', 0]]);
@@ -432,6 +433,79 @@ test('queueLockDir: /tmp/baco-queue by default, whatever TMPDIR says; BACO_QUEUE
   } finally {
     for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
+});
+
+// ---- battery stamp (.baco/logs/bateria-completa.json)
+
+const STAMP = '.baco/logs/bateria-completa.json';
+const stampOf = (dir) => JSON.parse(read(dir, STAMP));
+const gitOut = (dir, ...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
+// `api` fails with one JUnit failure when run whole, and passes when given files (a re-run of what failed).
+const API_SH = 'mkdir -p .baco/junit\nif [ "$#" -gt 0 ]; then echo \'<testsuite/>\' > .baco/junit/api.xml; exit 0; fi\ncp fx/fail.xml .baco/junit/api.xml\nexit 1\n';
+const batteryRepo = () => makeRepo({
+  ...config('tests:\n  unit: "mkdir -p .baco/junit && echo \'<testsuite/>\' > .baco/junit/unit.xml"\n  api: "sh fx/api.sh"\n'),
+  'fx/api.sh': API_SH, 'fx/fail.xml': FAILING_XML, 'src/app.js': 'x\n', 'README.md': 'leia\n',
+});
+
+test('battery stamp: --all without --quick records head, branch, dirty, seconds, passed and each layer', async () => {
+  const dir = await batteryRepo();
+  const r = await cli(dir, ['--all']);
+  assert.equal(r.code, 1, r.stderr);
+  const s = stampOf(dir);
+  assert.equal(s.head, gitOut(dir, 'rev-parse', 'HEAD'));
+  assert.equal(s.branch, 'main');
+  assert.equal(s.dirty, false, 'the JUnit and log folders the run writes do not count');
+  assert.equal(s.passed, false);
+  assert.equal(typeof s.seconds, 'number');
+  assert.ok(!Number.isNaN(Date.parse(s.at)));
+  assert.deepEqual(s.layers.map((l) => [l.layer, l.exit, l.failures]), [
+    ['unit', 0, []],
+    ['api', 1, [{ name: '[CA-001] soma dois números', file: 'tests/soma.test.js' }]],
+  ]);
+  assert.ok(s.layers.every((l) => typeof l.seconds === 'number'));
+  assert.deepEqual(s.reruns, []);
+  assert.match(r.stdout, /bateria-completa\.json/);
+});
+
+test('battery stamp: not written with --quick or with --layer; a passing battery records passed true', async () => {
+  const dir = await makeRepo(config('tests:\n  unit: "true"\n'));
+  assert.equal((await cli(dir, ['--all', '--quick'])).code, 0);
+  assert.equal((await cli(dir, ['--layer', 'unit'])).code, 0);
+  assert.ok(!existsSync(join(dir, STAMP)));
+  assert.equal((await cli(dir, ['--all'])).code, 0);
+  assert.equal(stampOf(dir).passed, true);
+});
+
+test('battery stamp: dirty only for uncommitted changes outside docs/entregas/ and outside Markdown', async () => {
+  const dir = await batteryRepo();
+  writeFileSync(join(dir, 'README.md'), 'mudou\n');
+  mkdirSync(join(dir, 'docs/entregas/ENT-001-a'), { recursive: true });
+  writeFileSync(join(dir, 'docs/entregas/ENT-001-a/notas.json'), '{}');
+  await cli(dir, ['--all']);
+  assert.equal(stampOf(dir).dirty, false);
+  writeFileSync(join(dir, 'src/app.js'), 'y\n');
+  await cli(dir, ['--all']);
+  assert.equal(stampOf(dir).dirty, true);
+});
+
+test('battery stamp: a re-run of one layer with files, without --quick, on the same clean head is appended to reruns', async () => {
+  const dir = await batteryRepo();
+  await cli(dir, ['--all']);
+  const r = await cli(dir, ['--layer', 'api', '--', 'tests/soma.test.js']);
+  assert.equal(r.code, 0, r.stderr);
+  let s = stampOf(dir);
+  assert.equal(s.reruns.length, 1);
+  assert.deepEqual({ ...s.reruns[0], at: 'x' }, { at: 'x', layer: 'api', args: ['tests/soma.test.js'], exit: 0 });
+  assert.ok(!Number.isNaN(Date.parse(s.reruns[0].at)));
+  // Not a re-run: --quick, no files, uncommitted code, another head.
+  await cli(dir, ['--layer', 'api', '--quick', '--', 'tests/soma.test.js']);
+  await cli(dir, ['--layer', 'api']);
+  writeFileSync(join(dir, 'src/app.js'), 'y\n');
+  await cli(dir, ['--layer', 'api', '--', 'tests/soma.test.js']);
+  commit(dir, { 'src/app.js': 'z\n' }, 'code');
+  await cli(dir, ['--layer', 'api', '--', 'tests/soma.test.js']);
+  s = stampOf(dir);
+  assert.equal(s.reruns.length, 1);
 });
 
 test('resolveQueueBase: shared /tmp when writable, the session TMPDIR when a sandbox makes /tmp read-only', async () => {

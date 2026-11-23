@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // PostToolUse hook (Antigravity: PreInvocation, since its PostToolUse cannot add context): in a BACO project, measures the conversation's context from the transcript Claude
-// Code hands to the hook and, past `context.handoff_at` (default 400000 tokens, or 30000 tokens before
-// 80% of Claude Code's `autoCompactWindow` setting when that is smaller: Claude Code summarizes the
-// conversation by itself there), tells the conductor to continue in a new conversation. It also reminds the conductor, at most
+// Code hands to the hook and, past `context.handoff_at` (default 290000 tokens, or 30000 tokens before
+// Claude Code's own summary, at about its `autoCompactWindow` setting minus 33000, when that is smaller),
+// tells the conductor to continue in a new conversation. It also reminds the conductor, at most
 // once per 30 minutes per session, to update `## Retomada` when a task branch is open and the delivery's
-// `progresso.md` has not changed for 30 minutes. Warns when the size crosses the threshold and again every further
+// `progresso.md` has not changed for 30 minutes, and says once when a newer BACO version was installed
+// in the plugin cache after the conversation started (the start version is recorded by
+// `baco-context.mjs`). Warns when the size crosses the threshold and again every further
 // 100000 tokens; the last warned step is kept per session in a small file under os.tmpdir(), in a
 // folder named after the user (another Linux user's folder would refuse the write). The size is the
 // last main-conversation answer's input_tokens + cache_read_input_tokens + cache_creation_input_tokens.
@@ -12,13 +14,17 @@
 // conductor. The warning is written before the state is saved, so a state that cannot be saved never
 // swallows it. Fails open: any error exits 0; it never blocks.
 import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir, userInfo } from 'node:os';
-import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { loadConfig, DEFAULTS } from '../skills/baco-sdd/scripts/lib/config.mjs';
 import { localBranches, isAncestor } from '../skills/baco-sdd/scripts/lib/git.mjs';
 import { deliveryDir } from '../skills/baco-sdd/scripts/lib/delivery.mjs';
-import { effectiveLimit, readAutoCompactWindow, retomadaReminderDue, openTaskDeliveries, RETOMADA_STALE_MS } from '../skills/baco-sdd/scripts/lib/hookrules.mjs';
+import {
+  effectiveLimit, readAutoCompactWindow, retomadaReminderDue, openTaskDeliveries, RETOMADA_STALE_MS,
+  hookStateDir, sessionStateFile, readPluginVersion, newestPluginVersion, compareVersions,
+} from '../skills/baco-sdd/scripts/lib/hookrules.mjs';
 import { readHookInput, contextAnswer, quietAnswer } from './host.mjs';
 
 const STEP = 100000;
@@ -93,15 +99,8 @@ function sizeOf(line) {
   return num(u.input_tokens) + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens);
 }
 
-function stateDir() {
-  let who;
-  try { who = userInfo().uid; } catch { who = -1; }
-  if (!Number.isInteger(who) || who < 0) {
-    try { who = userInfo().username; } catch { who = process.env.USER || process.env.USERNAME || 'anon'; }
-  }
-  return join(tmpdir(), `baco-context-size-${String(who).replace(/[^\w.-]/g, '_')}`);
-}
-const stateFile = (session) => join(stateDir(), `${String(session).replace(/[^\w.-]/g, '_')}.json`);
+const stateDir = hookStateDir;
+const stateFile = (session) => sessionStateFile(session);
 
 function readStep(file) {
   try {
@@ -113,7 +112,7 @@ function readStep(file) {
 const note = (size, limit, session, transcript, source = 'config', handoffAt = limit, autoCompactAt = null) => `BACO-SDD: this conversation's context is now about ${size} tokens, `
   + (source === 'autoCompactWindow'
     ? `past the effective size for continuing in a new conversation (${limit} tokens: a safety margin before about ${autoCompactAt}, `
-      + `80% of the autoCompactWindow setting of Claude Code, where it summarizes the conversation by itself; `
+      + `about 33000 tokens below the autoCompactWindow setting of Claude Code, where it summarizes the conversation by itself; `
       + `the ${handoffAt} of context.handoff_at in .baco/config.yaml would come too late). Switch soon: each step adds 10000 to 20000 tokens. `
     : `past the size set for continuing in a new conversation (${limit} tokens, context.handoff_at in .baco/config.yaml). `)
   + 'Follow the rule in the baco-sdd skill, section "Conversation size" of SKILL.md (in phases 6 and 7 also '
@@ -121,7 +120,36 @@ const note = (size, limit, session, transcript, source = 'config', handoffAt = l
   + `This conversation's identifier, for the new conversation's request: session ${session} (transcript ${transcript}).`;
 
 const CHECK_EVERY_MS = 5 * 60 * 1000;
-const retomadaFile = (session) => join(stateDir(), `${String(session).replace(/[^\w.-]/g, '_')}.retomada.json`);
+const retomadaFile = (session) => sessionStateFile(session, '.retomada');
+
+// The plugin folder this hook runs from: Claude Code's CLAUDE_PLUGIN_ROOT, or the hook's own parent
+// folder (Antigravity runs the hooks from the plugin folder).
+const pluginRoot = (host) => (host === 'claude' && process.env.CLAUDE_PLUGIN_ROOT
+  ? process.env.CLAUDE_PLUGIN_ROOT
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..'));
+
+// Version change notice: says once per newer version when the plugin cache holds a version newer than
+// the one the conversation started with (recorded by baco-context.mjs; without a record, the running
+// plugin's own). Returns { text, save } or null.
+function versionNotice(host, session) {
+  const file = sessionStateFile(session, '.version');
+  const state = readJson(file);
+  const root = pluginRoot(host);
+  const started = typeof state.started === 'string' ? state.started : readPluginVersion(root);
+  const newest = newestPluginVersion(root);
+  if (!started || !newest || !(compareVersions(newest, started) > 0)) return null;
+  if (typeof state.notified === 'string' && !(compareVersions(newest, state.notified) > 0)) return null;
+  return {
+    text: `BACO-SDD: a newer BACO version is installed (${newest}; this conversation started with ${started}), and it only `
+      + 'takes effect in a new conversation. Save the `## Retomada` of the current delivery\'s progresso.md now (if a step is '
+      + 'running, at its end; never stop a step halfway), then give the person the title and the request to paste for a new '
+      + 'conversation; do not open it yourself, even where you could. Follow the version change rule in the baco-sdd SKILL.md.',
+    save: () => {
+      mkdirSync(stateDir(), { recursive: true });
+      writeFileSync(file, JSON.stringify({ ...state, started, notified: newest }));
+    },
+  };
+}
 
 function readJson(file) {
   try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return {}; }
@@ -196,6 +224,10 @@ try {
       try {
         const reminder = retomadaReminder(root, session, Date.now());
         if (reminder) { notes.push(reminder.text); saves.push(reminder.save); }
+      } catch { /* fail open */ }
+      try {
+        const notice = versionNotice(hook.host, session);
+        if (notice) { notes.push(notice.text); saves.push(notice.save); }
       } catch { /* fail open */ }
       // The notes are written before any state is saved, so a state that cannot be saved never swallows them.
       if (notes.length) {
