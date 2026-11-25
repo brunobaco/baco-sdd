@@ -117,6 +117,9 @@ Object.assign(messages['pt-BR'], {
   'config.task_split_invalid': 'planning.task_split "{value}" não é funcionalidade nem front-back; usando funcionalidade (cada tarefa leva servidor e tela juntos).',
   'config.role_unknown': 'roles.{role} não é um papel conhecido; ignorado. Papéis: {known}.',
   'config.role_harness_unknown': 'roles.{role} cita a ferramenta "{harness}", que não está em harnesses; ela sai da lista desse papel.',
+  'config.role_effort_invalid': 'roles.{role} tem esforço inválido ("{value}") em "{entry}"; use alto, medio ou baixo. Essa entrada foi ignorada.',
+  'config.branches_main_empty': 'branches.main está vazio em .baco/config.yaml; usando "main" como proteção, mas junções automáticas ficam bloqueadas até corrigir.',
+  'config.branches_same': 'branches.integration e branches.main apontam para o mesmo ramo ("{branch}"); junções automáticas ficam bloqueadas para proteger o ramo principal.',
 });
 Object.assign(messages.en, {
   'cli.unknown_command': 'Unknown command: {name}',
@@ -205,6 +208,9 @@ Object.assign(messages.en, {
   'config.task_split_invalid': 'planning.task_split "{value}" is neither funcionalidade nor front-back; using funcionalidade (each task carries server and screen together).',
   'config.role_unknown': 'roles.{role} is not a known role; ignored. Roles: {known}.',
   'config.role_harness_unknown': 'roles.{role} names the tool "{harness}", which is not in harnesses; it leaves that role\'s list.',
+  'config.role_effort_invalid': 'roles.{role} has an invalid effort ("{value}") in "{entry}"; use alto, medio or baixo. That entry was dropped.',
+  'config.branches_main_empty': 'branches.main is empty in .baco/config.yaml; using "main" for protection, and automatic merges stay blocked until fixed.',
+  'config.branches_same': 'branches.integration and branches.main point to the same branch ("{branch}"); automatic merges stay blocked to protect the main branch.',
 });
 
 Object.assign(messages['pt-BR'], {
@@ -957,6 +963,8 @@ Object.assign(messages['pt-BR'], {
   'mergecheck.ci.no_checks': 'nenhuma verificação de CI encontrada para {branch}.',
   'mergecheck.policy.auto': 'o destino é a integração e delivery.integration_merge é auto.',
   'mergecheck.policy.main': 'a junção na principal sempre pede a pessoa.',
+  'mergecheck.policy.main_empty': 'branches.main está vazio na configuração; a junção sem a pessoa fica bloqueada até corrigir.',
+  'mergecheck.policy.same_branch': 'branches.integration é igual a branches.main ({branch}); a junção sem a pessoa fica bloqueada.',
   'mergecheck.policy.ask': 'delivery.integration_merge é {value}: a junção na integração pede a pessoa.',
   'mergecheck.policy.other': 'o destino {target} não é a integração ({integration}): a junção pede a pessoa.',
   'mergecheck.name.acceptance': 'relatório de aceite',
@@ -976,6 +984,7 @@ Object.assign(messages['pt-BR'], {
   'mergecheck.ci.wrong_base': 'o PR #{pr} aponta para {base}, não para {target}; as verificações dele não valem para esta junção.',
   'mergecheck.ci.not_open': 'o PR #{pr} não está aberto (estado {state}).',
   'mergecheck.applied': 'PR #{pr} da entrega {id} juntado em {target} (sem apagar o ramo).',
+  'mergecheck.apply_changed': 'PR #{pr} mudou antes da junção (estado {state}, base {base}, commit {head}); junção em {target} cancelada.',
   'mergecheck.apply_failed': 'Falha ao juntar o PR #{pr} em {target}: {message}.',
   'mergecheck.board_synced': 'Quadro sincronizado depois da junção ({n} card(s) atualizado(s)).',
   'mergecheck.board_sync_failed': 'Aviso: a junção entrou, mas {n} card(s) do quadro não puderam ser atualizados agora.',
@@ -1035,6 +1044,8 @@ Object.assign(messages.en, {
   'mergecheck.ci.no_checks': 'no CI check found for {branch}.',
   'mergecheck.policy.auto': 'the target is the integration branch and delivery.integration_merge is auto.',
   'mergecheck.policy.main': 'merging into main always asks the person.',
+  'mergecheck.policy.main_empty': 'branches.main is empty in the config; merging without the person stays blocked until fixed.',
+  'mergecheck.policy.same_branch': 'branches.integration equals branches.main ({branch}); merging without the person stays blocked.',
   'mergecheck.policy.ask': 'delivery.integration_merge is {value}: the integration merge asks the person.',
   'mergecheck.policy.other': 'the target {target} is not the integration branch ({integration}): the merge asks the person.',
   'mergecheck.name.acceptance': 'acceptance report',
@@ -1054,6 +1065,7 @@ Object.assign(messages.en, {
   'mergecheck.ci.wrong_base': 'PR #{pr} targets {base}, not {target}; its checks do not count for this merge.',
   'mergecheck.ci.not_open': 'PR #{pr} is not open (state {state}).',
   'mergecheck.applied': 'PR #{pr} of delivery {id} merged into {target} (branch kept).',
+  'mergecheck.apply_changed': 'PR #{pr} changed right before merge (state {state}, base {base}, head {head}); merge into {target} aborted.',
   'mergecheck.apply_failed': 'Failed to merge PR #{pr} into {target}: {message}.',
   'mergecheck.board_synced': 'Board synced after merge ({n} card(s) updated).',
   'mergecheck.board_sync_failed': 'Warning: merge succeeded, but {n} board card(s) could not be updated now.',

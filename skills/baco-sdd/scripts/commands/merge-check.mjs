@@ -324,9 +324,17 @@ function ciCondition({ root, pr, tip, branch, target }) {
   return { reason: 'no_checks', params: { branch } };
 }
 
+const isMainTarget = (target, branches) => target === 'main' || target === 'master' || (typeof branches?.main === 'string' && branches.main.trim() !== '' && target === branches.main.trim());
+const hasEmptyMain = (config) => {
+  const m = typeof config?.branches?.main === 'string' ? config.branches.main.trim() : '';
+  return !m || (Array.isArray(config?.warnings) && config.warnings.some((w) => w.key === 'config.branches_main_empty'));
+};
+
 function policyCondition({ config, target }) {
   const b = config.branches ?? {};
-  if (target === b.main) return { reason: 'main' };
+  if (hasEmptyMain(config)) return { reason: 'main_empty' };
+  if (isMainTarget(target, b)) return { reason: 'main' };
+  if (b.integration === b.main) return { reason: 'same_branch', params: { branch: b.main } };
   if (target === b.integration) {
     const value = config.delivery?.integration_merge ?? 'ask';
     return value === 'auto' ? { ok: true, reason: 'auto' } : { reason: 'ask', params: { value } };
@@ -408,13 +416,33 @@ export async function run(args, ctx) {
 
   data.apply = true;
   data.merged = false;
+  const b = ctx.config.branches ?? {};
   const canAutoMerge = ok
-    && target !== ctx.config.branches?.main
-    && target === ctx.config.branches?.integration
+    && !hasEmptyMain(ctx.config)
+    && !isMainTarget(target, b)
+    && b.integration !== b.main
+    && target === b.integration
     && (ctx.config.delivery?.integration_merge ?? 'ask') === 'auto';
   if (!canAutoMerge) return { code: 2, data, messages };
 
-  const merged = ghExec(['pr', 'merge', pr, '--merge'], ctx.root);
+  // Re-read PR base and head right before merging to guard against TOCTOU shifts (base retargeted to main, new commits pushed).
+  const live = gh(['pr', 'view', pr, '--json', 'headRefOid,baseRefName,state'], ctx.root);
+  if (live.error) {
+    data.applyError = live.error;
+    messages.push({ key: 'mergecheck.apply_failed', params: { pr, target, message: live.error } });
+    return { code: 1, data, messages };
+  }
+  const { headRefOid: liveHead, baseRefName: liveBase, state: liveState } = live.json ?? {};
+  if (liveState !== 'OPEN' || liveBase !== target || isMainTarget(liveBase, b) || liveHead !== tip) {
+    data.applyChanged = { state: liveState ?? null, base: liveBase ?? null, head: liveHead ?? null };
+    messages.push({
+      key: 'mergecheck.apply_changed',
+      params: { pr, target, base: liveBase ?? '-', state: liveState ?? '-', head: liveHead ? short(liveHead) : '-' },
+    });
+    return { code: 2, data, messages };
+  }
+
+  const merged = ghExec(['pr', 'merge', pr, '--merge', '--match-head-commit', tip], ctx.root);
   if (!merged.ok) {
     data.applyError = merged.error;
     messages.push({ key: 'mergecheck.apply_failed', params: { pr, target, message: merged.error } });

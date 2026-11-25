@@ -701,7 +701,7 @@ test('roles: an entry that is not text or has an empty model is dropped with a w
   ]);
 });
 
-test('roles: optional @effort override on harness or harness/model normalizes to alto|medio|baixo and warns when invalid', async () => {
+test('roles: optional @effort override uses Object.hasOwn, preserves model IDs with @suffix, and warns with config.role_effort_invalid', async () => {
   const { roleChain } = await import('../skills/baco-sdd/scripts/lib/config.mjs');
   const cfg = loadConfig(rootWith([
     'harnesses:',
@@ -709,33 +709,71 @@ test('roles: optional @effort override on harness or harness/model normalizes to
     '    models: { forte: opus, medio: sonnet }',
     '  codex:',
     '    models: { forte: gpt-x }',
+    'models:',
+    '  standard:',
+    '    effort: constructor',
     'roles:',
     '  task_reviewer:',
     '    - codex',
     '    - claude-code/opus@baixo',
     '    - claude-code@low',
-    '    - claude-code/sonnet@invalido',
+    '    - claude-code/claude-sonnet-4@20250514',
+    '    - claude-code/claude-sonnet-4@20250514@medio',
+    '    - claude-code@constructor',
+    '    - claude-code@invalido',
+    '    - claude-code/sonnet@',
     '    - claude-code/@medio',
     '  pr_reviewer:',
     '    - codex/gpt-x@high',
     '',
   ].join('\n')));
+  assert.equal(cfg.models.standard.effort, DEFAULTS.models.standard.effort);
   assert.deepEqual(cfg.roles, {
-    task_reviewer: ['codex', 'claude-code/opus@baixo', 'claude-code@baixo'],
+    task_reviewer: [
+      'codex',
+      'claude-code/opus@baixo',
+      'claude-code@baixo',
+      'claude-code/claude-sonnet-4@20250514',
+      'claude-code/claude-sonnet-4@20250514@medio',
+    ],
     pr_reviewer: ['codex/gpt-x@alto'],
   });
   assert.deepEqual(roleChain(cfg, 'task_reviewer'), [
     { harness: 'codex', tool: 'codex', model: null },
     { harness: 'claude-code', tool: 'claude-code', model: 'opus', effort: 'baixo' },
     { harness: 'claude-code', tool: 'claude-code', model: null, effort: 'baixo' },
+    { harness: 'claude-code', tool: 'claude-code', model: 'claude-sonnet-4@20250514' },
+    { harness: 'claude-code', tool: 'claude-code', model: 'claude-sonnet-4@20250514', effort: 'medio' },
   ]);
   assert.deepEqual(roleChain(cfg, 'pr_reviewer'), [
     { harness: 'codex', tool: 'codex', model: 'gpt-x', effort: 'alto' },
   ]);
   assert.deepEqual(cfg.warnings, [
-    { key: 'config.invalid_section', params: { section: 'roles.task_reviewer' } },
+    { key: 'config.invalid_section', params: { section: 'models.standard.effort' } },
+    { key: 'config.role_effort_invalid', params: { role: 'task_reviewer', value: 'constructor', entry: 'claude-code@constructor' } },
+    { key: 'config.role_effort_invalid', params: { role: 'task_reviewer', value: 'invalido', entry: 'claude-code@invalido' } },
+    { key: 'config.role_effort_invalid', params: { role: 'task_reviewer', value: '', entry: 'claude-code/sonnet@' } },
     { key: 'config.invalid_section', params: { section: 'roles.task_reviewer' } },
   ]);
+  for (const lang of ['pt-BR', 'en']) {
+    const msg = t(lang, 'config.role_effort_invalid', { role: 'task_reviewer', value: 'constructor', entry: 'claude-code@constructor' });
+    assert.notEqual(msg, 'config.role_effort_invalid');
+    assert.match(msg, /constructor/);
+  }
+});
+
+test('branches: warns when branches.main is empty or branches.integration equals branches.main', () => {
+  const emptyMain = loadConfig(rootWith('branches:\n  main: ""\n  integration: develop\n'));
+  assert.equal(emptyMain.branches.main, 'main');
+  assert.ok(emptyMain.warnings.some((w) => w.key === 'config.branches_main_empty'));
+
+  const same = loadConfig(rootWith('branches:\n  main: develop\n  integration: develop\n'));
+  assert.ok(same.warnings.some((w) => w.key === 'config.branches_same'));
+
+  for (const lang of ['pt-BR', 'en']) {
+    assert.notEqual(t(lang, 'config.branches_main_empty'), 'config.branches_main_empty');
+    assert.notEqual(t(lang, 'config.branches_same', { branch: 'develop' }), 'config.branches_same');
+  }
 });
 
 // 1.10.0: risk criterion, delivery size, spec freeze, review focus, final rounds, test runs, CI

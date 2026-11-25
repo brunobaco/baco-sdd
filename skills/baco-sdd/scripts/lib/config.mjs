@@ -272,7 +272,8 @@ function normalizeModels(models, warnings) {
     for (const [field, table, aliases] of [['level', LEVELS, ['level', 'model']], ['effort', EFFORTS, ['effort']]]) {
       const name = aliases.find((a) => entry[a] !== undefined && entry[a] !== null);
       if (name === undefined) continue;
-      const value = table[fold(entry[name])];
+      const k = fold(entry[name]);
+      const value = k !== null && Object.hasOwn(table, k) ? table[k] : undefined;
       if (value === undefined) warnings.push({ key: 'config.invalid_section', params: { section: `models.${cls}.${name}` } });
       else norm[field] = value;
     }
@@ -403,25 +404,44 @@ function normalizePlanning(planning, warnings) {
   return out;
 }
 
-// `roles.<role>`: a list (or one text) of `<harness>` or `<harness>/<model>`, in order of
-// preference. A role outside ROLE_NAMES, a list that is something else, an entry that is not text or
-// has an empty part, and an entry naming a harness absent from `harnesses` are dropped with a warning.
+const ownEffort = (raw) => {
+  const k = fold(raw);
+  return k !== null && Object.hasOwn(EFFORTS, k) ? EFFORTS[k] : null;
+};
+
+// `roles.<role>`: a list (or one text) of `<harness>`, `<harness>@<effort>`, `<harness>/<model>` or
+// `<harness>/<model>@<effort>`, in order of preference. Only a known effort after `@` is parsed as
+// effort; an unknown `@suffix` on a `<harness>/<model>` stays part of the model ID (e.g.
+// `claude-sonnet-4@20250514`), whereas an empty `@` or an unknown `@suffix` on a bare harness is
+// dropped with `config.role_effort_invalid`.
 function parseRoleEntry(item) {
   const text = typeof item === 'string' ? item.trim() : '';
-  if (!text) return null;
+  if (!text) return { error: 'shape' };
+  const slash = text.indexOf('/');
   const at = text.lastIndexOf('@');
   let base = text;
   let effort = null;
   if (at !== -1) {
-    base = text.slice(0, at).trim();
     const rawEffort = text.slice(at + 1).trim();
-    effort = EFFORTS[fold(rawEffort)] ?? undefined;
-    if (!effort) return null;
+    const resolved = rawEffort ? ownEffort(rawEffort) : null;
+    if (slash === -1 || at < slash) {
+      // Bare `<harness>@<effort>` (or `@` before `/`): `@suffix` is always an effort specifier.
+      if (!resolved || slash !== -1) return { error: 'effort', value: rawEffort, entry: text };
+      base = text.slice(0, at).trim();
+      effort = resolved;
+    } else if (rawEffort === '') {
+      // Trailing bare `@` after model (e.g. `claude/sonnet@`).
+      return { error: 'effort', value: '', entry: text };
+    } else if (resolved) {
+      base = text.slice(0, at).trim();
+      effort = resolved;
+    }
+    // Otherwise (`slash !== -1 && at > slash && !resolved`): keep `@rawEffort` inside the model ID.
   }
-  const slash = base.indexOf('/');
-  const harness = slash === -1 ? base : base.slice(0, slash).trim();
-  const model = slash === -1 ? null : base.slice(slash + 1).trim();
-  if (!harness || model === '') return null;
+  const s = base.indexOf('/');
+  const harness = s === -1 ? base : base.slice(0, s).trim();
+  const model = s === -1 ? null : base.slice(s + 1).trim();
+  if (!harness || model === '') return { error: 'shape' };
   return { harness, model, effort };
 }
 
@@ -438,7 +458,11 @@ function normalizeRoles(roles, harnesses, warnings) {
     const kept = [];
     for (const item of list) {
       const parsed = parseRoleEntry(item);
-      if (!parsed) { warnings.push({ key: 'config.invalid_section', params: { section: `roles.${role}` } }); continue; }
+      if (parsed.error === 'effort') {
+        warnings.push({ key: 'config.role_effort_invalid', params: { role, value: parsed.value, entry: parsed.entry } });
+        continue;
+      }
+      if (parsed.error) { warnings.push({ key: 'config.invalid_section', params: { section: `roles.${role}` } }); continue; }
       const { harness, model, effort } = parsed;
       if (!Object.hasOwn(harnesses, harness)) {
         warnings.push({ key: 'config.role_harness_unknown', params: { role, harness } });
@@ -460,7 +484,7 @@ export function roleChain(config, role) {
   if (!Array.isArray(list)) return [];
   return list.map((entry) => {
     const parsed = parseRoleEntry(entry);
-    if (!parsed) return { harness: entry, tool: harnessTool(config, entry), model: null };
+    if (parsed.error) return { harness: entry, tool: harnessTool(config, entry), model: null };
     const { harness, model, effort } = parsed;
     const out = { harness, tool: harnessTool(config, harness), model };
     if (effort !== null) out.effort = effort;
@@ -718,6 +742,18 @@ export function resolveConfig(parsed) {
     else qa.specialist = list;
     user = { ...user, qa };
   }
+  if (isPlainObject(user.branches)) {
+    const b = { ...user.branches };
+    if (Object.hasOwn(b, 'main')) {
+      const m = typeof b.main === 'string' ? b.main.trim() : '';
+      if (!m) {
+        delete b.main;
+        warnings.push({ key: 'config.branches_main_empty', params: {} });
+      } else b.main = m;
+    }
+    if (Object.hasOwn(b, 'integration') && typeof b.integration === 'string') b.integration = b.integration.trim();
+    user = { ...user, branches: b };
+  }
   if (isPlainObject(user.gates)) {
     for (const gate of MANDATORY_GATES) {
       if (Object.hasOwn(user.gates, gate) && user.gates[gate] !== true) {
@@ -726,6 +762,9 @@ export function resolveConfig(parsed) {
     }
   }
   const config = deepMerge(structuredClone(DEFAULTS), user);
+  if (config.branches.integration && config.branches.integration === config.branches.main) {
+    warnings.push({ key: 'config.branches_same', params: { branch: config.branches.main } });
+  }
   config.gates = { ...config.gates };
   for (const gate of MANDATORY_GATES) config.gates[gate] = true;
   return { ...config, warnings };

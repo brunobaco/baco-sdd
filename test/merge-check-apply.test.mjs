@@ -13,12 +13,20 @@ const capture = () => {
 };
 const git = (dir, ...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
 
-async function setupDelivery(t, { integrationMerge = 'auto', ciState = 'SUCCESS', mergeExit = 0 } = {}) {
+async function setupDelivery(t, {
+  integrationMerge = 'auto',
+  ciState = 'SUCCESS',
+  mergeExit = 0,
+  mainBranch = 'main',
+  integrationBranch = 'develop',
+  secondViewBase = null,
+  secondViewHead = null,
+} = {}) {
   const repo = await makeRepo({
     '.baco/config.yaml': [
       'branches:',
-      '  main: main',
-      '  integration: develop',
+      `  main: ${JSON.stringify(mainBranch)}`,
+      `  integration: ${JSON.stringify(integrationBranch)}`,
       'manual_pending:',
       '  main: block',
       '  other: warn',
@@ -31,7 +39,7 @@ async function setupDelivery(t, { integrationMerge = 'auto', ciState = 'SUCCESS'
     'src/a.js': 'export const a = 1;\n',
   });
   t.after(() => rmSync(repo, { recursive: true, force: true }));
-  git(repo, 'checkout', '-q', '-b', 'develop');
+  if (integrationBranch !== 'main') git(repo, 'checkout', '-q', '-b', integrationBranch);
   git(repo, 'checkout', '-q', '-b', 'baco/ENT-001');
   const tip = commit(repo, {
     'src/a.js': 'export const a = 2;\n',
@@ -59,16 +67,21 @@ async function setupDelivery(t, { integrationMerge = 'auto', ciState = 'SUCCESS'
   const logDir = mkdtempSync(join(tmpdir(), 'baco-mc-gh-'));
   t.after(() => rmSync(logDir, { recursive: true, force: true }));
   const callsFile = join(logDir, 'calls.log');
+  const countFile = join(logDir, 'views.count');
   const bin = join(logDir, 'gh');
   writeFileSync(bin, `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify(args) + '\\n');
 if (args[0] === 'pr' && args[1] === 'view') {
-  const base = ${JSON.stringify('develop')};
+  const n = (fs.existsSync(${JSON.stringify(countFile)}) ? Number(fs.readFileSync(${JSON.stringify(countFile)}, 'utf8')) : 0) + 1;
+  fs.writeFileSync(${JSON.stringify(countFile)}, String(n));
+  const base = ${JSON.stringify(integrationBranch)};
+  const secondBase = ${JSON.stringify(secondViewBase)};
+  const secondHead = ${JSON.stringify(secondViewHead)};
   process.stdout.write(JSON.stringify({
-    headRefOid: ${JSON.stringify(deliveryTip)},
-    baseRefName: process.env.FAKE_PR_BASE || base,
+    headRefOid: n >= 2 && secondHead ? secondHead : ${JSON.stringify(deliveryTip)},
+    baseRefName: n >= 2 && secondBase ? secondBase : (process.env.FAKE_PR_BASE || base),
     state: 'OPEN',
     statusCheckRollup: [{ name: 'ci', status: 'COMPLETED', conclusion: ${JSON.stringify(ciState)} }],
   }));
@@ -82,7 +95,7 @@ process.exit(1);
 `);
   chmodSync(bin, 0o755);
   writeFileSync(join(repo, '.baco/logs/bateria-completa.json'), JSON.stringify({ ...stamp, head: deliveryTip }));
-  return { repo, bin, callsFile };
+  return { repo, bin, callsFile, deliveryTip };
 }
 
 test('merge-check --apply requires --pr', async (t) => {
@@ -92,8 +105,8 @@ test('merge-check --apply requires --pr', async (t) => {
   assert.equal(code, 64);
 });
 
-test('merge-check --apply merges via gh pr merge --merge (no --delete-branch) when clean and auto on integration', async (t) => {
-  const { repo, bin, callsFile } = await setupDelivery(t);
+test('merge-check --apply re-reads PR base/head and passes --match-head-commit without --delete-branch', async (t) => {
+  const { repo, bin, callsFile, deliveryTip } = await setupDelivery(t);
   const prev = process.env.BACO_GH;
   process.env.BACO_GH = bin;
   t.after(() => { if (prev === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prev; });
@@ -106,9 +119,53 @@ test('merge-check --apply merges via gh pr merge --merge (no --delete-branch) wh
   assert.equal(d.apply, true);
   assert.equal(d.merged, true);
   const calls = readFileSync(callsFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const viewCalls = calls.filter((a) => a[0] === 'pr' && a[1] === 'view');
+  assert.equal(viewCalls.length, 2, 'must re-read PR base/head right before merge');
   const mergeCall = calls.find((a) => a[0] === 'pr' && a[1] === 'merge');
-  assert.deepEqual(mergeCall, ['pr', 'merge', '42', '--merge']);
+  assert.deepEqual(mergeCall, ['pr', 'merge', '42', '--merge', '--match-head-commit', deliveryTip]);
   assert.ok(!mergeCall.includes('--delete-branch'));
+});
+
+test('merge-check --apply aborts if PR baseRefName or headRefOid shifts right before merge', async (t) => {
+  for (const [label, opts] of [
+    ['base shifted to main', { secondViewBase: 'main' }],
+    ['head shifted', { secondViewHead: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' }],
+  ]) {
+    const { repo, bin, callsFile } = await setupDelivery(t, opts);
+    const prev = process.env.BACO_GH;
+    process.env.BACO_GH = bin;
+    t.after(() => { if (prev === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prev; });
+
+    const c = capture();
+    const code = await main(['merge-check', 'ENT-001', '--target', 'develop', '--pr', '42', '--apply', '--json', '--cwd', repo], c.io);
+    assert.equal(code, 2, label);
+    const d = JSON.parse(c.out.stdout);
+    assert.equal(d.merged, false, label);
+    assert.ok(d.applyChanged, label);
+    const calls = readFileSync(callsFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    assert.equal(calls.some((a) => a[0] === 'pr' && a[1] === 'merge'), false, `${label}: must not merge`);
+  }
+});
+
+test('merge-check --apply refuses when target is main or master, when integration === main, or when branches.main is empty', async (t) => {
+  for (const [label, opts, target] of [
+    ['target master even when configured as integration', { mainBranch: 'prod', integrationBranch: 'master' }, 'master'],
+    ['integration equals main', { mainBranch: 'develop', integrationBranch: 'develop' }, 'develop'],
+    ['empty branches.main', { mainBranch: '', integrationBranch: 'develop' }, 'develop'],
+  ]) {
+    const { repo, bin, callsFile } = await setupDelivery(t, opts);
+    const prev = process.env.BACO_GH;
+    process.env.BACO_GH = bin;
+    t.after(() => { if (prev === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prev; });
+
+    const c = capture();
+    const code = await main(['merge-check', 'ENT-001', '--target', target, '--pr', '42', '--apply', '--json', '--cwd', repo], c.io);
+    assert.equal(code, 2, label);
+    const d = JSON.parse(c.out.stdout);
+    assert.equal(d.merged, false, label);
+    const calls = readFileSync(callsFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    assert.equal(calls.some((a) => a[0] === 'pr' && a[1] === 'merge'), false, `${label}: must never call gh pr merge`);
+  }
 });
 
 test('merge-check --apply refuses to merge into main, when ask, or when CI failed', async (t) => {
