@@ -84,20 +84,23 @@ export function deliveryKnownIdsOf(root, config, entId) {
   return existsSync(plan) ? deliveryKnownIds(root, readPlanHeader(readText(plan)).specs) : new Set();
 }
 
-const PLAN_OUT_OF_SCOPE = /^(?:fora\s+desta\s+entrega|fora\s+do\s+plano|nao\s+construid[oa]|out\s+of\s+scope)(?:\s*$|\s*[;(.:,-])/;
+const PLAN_OUT_OF_SCOPE = /^fora\s+desta\s+entrega(?:\s*$|\s*[;(.:,-])/;
+const EMPTY_TASK = /^(?:[-—–]+|n\/a|<[^>]*>)$/i;
 
-// Criteria explicitly marked out of scope in plano.md: either a header line
-// `**Fora desta entrega:** CA-...` or a row in `## Cobertura` whose `Tarefa` cell starts with
-// `fora desta entrega` / `fora do plano` / `não construída` / `out of scope`.
-export function readPlanOutOfScope(md) {
-  const ids = new Set();
+// Scope cutout declared in plano.md: only the 1.11.0 marker `fora desta entrega` counts (in the
+// header `**Fora desta entrega:** CA-...` or in the `Tarefa` cell of `## Cobertura`), so legacy
+// plans with other phrasing do not change meaning. Also returns every CA assigned to a real task in
+// `## Cobertura` and any contradictions (marked out of scope while also assigned to a real task).
+export function readPlanScope(md) {
+  const outOfScope = new Set();
+  const coveredByTask = new Set();
   const text = String(md ?? '').replace(/\r\n?/g, '\n');
   for (const line of text.split('\n')) {
     const m = /^\s*\*\*\s*([^*:]+?)\s*:\s*\*\*\s*(.*)$/.exec(line) ?? /^\s*\*\*\s*([^*:]+?)\s*\*\*\s*:\s*(.*)$/.exec(line);
     if (!m) continue;
     const label = fold(m[1]).trim();
-    if (label === 'fora desta entrega' || label === 'out of scope') {
-      for (const id of expandRefs(m[2])) if (id.startsWith('CA-')) ids.add(id);
+    if (label === 'fora desta entrega') {
+      for (const id of expandRefs(m[2])) if (id.startsWith('CA-')) outOfScope.add(id);
     }
   }
   const hs = headings(text);
@@ -112,23 +115,38 @@ export function readPlanOutOfScope(md) {
       if (caCol < 0 || taskCol < 0) continue;
       for (const r of tb.rows) {
         const task = fold(String(r.cells[taskCol] ?? '').replace(/[`*_]/g, '')).trim();
-        if (!PLAN_OUT_OF_SCOPE.test(task)) continue;
-        for (const id of expandRefs(r.cells[caCol] ?? '')) if (id.startsWith('CA-')) ids.add(id);
+        const cas = expandRefs(r.cells[caCol] ?? '').filter((id) => id.startsWith('CA-'));
+        if (!cas.length) continue;
+        if (PLAN_OUT_OF_SCOPE.test(task)) {
+          for (const id of cas) outOfScope.add(id);
+        } else if (task && !EMPTY_TASK.test(task)) {
+          for (const id of cas) coveredByTask.add(id);
+        }
       }
     }
   }
-  return ids;
+  const contradictions = [...outOfScope].filter((id) => coveredByTask.has(id)).sort();
+  return { outOfScope, coveredByTask, contradictions };
+}
+
+export function readPlanOutOfScope(md) {
+  return readPlanScope(md).outOfScope;
+}
+
+// Scope cutout of a delivery's plano.md; empty sets when the delivery or its plan does not exist.
+export function deliveryScopeOf(root, config, entId) {
+  let dir;
+  try { dir = deliveryDir(root, config, entId); } catch (e) {
+    if (e instanceof DeliveryError) return { outOfScope: new Set(), coveredByTask: new Set(), contradictions: [] };
+    throw e;
+  }
+  const plan = join(dir, 'plano.md');
+  return existsSync(plan) ? readPlanScope(readText(plan)) : { outOfScope: new Set(), coveredByTask: new Set(), contradictions: [] };
 }
 
 // Out-of-scope CAs of a delivery's plano.md; an empty set when the delivery or its plan does not exist.
 export function deliveryOutOfScopeOf(root, config, entId) {
-  let dir;
-  try { dir = deliveryDir(root, config, entId); } catch (e) {
-    if (e instanceof DeliveryError) return new Set();
-    throw e;
-  }
-  const plan = join(dir, 'plano.md');
-  return existsSync(plan) ? readPlanOutOfScope(readText(plan)) : new Set();
+  return deliveryScopeOf(root, config, entId).outOfScope;
 }
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

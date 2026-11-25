@@ -1,7 +1,7 @@
 import { relative, resolve, sep } from 'node:path';
 import { existsSync, readdirSync, realpathSync, writeFileSync, mkdirSync } from 'node:fs';
 import { revParse } from '../lib/git.mjs';
-import { ENT_ID, deliveryKnownIdsOf, deliveryOutOfScopeOf } from '../lib/delivery.mjs';
+import { ENT_ID, deliveryKnownIdsOf, deliveryScopeOf } from '../lib/delivery.mjs';
 import { t } from '../lib/messages.mjs';
 import { dirname } from 'node:path';
 import { readText } from '../lib/markdown.mjs';
@@ -208,8 +208,10 @@ export async function run(args, ctx) {
   const specPath = relative(base, realpathSync(specAbs)).split(sep).join('/');
   // With --delivery, the IDs of every spec of the plan are known (a delivery with no folder adds none).
   const alsoKnown = delivery && ctx.root ? deliveryKnownIdsOf(ctx.root, ctx.config, delivery) : new Set();
-  const outOfScope = delivery && ctx.root ? deliveryOutOfScopeOf(ctx.root, ctx.config, delivery) : new Set();
-  const coverage = traceCoverage({ spec, qa, cases, delivery, alsoKnown, outOfScope });
+  const planScope = delivery && ctx.root
+    ? deliveryScopeOf(ctx.root, ctx.config, delivery)
+    : { outOfScope: new Set(), coveredByTask: new Set(), contradictions: [] };
+  const coverage = traceCoverage({ spec, qa, cases, delivery, alsoKnown, outOfScope: planScope.outOfScope });
   // --ca: only those criteria count (result and exit code). The JSON records the filter so a partial
   // trace is never taken as the proof of a whole delivery (acceptance-report and build-handoff refuse it).
   let filter = null;
@@ -225,7 +227,19 @@ export async function run(args, ctx) {
     }
     if (oos > 0) coverage.summary.out_of_scope = oos;
   }
-  const data = { head, spec: { path: specPath, version: spec.version ?? null }, delivery, filter, ...coverage };
+  const specCaSet = new Set(coverage.cas.map((c) => c.ca));
+  const scopeContradictions = [...new Set([
+    ...planScope.contradictions.filter((id) => !filter || specCaSet.has(id)),
+    ...coverage.cas.filter((c) => c.status === 'out_of_scope' && planScope.coveredByTask.has(c.ca)).map((c) => c.ca),
+  ])].sort();
+  const data = {
+    head,
+    spec: { path: specPath, version: spec.version ?? null },
+    delivery,
+    filter,
+    ...coverage,
+    ...(scopeContradictions.length ? { scopeContradictions } : {}),
+  };
   if (typeof args.flags.out === 'string') {
     const out = resolve(ctx.cwd, args.flags.out);
     mkdirSync(dirname(out), { recursive: true });
@@ -234,6 +248,7 @@ export async function run(args, ctx) {
   const { summary } = data;
   const messages = [{ key: summary.out_of_scope ? 'trace.summary_out_of_scope' : 'trace.summary', params: { ...summary } }];
   if (filter) messages.push({ key: 'trace.filtered', params: { ids: filter.join(', ') } });
+  if (scopeContradictions.length) messages.push({ key: 'trace.scope_contradiction', params: { ids: scopeContradictions.join(', ') } });
   for (const c of data.cas) {
     messages.push({
       key: 'trace.ca',
@@ -252,5 +267,5 @@ export async function run(args, ctx) {
   }
   if (data.orphanTests.length) messages.push({ key: 'trace.orphans', params: { tests: data.orphanTests.join('; ') } });
   const otherFailed = data.otherScenarios.some((s) => isFailedResult(s.result));
-  return { code: summary.uncovered + summary.failed > 0 || otherFailed ? 1 : 0, data, messages };
+  return { code: summary.uncovered + summary.failed > 0 || otherFailed || scopeContradictions.length > 0 ? 1 : 0, data, messages };
 }

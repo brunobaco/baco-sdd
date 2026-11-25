@@ -1,6 +1,6 @@
 import { writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { deliveryDir, readPlanHeader, latestVerdict, deliveryKnownIds, ENT_ID } from '../lib/delivery.mjs';
+import { deliveryDir, readPlanHeader, readPlanScope, latestVerdict, deliveryKnownIds, ENT_ID } from '../lib/delivery.mjs';
 import { orphansOf } from './trace.mjs';
 import { revParse, isAncestor, diffQuiet, showFile } from '../lib/git.mjs';
 import { loadTrace } from '../lib/tracefile.mjs';
@@ -8,6 +8,7 @@ import { manualPendingRule, provenancePathspecs, parseYamlSubset, resolveConfig 
 import { readQa, resolveSpecialistKind } from '../lib/qa.mjs';
 import { readText, headings, tables, fold } from '../lib/markdown.mjs';
 import { readWaiver } from '../lib/waiver.mjs';
+import { readPlanApproval } from '../lib/plan-approval.mjs';
 import { agentRuns } from './cost.mjs';
 import { t } from '../lib/messages.mjs';
 
@@ -16,7 +17,7 @@ export const usage = 'baco acceptance-report <ENT-NNN> --target <branch> --trace
 const usageError = () => ({ code: 64, data: {}, messages: [{ key: 'cli.usage', params: { usage } }] });
 const STATUSES = ['proven', 'failed', 'pending', 'uncovered', 'out_of_scope'];
 // R18: these blockers are verification failures (exit 1); any other blocker is a human gate (exit 2).
-export const VERIFICATION_BLOCKERS = ['merge.failed', 'merge.uncovered', 'merge.no_criteria', 'merge.scenario_failed'];
+export const VERIFICATION_BLOCKERS = ['merge.failed', 'merge.uncovered', 'merge.no_criteria', 'merge.scenario_failed', 'merge.out_of_scope_contradiction'];
 // Worse status wins when the same CA appears in several traces; unknown statuses are the worst.
 const RANK = { out_of_scope: 0, proven: 1, pending: 2, uncovered: 3, failed: 4 };
 const rank = (s) => RANK[s] ?? 5;
@@ -37,6 +38,45 @@ export function outOfScopeItems(trace) {
   const cas = casOf(trace).filter((c) => c.status === OUT_OF_SCOPE).map((c) => c.ca);
   const scenarios = othersOf(trace).filter((s) => s.result === OUT_OF_SCOPE).map((s) => s.id);
   return { cas, scenarios };
+}
+
+const sameList = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+// Checks out-of-scope consistency and human approval (aprovacao-plano.md). Contradictions (a CA
+// marked out of scope while also having a real task in ## Cobertura) are verification failures;
+// missing or changed plan approval for any out-of-scope set is a human gate blocker.
+export function planScopeBlockers({ planText, trace, approval }) {
+  const scope = readPlanScope(planText);
+  const oos = outOfScopeItems(trace);
+  const currentCas = [...new Set([...scope.outOfScope, ...oos.cas])].sort();
+  const currentScenarios = [...new Set(oos.scenarios)].sort();
+  const contradictions = [...new Set([
+    ...scope.contradictions,
+    ...currentCas.filter((id) => scope.coveredByTask.has(id)),
+  ])].sort();
+  const blockers = [];
+  const params = {};
+  if (contradictions.length) {
+    blockers.push('merge.out_of_scope_contradiction');
+    params['merge.out_of_scope_contradiction'] = { ids: contradictions.join(', ') };
+  }
+  const hasCurrent = currentCas.length > 0 || currentScenarios.length > 0;
+  const approvedCas = approval ? [...new Set(approval.outOfScope)].sort() : [];
+  const approvedScenarios = approval ? [...new Set(approval.outOfScopeScenarios ?? [])].sort() : [];
+  const hasApproved = approvedCas.length > 0 || approvedScenarios.length > 0;
+  if (hasCurrent || hasApproved) {
+    if (!approval) {
+      blockers.push('merge.out_of_scope_unapproved');
+      params['merge.out_of_scope_unapproved'] = { ids: [...currentCas, ...currentScenarios].join(', ') };
+    } else if (!sameList(currentCas, approvedCas) || !sameList(currentScenarios, approvedScenarios)) {
+      blockers.push('merge.out_of_scope_changed');
+      params['merge.out_of_scope_changed'] = {
+        approved: [...approvedCas, ...approvedScenarios].join(', ') || '-',
+        current: [...currentCas, ...currentScenarios].join(', ') || '-',
+      };
+    }
+  }
+  return { blockers, params, contradictions, currentCas, currentScenarios };
 }
 
 // Pending scenarios across all criteria and the scenarios without a CA, deduplicated by id. A
@@ -411,7 +451,8 @@ export async function run(args, ctx) {
     traces.push(r.trace);
   }
   const trace = mergeTraces(traces);
-  const { specs: planSpecs } = readPlanHeader(readText(join(dir, 'plano.md'))); // ENOENT -> 65
+  const planText = readText(join(dir, 'plano.md')); // ENOENT -> 65
+  const { specs: planSpecs } = readPlanHeader(planText);
   // A test tagged with an ID of another spec of the delivery is not unknown: only IDs unknown to every
   // plan spec (and its QA file) and to every trace stay orphans, whatever the traces recorded.
   const known = deliveryKnownIds(ctx.root, planSpecs);
@@ -439,12 +480,18 @@ export async function run(args, ctx) {
     return { code: 65, data: {}, messages: [{ key: 'acceptance.provenance_ignore_failed', params: { message: e.message } }] };
   }
   const specialist = ctx.config.qa?.specialist ?? [];
-  const decision = combineDecision(mergeDecision({ trace, verdict, rule: manualPendingRule(ctx.config, target), waiver, specialist }), prov);
+  const scopeCheck = planScopeBlockers({ planText, trace, approval: readPlanApproval(dir) });
+  const baseDecision = mergeDecision({ trace, verdict, rule: manualPendingRule(ctx.config, target), waiver, specialist });
+  const decision = combineDecision(baseDecision, {
+    blockers: [...prov.blockers, ...scopeCheck.blockers],
+    specsNotTraced: prov.specsNotTraced,
+  });
   const { blockers } = decision;
   const blockerParams = {
     'merge.spec_not_traced': { paths: prov.specsNotTraced.join(', ') },
     'merge.trace_other_delivery': { id: entId },
     'merge.waiver_stale': { by: waiver?.by ?? '-', date: waiver?.date ?? '-' },
+    ...scopeCheck.params,
   };
   const warningParams = {
     'merge.review_waived': { by: waiver?.by ?? '-', date: waiver?.date ?? '-', reason: noFinalDot(waiver?.reason ?? '-') },

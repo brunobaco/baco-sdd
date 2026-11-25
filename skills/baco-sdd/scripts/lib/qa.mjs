@@ -13,7 +13,7 @@ export const QA_AUTOMATION_FIELD = 'Automação';
 export const EVIDENCE_HEADERS = ['CT', 'Resultado', 'Data', 'Onde', 'Entrega'];
 const EVIDENCE_TITLE = 'Evidências de execução';
 const AUTOMATION = ['automatizado', 'manual', 'pendente'];
-const OUT_OF_SCOPE = /^(?:fora\s+desta\s+entrega|out\s+of\s+scope)(?:\s*$|\s*[;(.:,-])/;
+const OUT_OF_SCOPE = /^fora\s+desta\s+entrega(?:\s*$|\s*[;(.:,-])/;
 const RESULTS = ['aprovado', 'reprovado'];
 
 const isEvidenceTable = (t) => {

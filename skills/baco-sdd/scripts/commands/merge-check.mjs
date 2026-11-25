@@ -7,7 +7,8 @@ import { manualPendingRule, githubProject } from '../lib/config.mjs';
 import { loadTrace } from '../lib/tracefile.mjs';
 import { readText, headings, tables, fold } from '../lib/markdown.mjs';
 import { readWaiver } from '../lib/waiver.mjs';
-import { combineDecision, freshnessCheck, mergeDecision, mergeTraces, pendingItems, provenanceBlockers, ProvenanceIgnoreError } from './acceptance-report.mjs';
+import { readPlanApproval } from '../lib/plan-approval.mjs';
+import { combineDecision, freshnessCheck, mergeDecision, mergeTraces, pendingItems, planScopeBlockers, provenanceBlockers, ProvenanceIgnoreError } from './acceptance-report.mjs';
 import { run as boardRun } from './board.mjs';
 import { STAMP_FILE, codePathspecs } from './run-tests.mjs';
 import { t } from '../lib/messages.mjs';
@@ -226,13 +227,19 @@ function acceptanceCondition({ read, dir, revDir, config, target, entId, tip, is
   const verdict = latestVerdict(revDir);
   const recorded = readWaiver(revDir);
   const waiver = recorded ? { ...recorded, current: isCurrent(recorded.head) } : null;
+  const merged = mergeTraces(read.traces);
   const prov = provenanceBlockers({ traces: read.traces, verdict, head: tip, entId, planSpecs, isCurrent });
-  const base = mergeDecision({ trace: mergeTraces(read.traces), verdict, rule: manualPendingRule(config, target), waiver, specialist: config.qa?.specialist ?? [] });
-  const decision = combineDecision(base, prov);
+  const scopeCheck = planScopeBlockers({ planText, trace: merged, approval: readPlanApproval(dir) });
+  const base = mergeDecision({ trace: merged, verdict, rule: manualPendingRule(config, target), waiver, specialist: config.qa?.specialist ?? [] });
+  const decision = combineDecision(base, {
+    blockers: [...prov.blockers, ...scopeCheck.blockers],
+    specsNotTraced: prov.specsNotTraced,
+  });
   const params = {
     'merge.spec_not_traced': { paths: prov.specsNotTraced.join(', ') },
     'merge.trace_other_delivery': { id: entId },
     'merge.waiver_stale': { by: waiver?.by ?? '-', date: waiver?.date ?? '-' },
+    ...scopeCheck.params,
   };
   if (!decision.allowed) return { reason: 'blocked', params: { reasons: decision.blockers.map((k) => t(lang, k, params[k])).join(' ') }, blockers: decision.blockers };
   if (decision.warnings.includes('merge.not_run')) return { reason: 'not_run', params: { reasons: t(lang, 'merge.not_run') } };
