@@ -20,6 +20,7 @@ const summaries = {
   'antigravity-task': ['Prepara a pasta de uma tarefa para o Antigravity construir (trava de gravação e regras de comando) ou tira o preparo (--clean)', 'Prepare a task folder for an Antigravity implementer (write guard and command rules) or take it out (--clean)'],
   board: ['Diz em que coluna do quadro do GitHub Project cada issue da entrega deve estar', 'Say which GitHub Project board column each issue of the delivery belongs in'],
   'merge-check': ['Diz se a entrega pode entrar no ramo de destino sem a pessoa (bateria, veredito, cenários manuais, pendências, CI e política)', 'Say whether the delivery may join the target branch without the person (battery, verdict, manual scenarios, waiting items, CI and policy)'],
+  'check-stalled': ['Diz, sem gastar IA, se alguma entrega em execução autônoma está parada há mais de N minutos', 'Report, without AI calls, whether any autonomous delivery has been idle for more than N minutes'],
 };
 
 const messages = { 'pt-BR': {}, en: {} };
@@ -953,6 +954,9 @@ Object.assign(messages['pt-BR'], {
   'mergecheck.apply_failed': 'Falha ao juntar o PR #{pr} em {target}: {message}.',
   'mergecheck.board_synced': 'Quadro sincronizado depois da junção ({n} card(s) atualizado(s)).',
   'mergecheck.board_sync_failed': 'Aviso: a junção entrou, mas {n} card(s) do quadro não puderam ser atualizados agora.',
+  'stalled.none': 'Nenhuma entrega em execução autônoma parada há mais de {minutes} minuto(s).',
+  'stalled.found': '{count} entrega(s) em execução autônoma parada(s) há mais de {minutes} minuto(s):',
+  'stalled.item': '- {delivery}: parada há {idleMinutes} min · conversa: {conductor} · próximo passo: {nextStep}',
   'battery.ci_timeout_near': 'Aviso: a bateria completa levou {seconds} s, mais de 70% do maior timeout-minutes dos workflows de CI ({minutes} min). Recomende subir esse tempo, dividir a execução completa do CI em jobs ou passar test_runs.ci_full para manual.',
 });
 
@@ -1028,5 +1032,8 @@ Object.assign(messages.en, {
   'mergecheck.apply_failed': 'Failed to merge PR #{pr} into {target}: {message}.',
   'mergecheck.board_synced': 'Board synced after merge ({n} card(s) updated).',
   'mergecheck.board_sync_failed': 'Warning: merge succeeded, but {n} board card(s) could not be updated now.',
+  'stalled.none': 'No autonomous delivery has been idle for more than {minutes} minute(s).',
+  'stalled.found': '{count} autonomous delivery(ies) idle for more than {minutes} minute(s):',
+  'stalled.item': '- {delivery}: idle for {idleMinutes} min · conversation: {conductor} · next step: {nextStep}',
   'battery.ci_timeout_near': 'Warning: the full battery took {seconds} s, more than 70% of the largest timeout-minutes of the CI workflows ({minutes} min). Recommend raising that timeout, splitting the full CI run into jobs, or switching test_runs.ci_full to manual.',
 });
