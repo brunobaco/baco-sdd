@@ -74,7 +74,7 @@ export async function run(args, ctx) {
     const progressPath = join(dir, 'progresso.md');
     if (!existsSync(progressPath)) continue;
     const info = parseRetomada(readText(progressPath));
-    if (!info.autonomous || info.status !== 'rodando') continue;
+    if (!info.autonomous || !/^rodando(?:\b|$)/.test(info.status ?? '')) continue;
     const mtimeMs = statSync(progressPath).mtimeMs;
     const idleMinutes = Math.max(0, Math.floor((nowMs - mtimeMs) / 60000));
     if (idleMinutes >= minutes) {

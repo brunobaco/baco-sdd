@@ -87,3 +87,23 @@ test('check-stalled exits 2 when autonomous running delivery is idle past thresh
   const c5 = capture();
   assert.equal(await main(['check-stalled', '--minutes', '0', '--cwd', dir], c5.io), 64);
 });
+
+test('check-stalled recognizes "Situação: rodando (T-03)" variants as running', async (t) => {
+  const dir = await makeRepo({
+    '.baco/config.yaml': 'language: pt-BR\n',
+    'docs/entregas/ENT-004-nota/plano.md': '# Plano\n',
+    'docs/entregas/ENT-004-nota/progresso.md': prog({ situacao: 'rodando (T-03)' }),
+  });
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const p = join(dir, 'docs/entregas/ENT-004-nota/progresso.md');
+  const old = new Date(Date.now() - 35 * 60 * 1000);
+  utimesSync(p, old, old);
+
+  const c = capture();
+  const code = await main(['check-stalled', '--minutes', '20', '--json', '--cwd', dir], c.io);
+  assert.equal(code, 2, c.out.stderr);
+  const d = JSON.parse(c.out.stdout);
+  assert.equal(d.stalled, true);
+  assert.equal(d.deliveries.length, 1);
+  assert.equal(d.deliveries[0].delivery, 'ENT-004');
+});
