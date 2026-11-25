@@ -227,6 +227,8 @@ Object.assign(messages['pt-BR'], {
   'cleanup.remote.error': '  não foi possível consultar o remoto {remote}.',
   'cleanup.orphan_worktree': 'Remover pasta solta em .worktrees: {path}',
   'cleanup.orphan_removed': 'Pasta solta removida: {path}',
+  'cleanup.orphan_skipped.needs_orphans_flag': 'Mantida pasta solta em .worktrees ({path}): use --orphans para remover pastas não vazias sem arquivos pendentes.',
+  'cleanup.orphan_skipped.uncommitted': 'Mantida pasta solta em .worktrees ({path}): tem arquivos não commitados ou fora do git; confira antes de apagar.',
   'cleanup.delivery_log': 'Remover registro da entrega encerrada: {path}',
   'cleanup.log_removed': 'Registro removido: {path}',
 });
@@ -251,6 +253,8 @@ Object.assign(messages.en, {
   'cleanup.remote.error': '  could not query remote {remote}.',
   'cleanup.orphan_worktree': 'Remove orphan folder in .worktrees: {path}',
   'cleanup.orphan_removed': 'Removed orphan folder: {path}',
+  'cleanup.orphan_skipped.needs_orphans_flag': 'Kept orphan folder in .worktrees ({path}): pass --orphans to remove non-empty clean git folders.',
+  'cleanup.orphan_skipped.uncommitted': 'Kept orphan folder in .worktrees ({path}): contains uncommitted or non-git files; check before deleting.',
   'cleanup.delivery_log': 'Remove closed delivery log: {path}',
   'cleanup.log_removed': 'Removed log: {path}',
 });

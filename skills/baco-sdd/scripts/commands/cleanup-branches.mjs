@@ -1,10 +1,10 @@
-import { existsSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, rmdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { t } from '../lib/messages.mjs';
 import { protectedBranches } from '../lib/config.mjs';
 import { git, GitError, localBranches, worktrees, isAncestor, currentBranch, refExists, revParse, tagTarget } from '../lib/git.mjs';
 
-export const usage = 'baco cleanup-branches [--apply] [--remote] [--remote-name <name>] [--json] [--cwd <dir>]';
+export const usage = 'baco cleanup-branches [--apply] [--orphans] [--remote] [--remote-name <name>] [--json] [--cwd <dir>]';
 export const needsRepo = true;
 
 const DELIVERY = /^baco\/(ENT-\d{3})$/;
@@ -184,34 +184,72 @@ function canonical(p) {
   try { return realpathSync(p); } catch { return p; }
 }
 
-// Finds loose folders inside `.worktrees/` that are no longer registered as live git worktrees.
-export function findOrphanWorktrees(root, wts = worktrees(root)) {
-  const dir = join(root, '.worktrees');
-  if (!existsSync(dir)) return [];
-  const live = new Set(wts.map((w) => canonical(w.path)));
-  const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const full = join(dir, entry.name);
-    if (!live.has(canonical(full))) out.push(`.worktrees/${entry.name}`);
+// Inspects a loose folder inside `.worktrees/`:
+// - empty -> removable without --orphans (via rmdirSync)
+// - clean git repo/worktree -> removable only with --orphans
+// - anything with uncommitted/untracked files or non-git files -> never removed
+export function inspectOrphanWorktree(fullPath) {
+  let entries;
+  try { entries = readdirSync(fullPath); } catch { return { kind: 'dirty', reason: 'uncommitted', safe: false }; }
+  if (entries.length === 0) return { kind: 'empty', safe: true };
+  if (!existsSync(join(fullPath, '.git'))) return { kind: 'dirty', reason: 'uncommitted', safe: false };
+  try {
+    const top = canonical(git(['rev-parse', '--show-toplevel'], fullPath));
+    if (top !== canonical(fullPath)) return { kind: 'dirty', reason: 'uncommitted', safe: false };
+    const status = git(['status', '--porcelain', '--untracked-files=all'], fullPath);
+    if (status.trim() !== '') return { kind: 'dirty', reason: 'uncommitted', safe: false };
+    return { kind: 'clean_orphan', safe: true };
+  } catch {
+    return { kind: 'dirty', reason: 'uncommitted', safe: false };
   }
-  return out.sort();
+}
+
+// Plans removal of loose folders inside `.worktrees/` not registered as live git worktrees.
+// Only empty folders are candidates by default; clean git orphans require `includeOrphans: true`;
+// folders with uncommitted or non-git files are always skipped.
+export function planOrphanWorktrees(root, wts = worktrees(root), { includeOrphans = false } = {}) {
+  const dir = join(root, '.worktrees');
+  if (!existsSync(dir)) return { candidates: [], skipped: [] };
+  const live = new Set(wts.map((w) => canonical(w.path)));
+  const candidates = [];
+  const skipped = [];
+  const entries = readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (live.has(canonical(full))) continue;
+    const rel = `.worktrees/${entry.name}`;
+    const info = inspectOrphanWorktree(full);
+    if (info.kind === 'empty') candidates.push({ path: rel, kind: 'empty' });
+    else if (info.kind === 'clean_orphan' && includeOrphans) candidates.push({ path: rel, kind: 'clean_orphan' });
+    else if (info.kind === 'clean_orphan') skipped.push({ path: rel, reason: 'needs_orphans_flag' });
+    else skipped.push({ path: rel, reason: 'uncommitted' });
+  }
+  return { candidates, skipped };
+}
+
+export function findOrphanWorktrees(root, wts = worktrees(root), opts = {}) {
+  return planOrphanWorktrees(root, wts, opts).candidates.map((c) => c.path);
 }
 
 // Finds `.baco/logs/` entries belonging to deliveries whose branch is being closed (matches ENT-NNN
-// as a whole token; shared project logs are never touched).
-export function findDeliveryLogs(root, entIds) {
+// as a whole token; shared project logs are never touched). Returns [{ path, entIds }].
+function planDeliveryLogs(root, entIds) {
   const ids = [...new Set(entIds.filter(Boolean))];
   if (!ids.length) return [];
   const dir = join(root, '.baco', 'logs');
   if (!existsSync(dir)) return [];
-  const re = new RegExp(`(?:^|[^A-Za-z0-9])(?:${ids.join('|')})(?![0-9])`, 'i');
   const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+  const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  for (const entry of entries) {
     if (SHARED_LOGS.has(entry.name)) continue;
-    if (re.test(entry.name)) out.push(`.baco/logs/${entry.name}`);
+    const matched = ids.filter((id) => new RegExp(`(?:^|[^A-Za-z0-9])${id}(?![0-9])`, 'i').test(entry.name));
+    if (matched.length) out.push({ path: `.baco/logs/${entry.name}`, entIds: matched });
   }
-  return out.sort();
+  return out;
+}
+
+export function findDeliveryLogs(root, entIds) {
+  return planDeliveryLogs(root, entIds).map((e) => e.path);
 }
 
 export async function run(args, ctx) {
@@ -219,6 +257,7 @@ export async function run(args, ctx) {
   const { integration, main: mainBranch } = config.branches;
   const protectedList = protectedBranches(config);
   const apply = Boolean(args.flags.apply);
+  const includeOrphans = Boolean(args.flags.orphans);
   const remote = args.flags.remote ? (typeof args.flags['remote-name'] === 'string' ? args.flags['remote-name'] : 'origin') : null;
 
   const wts = worktrees(root);
@@ -232,15 +271,21 @@ export async function run(args, ctx) {
     isMergedInto: (b, target) => isAncestor(`refs/heads/${b}`, `refs/heads/${target}`, root),
     tipOf: (b) => revParse(`refs/heads/${b}`, root),
   });
-  const orphanWorktrees = findOrphanWorktrees(root, wts);
+  const orphanPlan = planOrphanWorktrees(root, wts, { includeOrphans });
+  const orphanWorktrees = orphanPlan.candidates.map((c) => c.path);
+  const skippedOrphans = orphanPlan.skipped;
   const closedDeliveries = candidates
     .filter((c) => c.reason === 'delivery_merged')
     .map((c) => DELIVERY.exec(c.branch)?.[1])
     .filter(Boolean);
-  const deliveryLogs = findDeliveryLogs(root, closedDeliveries);
+  const deliveryLogPlan = planDeliveryLogs(root, closedDeliveries);
+  const deliveryLogs = deliveryLogPlan.map((e) => e.path);
 
   const reason = (r) => t(ctx.lang, `cleanup.reason.${r}`);
-  const skippedMessages = skipped.map((s) => ({ key: 'cleanup.skipped', params: { ...s, reason: reason(s.reason) } }));
+  const skippedMessages = [
+    ...skipped.map((s) => ({ key: 'cleanup.skipped', params: { ...s, reason: reason(s.reason) } })),
+    ...skippedOrphans.map((s) => ({ key: `cleanup.orphan_skipped.${s.reason}`, params: { path: s.path } })),
+  ];
   const hasAnything = candidates.length > 0 || orphanWorktrees.length > 0 || deliveryLogs.length > 0;
   if (!apply) {
     const messages = [];
@@ -256,19 +301,28 @@ export async function run(args, ctx) {
     messages.push(...skippedMessages);
     if (!hasAnything) messages.push({ key: 'cleanup.nothing' });
     else messages.push({ key: 'cleanup.dry_run_hint' });
-    return { code: 0, data: { apply: false, candidates, skipped, orphanWorktrees, deliveryLogs }, messages };
+    return { code: 0, data: { apply: false, candidates, skipped, orphanWorktrees, skippedOrphans, deliveryLogs }, messages };
   }
 
   const { done, failed, warnings, messages } = applyCleanup(candidates, { root, remote, protectedList });
   const removedWorktrees = [];
-  for (const rel of orphanWorktrees) {
+  for (const item of orphanPlan.candidates) {
+    const full = join(root, item.path);
     try {
-      rmSync(join(root, rel), { recursive: true, force: true });
-      removedWorktrees.push(rel);
-      messages.push({ key: 'cleanup.orphan_removed', params: { path: rel } });
+      if (item.kind === 'empty') {
+        rmdirSync(full);
+      } else {
+        const now = inspectOrphanWorktree(full);
+        if (now.kind !== 'clean_orphan' && now.kind !== 'empty') {
+          throw new Error('folder changed since plan (uncommitted files)');
+        }
+        rmSync(full, { recursive: true, force: true });
+      }
+      removedWorktrees.push(item.path);
+      messages.push({ key: 'cleanup.orphan_removed', params: { path: item.path } });
     } catch (e) {
-      failed.push({ branch: rel, step: 'orphan_worktree', error: e.message });
-      messages.push({ key: 'cleanup.failed', params: { branch: rel, step: 'orphan_worktree', error: e.message } });
+      failed.push({ branch: item.path, step: 'orphan_worktree', error: e.message });
+      messages.push({ key: 'cleanup.failed', params: { branch: item.path, step: 'orphan_worktree', error: e.message } });
     }
   }
   if (removedWorktrees.length || done.some((d) => d.worktree_removed)) {
@@ -276,21 +330,22 @@ export async function run(args, ctx) {
   }
   const closedOk = new Set(done.filter((d) => DELIVERY.test(d.branch)).map((d) => DELIVERY.exec(d.branch)[1]));
   const removedLogs = [];
-  for (const rel of findDeliveryLogs(root, [...closedOk])) {
+  for (const item of deliveryLogPlan) {
+    if (!item.entIds.every((id) => closedOk.has(id))) continue;
     try {
-      rmSync(join(root, rel), { recursive: true, force: true });
-      removedLogs.push(rel);
-      messages.push({ key: 'cleanup.log_removed', params: { path: rel } });
+      rmSync(join(root, item.path), { recursive: true, force: true });
+      removedLogs.push(item.path);
+      messages.push({ key: 'cleanup.log_removed', params: { path: item.path } });
     } catch (e) {
-      failed.push({ branch: rel, step: 'delivery_log', error: e.message });
-      messages.push({ key: 'cleanup.failed', params: { branch: rel, step: 'delivery_log', error: e.message } });
+      failed.push({ branch: item.path, step: 'delivery_log', error: e.message });
+      messages.push({ key: 'cleanup.failed', params: { branch: item.path, step: 'delivery_log', error: e.message } });
     }
   }
   messages.push(...skippedMessages);
   if (!hasAnything) messages.push({ key: 'cleanup.nothing' });
   return {
     code: failed.length ? 1 : 0,
-    data: { apply: true, candidates, skipped, done, failed, warnings, orphanWorktrees, removedWorktrees, deliveryLogs, removedLogs },
+    data: { apply: true, candidates, skipped, done, failed, warnings, orphanWorktrees, skippedOrphans, removedWorktrees, deliveryLogs, removedLogs },
     messages,
   };
 }

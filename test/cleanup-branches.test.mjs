@@ -364,7 +364,7 @@ test('M5: cleanup reason tokens are localized', async () => {
   assert.match(txt.out.stdout, /tarefa/i);
 });
 
-test('cleanup-branches detects and removes orphan folders in .worktrees/ and closed delivery logs in .baco/logs/', async () => {
+test('cleanup-branches removes only empty .worktrees/ folders by default, never deletes uncommitted files even with --orphans, and removes clean git orphans only with --orphans', async () => {
   const { mkdirSync } = await import('node:fs');
   const dir = await makeRepo({ '.baco/config.yaml': 'branches:\n  main: main\n  integration: develop\n' });
   g(dir, 'checkout', '-q', '-b', 'develop');
@@ -373,25 +373,70 @@ test('cleanup-branches detects and removes orphan folders in .worktrees/ and clo
   g(dir, 'checkout', '-q', 'develop');
   g(dir, 'merge', '-q', '--no-ff', 'baco/ENT-001', '-m', 'merge ENT-001');
 
-  // Orphan folder in .worktrees/ and logs for ENT-001 + shared log that must stay
-  mkdirSync(join(dir, '.worktrees', 'T-999-orphan'), { recursive: true });
-  writeFileSync(join(dir, '.worktrees', 'T-999-orphan', 'leftover.txt'), 'x');
+  // 1. Empty loose folder (safe without --orphans)
+  mkdirSync(join(dir, '.worktrees', 'T-empty'), { recursive: true });
+  // 2. Non-git folder with uncommitted file (exact repro: must NEVER be deleted, even with --orphans)
+  mkdirSync(join(dir, '.worktrees', 'meu-clone'), { recursive: true });
+  writeFileSync(join(dir, '.worktrees', 'meu-clone', 'rascunho.txt'), 'nao apagar\n');
+  // 3. Clean orphan git repo (only removed with --orphans)
+  const cleanOrphan = join(dir, '.worktrees', 'T-clean-orphan');
+  mkdirSync(cleanOrphan, { recursive: true });
+  g(cleanOrphan, 'init', '-q');
+  g(cleanOrphan, 'config', 'user.name', 'Test');
+  g(cleanOrphan, 'config', 'user.email', 'test@example.com');
+  writeFileSync(join(cleanOrphan, 'ok.txt'), 'committed\n');
+  g(cleanOrphan, 'add', 'ok.txt');
+  g(cleanOrphan, 'commit', '-q', '-m', 'init');
+  // 4. Dirty orphan git repo (must NEVER be deleted, even with --orphans)
+  const dirtyOrphan = join(dir, '.worktrees', 'T-dirty-orphan');
+  mkdirSync(dirtyOrphan, { recursive: true });
+  g(dirtyOrphan, 'init', '-q');
+  g(dirtyOrphan, 'config', 'user.name', 'Test');
+  g(dirtyOrphan, 'config', 'user.email', 'test@example.com');
+  writeFileSync(join(dirtyOrphan, 'ok.txt'), 'committed\n');
+  g(dirtyOrphan, 'add', 'ok.txt');
+  g(dirtyOrphan, 'commit', '-q', '-m', 'init');
+  writeFileSync(join(dirtyOrphan, 'untracked.txt'), 'wip\n');
+
+  // Delivery logs for ENT-001 + shared log + ENT-002 log
   mkdirSync(join(dir, '.baco', 'logs', 'pr-ENT-001-r01'), { recursive: true });
   writeFileSync(join(dir, '.baco', 'logs', 'quadro-ENT-001.json'), '{}');
   writeFileSync(join(dir, '.baco', 'logs', 'harnesses.md'), 'keep\n');
   writeFileSync(join(dir, '.baco', 'logs', 'quadro-ENT-002.json'), '{}');
 
+  // Dry run WITHOUT --orphans: only T-empty is an orphan candidate
   const dry = JSON.parse((await run(['cleanup-branches', '--json', '--cwd', dir])).out.stdout);
-  assert.deepEqual(dry.orphanWorktrees, ['.worktrees/T-999-orphan']);
+  assert.deepEqual(dry.orphanWorktrees, ['.worktrees/T-empty']);
+  assert.deepEqual(dry.skippedOrphans, [
+    { path: '.worktrees/T-clean-orphan', reason: 'needs_orphans_flag' },
+    { path: '.worktrees/T-dirty-orphan', reason: 'uncommitted' },
+    { path: '.worktrees/meu-clone', reason: 'uncommitted' },
+  ]);
   assert.deepEqual(dry.deliveryLogs, ['.baco/logs/pr-ENT-001-r01', '.baco/logs/quadro-ENT-001.json']);
-  assert.equal(existsSync(join(dir, '.worktrees', 'T-999-orphan')), true);
 
+  // Apply WITHOUT --orphans: removes ONLY T-empty and ENT-001 logs; keeps all non-empty folders
   const applied = JSON.parse((await run(['cleanup-branches', '--apply', '--json', '--cwd', dir])).out.stdout);
-  assert.deepEqual(applied.removedWorktrees, ['.worktrees/T-999-orphan']);
+  assert.deepEqual(applied.removedWorktrees, ['.worktrees/T-empty']);
   assert.deepEqual(applied.removedLogs, ['.baco/logs/pr-ENT-001-r01', '.baco/logs/quadro-ENT-001.json']);
-  assert.equal(existsSync(join(dir, '.worktrees', 'T-999-orphan')), false);
-  assert.equal(existsSync(join(dir, '.baco', 'logs', 'quadro-ENT-001.json')), false);
-  assert.equal(existsSync(join(dir, '.baco', 'logs', 'pr-ENT-001-r01')), false);
+  assert.equal(existsSync(join(dir, '.worktrees', 'T-empty')), false);
+  assert.equal(existsSync(join(dir, '.worktrees', 'meu-clone', 'rascunho.txt')), true);
+  assert.equal(existsSync(cleanOrphan), true);
+  assert.equal(existsSync(dirtyOrphan), true);
   assert.equal(existsSync(join(dir, '.baco', 'logs', 'harnesses.md')), true, 'shared log must stay');
   assert.equal(existsSync(join(dir, '.baco', 'logs', 'quadro-ENT-002.json')), true, 'other delivery log must stay');
+
+  // Dry run WITH --orphans: lists T-clean-orphan, skips meu-clone and T-dirty-orphan
+  const dryOrphans = JSON.parse((await run(['cleanup-branches', '--orphans', '--json', '--cwd', dir])).out.stdout);
+  assert.deepEqual(dryOrphans.orphanWorktrees, ['.worktrees/T-clean-orphan']);
+  assert.deepEqual(dryOrphans.skippedOrphans, [
+    { path: '.worktrees/T-dirty-orphan', reason: 'uncommitted' },
+    { path: '.worktrees/meu-clone', reason: 'uncommitted' },
+  ]);
+
+  // Apply WITH --orphans: removes T-clean-orphan ONLY; meu-clone and T-dirty-orphan survive!
+  const appliedOrphans = JSON.parse((await run(['cleanup-branches', '--apply', '--orphans', '--json', '--cwd', dir])).out.stdout);
+  assert.deepEqual(appliedOrphans.removedWorktrees, ['.worktrees/T-clean-orphan']);
+  assert.equal(existsSync(cleanOrphan), false);
+  assert.equal(existsSync(join(dir, '.worktrees', 'meu-clone', 'rascunho.txt')), true);
+  assert.equal(existsSync(join(dir, '.worktrees', 'T-dirty-orphan', 'untracked.txt')), true);
 });
