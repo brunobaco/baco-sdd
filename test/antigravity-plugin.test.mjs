@@ -99,10 +99,11 @@ test('antigravity plugin: the main skill is copied whole, its commands named the
 test('antigravity plugin: hooks in the Antigravity format, run from the plugin folder with --host antigravity', () => {
   const dest = build();
   const hooks = JSON.parse(readFileSync(join(dest, 'hooks.json'), 'utf8')).baco;
-  assert.deepEqual(Object.keys(hooks).sort(), ['PreInvocation', 'PreToolUse', 'SessionStart']);
+  assert.deepEqual(Object.keys(hooks).sort(), ['PostToolUse', 'PreInvocation', 'PreToolUse', 'SessionStart']);
   const commands = [
     ...hooks.SessionStart.map((h) => h.command), ...hooks.PreInvocation.map((h) => h.command),
     ...hooks.PreToolUse.flatMap((g) => g.hooks.map((h) => h.command)),
+    ...hooks.PostToolUse.flatMap((g) => g.hooks.map((h) => h.command)),
   ];
   for (const c of commands) {
     const m = /^node \.\/(hooks\/[a-z-]+\.mjs) --host antigravity$/.exec(c);

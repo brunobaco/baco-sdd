@@ -818,6 +818,8 @@ Object.assign(messages['pt-BR'], {
   'board.next': 'Depois de cada mudança conferida, registre com: baco board {ent} --applied "<endereço da issue>=<coluna>".',
   'board.applied_unknown_issue': 'A issue {url} não é desta entrega (não está nos arquivos das tarefas nem na linha "Issue mãe"); nada foi registrado.',
   'board.applied_unknown_status': 'A coluna "{status}" não está na configuração do quadro ({columns}); nada foi registrado.',
+  'board.applied_ok': '{n} card(s) atualizado(s) no quadro, conferido(s) e registrado(s) em {path}.',
+  'board.apply_failed': 'Falha ao atualizar {item} para "{status}" no quadro: {error}.',
 });
 
 Object.assign(messages.en, {
@@ -830,6 +832,8 @@ Object.assign(messages.en, {
   'board.next': 'After each change is read back, record it with: baco board {ent} --applied "<issue URL>=<column>".',
   'board.applied_unknown_issue': 'Issue {url} is not part of this delivery (not in the task files nor in the "Issue mãe" line); nothing was recorded.',
   'board.applied_unknown_status': 'Column "{status}" is not in the board configuration ({columns}); nothing was recorded.',
+  'board.applied_ok': '{n} card(s) updated on the board, verified and recorded in {path}.',
+  'board.apply_failed': 'Failed to update {item} to "{status}" on the board: {error}.',
 });
 
 // 1.7.0: answers of AI tools run in non-interactive JSON mode (Antigravity CLI).
