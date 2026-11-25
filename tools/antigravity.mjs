@@ -18,6 +18,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, write
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMainModule } from '../skills/baco-sdd/scripts/lib/entrypoint.mjs';
 
 export const MARKER = '<!-- baco:antigravity-plugin -->';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -141,7 +142,7 @@ export function buildAntigravityPlugin({ root = ROOT, dest }) {
   return { dest: target, agents: agents.length, commands: commands.length, version: claude.version };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+if (isMainModule(import.meta.url)) {
   const argv = process.argv.slice(2);
   const i = argv.indexOf('--dest');
   if (i >= 0 && !argv[i + 1]) { console.error('uso: node tools/antigravity.mjs [--dest <pasta>]'); process.exit(64); }

@@ -15,9 +15,9 @@
 import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { shellWrites } from '../skills/baco-sdd/scripts/lib/shellwrites.mjs';
+import { isMainModule } from '../skills/baco-sdd/scripts/lib/entrypoint.mjs';
 import { readHookInput, preToolAnswer } from './host.mjs';
 
 const ALLOW = { deny: false };
@@ -99,7 +99,7 @@ export function decide(hook) {
   };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isMainModule(import.meta.url)) {
   let hook = readHookInput(null);
   let result = ALLOW;
   try {

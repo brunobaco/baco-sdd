@@ -6,6 +6,7 @@ import { t } from './lib/messages.mjs';
 import { repoRoot, GitError, GitUnavailableError } from './lib/git.mjs';
 import { loadConfig, ConfigError, DEFAULTS } from './lib/config.mjs';
 import { DeliveryError } from './lib/delivery.mjs';
+import { isMainModule } from './lib/entrypoint.mjs';
 
 export const COMMANDS = [
   'validate-spec', 'spec-diff', 'catalog', 'trace', 'plan-freshness', 'check-branch',
@@ -124,7 +125,7 @@ export function exitQuietlyOnEpipe(stream, exit = (code) => process.exit(code)) 
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   exitQuietlyOnEpipe(process.stdout);
   exitQuietlyOnEpipe(process.stderr);
   main(process.argv.slice(2)).then((code) => { process.exitCode = code; });

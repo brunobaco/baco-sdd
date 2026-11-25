@@ -4,9 +4,9 @@
 // Fails open: on any error it allows the edit and writes one line to stderr.
 import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, isAbsolute, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { repoRoot, currentBranch, git } from '../skills/baco-sdd/scripts/lib/git.mjs';
 import { loadConfig, resolveConfig, protectedBranches, ConfigError } from '../skills/baco-sdd/scripts/lib/config.mjs';
+import { isMainModule } from '../skills/baco-sdd/scripts/lib/entrypoint.mjs';
 import { readHookInput, preToolAnswer } from './host.mjs';
 
 const ALLOW = { deny: false };
@@ -77,7 +77,7 @@ export function decide(hook) {
   };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isMainModule(import.meta.url)) {
   let hook = readHookInput(null);
   let result = ALLOW;
   try {
