@@ -63,6 +63,16 @@ test('branch-guard.mjs runs when invoked through a symlinked directory', (t) => 
   assert.match(r.stderr, /baco branch-guard:/);
 });
 
+test('board-sync.mjs runs when invoked through a symlinked directory', (t) => {
+  const link = withSymlinkRoot(t);
+  const r = spawnSync(process.execPath, [join(link, 'hooks/board-sync.mjs')], {
+    input: 'not-valid-json',
+    encoding: 'utf8',
+  });
+  assert.equal(r.status, 0);
+  assert.match(r.stderr, /baco board-sync:/);
+});
+
 test('tools/antigravity.mjs runs when invoked through a symlinked directory', (t) => {
   const link = withSymlinkRoot(t);
   const r = spawnSync(process.execPath, [join(link, 'tools/antigravity.mjs'), '--dest'], {

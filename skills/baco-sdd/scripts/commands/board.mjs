@@ -135,7 +135,38 @@ function fieldValueOf(item, fieldName) {
   return null;
 }
 
-// Applies the pending board moves via gh, reads the board back once to verify each move, and returns
+const BOARD_LIST_INITIAL_LIMIT = 100;
+const BOARD_LIST_MAX_LIMIT = 10000;
+
+// Queries `gh project item-list` with expanding limits based on `totalCount` (or page fill when
+// `totalCount` is absent) so large boards (> 200 items) never drop edited cards from read-back.
+function listBoardItems(project, root, wantedUrls) {
+  let limit = BOARD_LIST_INITIAL_LIMIT;
+  let lastItems = [];
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const listArgs = ['project', 'item-list', String(project.number), '--owner', project.owner, '--limit', String(limit), '--format', 'json'];
+    if (fold(project.field) !== 'status') listArgs.push('--field', project.field);
+    const listed = ghRun(listArgs, root);
+    if (!listed.ok) return { error: `read-back: ${listed.error}` };
+    let parsed;
+    try { parsed = JSON.parse(listed.stdout); } catch (e) { return { error: `read-back JSON: ${e.message}` }; }
+    const items = Array.isArray(parsed?.items) ? parsed.items : [];
+    lastItems = items;
+    const foundUrls = new Set(items.map((item) => item?.content?.url ?? item?.url).filter((u) => typeof u === 'string'));
+    if (wantedUrls.every((u) => foundUrls.has(u))) return { items };
+    const total = typeof parsed?.totalCount === 'number' ? parsed.totalCount : null;
+    if (total !== null) {
+      if (total <= items.length || limit >= Math.min(total, BOARD_LIST_MAX_LIMIT)) return { items };
+      limit = Math.min(total, BOARD_LIST_MAX_LIMIT);
+    } else {
+      if (items.length < limit || limit >= BOARD_LIST_MAX_LIMIT) return { items };
+      limit = Math.min(limit * 2, BOARD_LIST_MAX_LIMIT);
+    }
+  }
+  return { items: lastItems };
+}
+
+// Applies the pending board moves via gh, reads the board back to verify each move, and returns
 // { applied: [{ item, url, status }], failed: [{ item, url, status, error }] }.
 export function applyBoardChanges(changes, project, root) {
   const edited = [];
@@ -155,20 +186,13 @@ export function applyBoardChanges(changes, project, root) {
     }
   }
   if (!edited.length) return { applied: [], failed };
-  const listArgs = ['project', 'item-list', String(project.number), '--owner', project.owner, '--limit', '200', '--format', 'json'];
-  if (fold(project.field) !== 'status') listArgs.push('--field', project.field);
-  const listed = ghRun(listArgs, root);
-  if (!listed.ok) {
-    for (const it of edited) failed.push({ item: it.task ?? null, url: it.url, status: it.status, error: `read-back: ${listed.error}` });
-    return { applied: [], failed };
-  }
-  let parsed;
-  try { parsed = JSON.parse(listed.stdout); } catch (e) {
-    for (const it of edited) failed.push({ item: it.task ?? null, url: it.url, status: it.status, error: `read-back JSON: ${e.message}` });
+  const listed = listBoardItems(project, root, edited.map((it) => it.url));
+  if (listed.error) {
+    for (const it of edited) failed.push({ item: it.task ?? null, url: it.url, status: it.status, error: listed.error });
     return { applied: [], failed };
   }
   const byUrl = new Map();
-  for (const item of Array.isArray(parsed?.items) ? parsed.items : []) {
+  for (const item of listed.items) {
     const u = item?.content?.url ?? item?.url;
     if (typeof u === 'string') byUrl.set(u, fieldValueOf(item, project.field));
   }

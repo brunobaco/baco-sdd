@@ -193,7 +193,52 @@ test('board recognizes delivery merged into origin/<integration> even before loc
   assert.deepEqual(d.items.map((i) => i.status), ['Done', 'Done']);
 });
 
-test('board-sync hook extracts delivery id, skips non-matching/subagent/unconfigured edits, and runs via symlink', async (t) => {
+test('board --apply paginates gh project item-list beyond 200 items using totalCount', async (t) => {
+  const repo = await makeRepo({
+    '.baco/config.yaml': CONFIG,
+    'docs/entregas/ENT-001-app/plano.md': '# Plano\n',
+    'docs/entregas/ENT-001-app/progresso.md': PROG(),
+    'docs/entregas/ENT-001-app/tarefas/T-001.md': TASK('T-001', issueUrl(250)),
+  });
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
+
+  const { bin } = makeFakeGh(t, `
+    const fs = require('fs');
+    const logFile = ${JSON.stringify(join(repo, '.baco/logs/pag-calls.log'))};
+    fs.mkdirSync(${JSON.stringify(join(repo, '.baco/logs'))}, { recursive: true });
+    const args = process.argv.slice(2);
+    fs.appendFileSync(logFile, JSON.stringify(args) + '\\n');
+    if (args[0] === 'project' && args[1] === 'item-edit') process.exit(0);
+    if (args[0] === 'project' && args[1] === 'item-list') {
+      const limit = Number(args[args.indexOf('--limit') + 1] || 30);
+      const all = [];
+      for (let i = 1; i <= 250; i++) {
+        const url = 'https://github.com/acme/app/issues/' + i;
+        all.push({ content: { url }, status: (i === 1 || i === 250) ? 'In progress' : 'Backlog' });
+      }
+      process.stdout.write(JSON.stringify({ items: all.slice(0, limit), totalCount: 250 }));
+      process.exit(0);
+    }
+    process.exit(1);
+  `);
+
+  const prevGh = process.env.BACO_GH;
+  process.env.BACO_GH = bin;
+  t.after(() => { if (prevGh === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prevGh; });
+
+  const c = capture();
+  const code = await main(['board', 'ENT-001', '--apply', '--json', '--cwd', repo], c.io);
+  assert.equal(code, 0, c.out.stderr + c.out.stdout);
+  const d = JSON.parse(c.out.stdout);
+  assert.equal(d.applied.length, 2);
+  assert.deepEqual(d.applyFailed, []);
+  const calls = readFileSync(join(repo, '.baco/logs/pag-calls.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const listCalls = calls.filter((a) => a[0] === 'project' && a[1] === 'item-list');
+  assert.ok(listCalls.length >= 2, 'must re-query with larger limit when totalCount exceeds initial page');
+  assert.equal(listCalls[listCalls.length - 1][listCalls[listCalls.length - 1].indexOf('--limit') + 1], '250');
+});
+
+test('board-sync hook derives root from edited filePath (not cwd), enforces short lock, caps log size, and runs via symlink', async (t) => {
   assert.equal(extractDeliveryFromPath('/proj/docs/entregas/ENT-007-teste/progresso.md'), 'ENT-007');
   assert.equal(extractDeliveryFromPath('/proj/docs/entregas/ENT-007-teste/plano.md'), null);
   assert.equal(extractDeliveryFromPath('/proj/src/app.js'), null);
@@ -216,28 +261,62 @@ test('board-sync hook extracts delivery id, skips non-matching/subagent/unconfig
     'docs/entregas/ENT-001-app/progresso.md': PROG(),
   });
   t.after(() => rmSync(conf, { recursive: true, force: true }));
-  let capturedArgs = null;
+  const otherCwd = mkdtempSync(join(tmpdir(), 'baco-other-cwd-'));
+  t.after(() => rmSync(otherCwd, { recursive: true, force: true }));
+
+  // Pre-seed oversized quadro-sync.log (> 256 KiB) to verify log size cap
+  const logDir = join(conf, '.baco/logs');
+  const logPath = join(logDir, 'quadro-sync.log');
+  writeFileSync(join(conf, '.baco/config.yaml'), CONFIG);
+  const { mkdirSync, statSync } = await import('node:fs');
+  mkdirSync(logDir, { recursive: true });
+  writeFileSync(logPath, `${'x'.repeat(100)}\n`.repeat(3000)); // ~303 KB
+
   assert.equal(maybeSyncBoard({
     subagent: () => true,
-    cwd: conf,
+    cwd: otherCwd,
     filePath: join(conf, 'docs/entregas/ENT-001-app/progresso.md'),
   }, { spawnFn: () => { spawned = true; } }), false, 'subagent skipped');
 
-  assert.equal(maybeSyncBoard({
+  let spawnCount = 0;
+  let capturedArgs = null;
+  let now = 1_000_000;
+  const runHook = () => maybeSyncBoard({
     subagent: () => false,
-    cwd: conf,
+    cwd: otherCwd, // deliberately NOT the project root!
     filePath: join(conf, 'docs/entregas/ENT-001-app/progresso.md'),
-  }, { spawnFn: (cmd, args) => { capturedArgs = { cmd, args }; return { unref() {} }; } }), true);
+  }, {
+    nowFn: () => now,
+    ttlMs: 30_000,
+    spawnFn: (cmd, args) => { spawnCount++; capturedArgs = { cmd, args }; return { unref() {} }; },
+  });
+
+  // First call: finds root from filePath (NOT otherCwd), trims log, acquires lock, spawns
+  assert.equal(runHook(), true);
+  assert.equal(spawnCount, 1);
   assert.ok(capturedArgs);
   assert.ok(capturedArgs.args.includes('board'));
   assert.ok(capturedArgs.args.includes('ENT-001'));
   assert.ok(capturedArgs.args.includes('--apply'));
+  assert.equal(capturedArgs.args[capturedArgs.args.indexOf('--cwd') + 1], conf);
+  assert.ok(statSync(logPath).size <= 128 * 1024, 'quadro-sync.log must be capped');
 
-  // Symlink invocation fails open with exit 0
+  // Second call within lock TTL: skipped (no parallel spawn for same delivery)
+  now += 5_000;
+  assert.equal(runHook(), false);
+  assert.equal(spawnCount, 1);
+
+  // Third call after lock TTL expires: replaces stale lock and spawns again
+  now += 35_000;
+  assert.equal(runHook(), true);
+  assert.equal(spawnCount, 2);
+
+  // Symlink invocation fails open with exit 0 and writes diagnostic to stderr
   const base = mkdtempSync(join(tmpdir(), 'baco-board-hook-'));
   t.after(() => rmSync(base, { recursive: true, force: true }));
   const link = join(base, 'repo');
   symlinkSync(REPO_ROOT, link);
   const r = spawnSync(process.execPath, [join(link, 'hooks/board-sync.mjs')], { input: 'not-json', encoding: 'utf8' });
   assert.equal(r.status, 0);
+  assert.match(r.stderr, /baco board-sync:/);
 });
