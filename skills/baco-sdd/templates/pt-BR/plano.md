@@ -103,7 +103,7 @@ Tarefa com parada humana leva a palavra `PARADA` ao lado do código na coluna `T
 | `CA-XYZ-001` | `T-001` | `CT-XYZ-001` | `regra` |
 | `CA-XYZ-002` | `T-002` | `CT-XYZ-002` | `navegador` |
 
-A camada é `regra` (teste de unidade, por dentro) ou `navegador`; navegador só para os caminhos principais. Todo critério de aceite das specs deste plano precisa aparecer aqui. Critério fora do plano deve ser explicado.
+A camada é `regra` (teste de unidade, por dentro) ou `navegador`; navegador só para os caminhos principais. Todo critério de aceite das specs deste plano precisa aparecer aqui. Critério de função ainda não construída leva `fora desta entrega` na coluna `Tarefa` (ou no cabeçalho `**Fora desta entrega:** CA-...`) para que o aceite o liste à parte, sem contar como teste manual pendente.
 
 ## Se der errado
 

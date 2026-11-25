@@ -6,7 +6,7 @@ Roles named below are subagents when the host has them; otherwise run the role i
 
 ## 1. Where the edits go
 
-The target branch is protected, so documents are not edited on it. Create a short branch from the updated target: `baco/ENT-NNN-RECON` (`baco check-branch` must pass before editing). Land it like any change once the work is done: pull request when the tracker is GitHub, local merge otherwise, with the approval rules of [delivery.md](delivery.md), section 6. Write the merge approval of the delivery (date, target, who approved, accepted blockers) in `progresso.md` here. After it lands, `baco cleanup-branches` removes this branch like the others.
+The target branch is protected, so documents are not edited on it. Create a short branch from the updated target without needing to switch the main checkout onto a protected branch: `git fetch origin <target>` then `git switch -c baco/ENT-NNN-RECON origin/<target>` (or, in a local-only repo or when updating the local integration branch with `delivery.integration_merge: auto`, fast-forward it with `git switch <integration>` and `git pull --ff-only origin <integration>`, which does not ask under `auto`; pushing or merging into `main` always asks). Run `baco check-branch` before editing. Land it like any change once the work is done: pull request when the tracker is GitHub, local merge otherwise, with the approval rules of [delivery.md](delivery.md), section 6. Write the merge approval of the delivery (date, target, who approved, accepted blockers) in `progresso.md` here. After it lands, `baco cleanup-branches` removes this branch like the others.
 
 ## 2. Audit spec and code
 
@@ -82,4 +82,4 @@ Cases to keep in mind:
 
 ## 7. Closing
 
-Finish with: the audit verdict per spec, the divergences and the human's decisions, the catalog values written (read back), what is pending, the technical details left out of the spec, the lessons and the cost summary, in the communication pattern of `SKILL.md`. Run `baco validate-spec <spec>` for any spec touched. The next delivery starts again from [planning.md](planning.md), where `baco spec-diff <spec> --base auto` now measures from the sha you recorded.
+Finish with: the audit verdict per spec, the divergences and the human's decisions, the catalog values written (read back), what is pending (each item explained in plain words, never by ID alone, keeping specialist QA scenarios out of the report), the technical details left out of the spec, the lessons and the cost summary, in the communication pattern of `SKILL.md`. With `github.project` set, run `baco board ENT-NNN --apply` after reconciliation lands so the parent issue and every task are synced to `Done`. Run `baco validate-spec <spec>` for any spec touched. The next delivery starts again from [planning.md](planning.md), where `baco spec-diff <spec> --base auto` now measures from the sha you recorded.

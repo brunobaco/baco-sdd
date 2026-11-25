@@ -966,3 +966,30 @@ test('1.10.0 review fixes: specialist kinds, Antigravity npm/npx limit, conversa
   for (const p of ['`acceptance`', '`review.pr.reviewer: ambos`', 'fetching the destination from `origin`', 'the PR open and into that destination', 'not ok under `delivery.integration_merge: auto`']) assert.ok(del.includes(p), `delivery.md: "${p}" missing`);
   assert.ok(ref('gates.md').includes('acceptance report, nothing waiting'), 'gates.md: merge-check conditions');
 });
+
+test('1.11.0 rules: no .claude/ mid-delivery, merge-check --apply, board hook, worktree cleanup, PR split, wakeups, specialist silence, out_of_scope', () => {
+  const impl = ref('implementation.md');
+  for (const p of ['never edit `.claude/` during a running delivery', 'hooks/board-sync.mjs', 'baco board ENT-NNN --apply', 'Remove the task\'s worktree folder', '## Instruções da pessoa', 'Execução autônoma: sim', 'never cite a pending item by ID or number alone', 'modelo e esforço do revisor']) {
+    assert.ok(impl.includes(p), `implementation.md: "${p}" missing`);
+  }
+  const conf = configureAll();
+  for (const p of ['merge-check ENT-* --target <i> --pr * --apply*', 'modo sem confirmações', 'Never edit `.claude/` during a running delivery', 'cleanup.commands', 'aparelho físico']) {
+    assert.ok(conf.includes(p), `configure docs: "${p}" missing`);
+  }
+  const del = ref('delivery.md');
+  for (const p of ['baco merge-check ENT-NNN --target <integration> --pr <number> --apply', '.baco/logs/pr-body-ENT-NNN.md', '## Fora desta entrega', 'cleanup.commands']) {
+    assert.ok(del.includes(p), `delivery.md: "${p}" missing`);
+  }
+  const rev = ref('review.md');
+  for (const p of ['**both** the final review and the PR review are split by part', '.baco/logs/pr-body-ENT-NNN.md']) {
+    assert.ok(rev.includes(p), `review.md: "${p}" missing`);
+  }
+  const recon = ref('reconciliation.md');
+  for (const p of ['git switch -c baco/ENT-NNN-RECON origin/<target>', 'baco board ENT-NNN --apply']) {
+    assert.ok(recon.includes(p), `reconciliation.md: "${p}" missing`);
+  }
+  const amb = ref('ambientes.md');
+  for (const p of ['Multiple accounts of the same tool', 'baco check-stalled --minutes 20', '@<alto|medio|baixo>']) {
+    assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
+  }
+});

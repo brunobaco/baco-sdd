@@ -15,7 +15,7 @@ Purpose: review the delivery's pull request (PR) as the external look, after the
 
 ## Do
 - Read `pedido.md` in full and follow it: it is the whole review contract, the same one an outside reviewer gets.
-- Read the change only from `mudancas.diff`; read the specs, QA scenarios and ADRs it lists, and the code around each change, in the project itself.
+- Read the change only from `mudancas.diff`; read the specs, QA scenarios and ADRs it lists, and the code around each change, in the project itself. When the brief scopes this PR review to one part (back-end or front-end, because no third model family exists for the whole delivery), review only the files and criteria of that part.
 - When a finding is about an architecture decision (an ADR that no longer matches the code), ask for a new ADR that supersedes the old one, never for an edit of an accepted ADR: an accepted decision is not rewritten; the old one only gets its status changed to superseded, with a link to the new one.
 - Manual cases the request lists as not yet run are run by a person in the acceptance, before the merge, and the engine refuses the merge without them: their missing record is not a finding. Report it only when a manual case is claimed as passed without a record.
 - From the second round on, check only what the corrections promise and what they may have broken; do not look for new edge cases.

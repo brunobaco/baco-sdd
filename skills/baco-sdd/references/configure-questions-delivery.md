@@ -177,13 +177,13 @@ Write `review.focus.always` and `review.focus.suggestion` as lists of strings. A
 
 > Pergunta [N] de [total] · Testes que só um especialista faz
 >
-> O que é: alguns cenários de teste à mão pedem um especialista, como conferir com um leitor de tela (a tecnologia que lê a tela em voz alta) ou o contraste das cores para quem enxerga pouco. Aqui você lista os tipos de cenário que ficam com um especialista, não com você.
+> O que é: alguns cenários de teste à mão pedem um especialista ou equipamento específico, como acessibilidade, leitor de tela (a tecnologia que lê a tela em voz alta), idioma e localização, aparelho físico ou aplicativo instalado. Aqui você lista os tipos de cenário que ficam com um especialista, não com você.
 >
-> Por que importa: esses cenários nunca são pedidos a você e nunca travam uma junção, nem na linha principal. Eles viram um item pendente para o especialista e ficam fora dos resumos, e eu só os mostro se você pedir. Sem a lista, um cenário assim aparece para você como qualquer teste à mão. Conferência de segurança ou de permissão nunca entra aqui: ela sempre trava a junção até ser feita.
+> Por que importa: esses cenários nunca são pedidos a você, nunca travam uma junção (nem na linha principal) e nunca aparecem nos relatórios, perguntas ou resumos para você, ficando registrados só no arquivo (mostro apenas se você pedir). Sem a lista, um cenário assim aparece para você como qualquer teste à mão. Conferência de segurança ou de permissão nunca entra aqui: ela sempre trava a junção até ser feita.
 >
 > Opções:
 > (a) nenhum: todos os testes à mão são seus.
-> (b) listar os tipos (por exemplo "leitor de tela"): ficam com um especialista.
+> (b) listar os tipos (por exemplo "acessibilidade", "leitor de tela", "idioma", "aparelho físico", "aplicativo instalado"): ficam com um especialista.
 >
 > Minha recomendação: [a opção e o motivo ligado a este projeto].
 >
@@ -208,3 +208,21 @@ Write the list under `qa.specialist`. A security or permission check never goes 
 > Padrão: (a) não.
 
 (a) -> `false`; (b) -> `true`. Later, when a spec or an ADR brings an AI call, the conductor sets it to `true` and tells the person ([project-bootstrap.md](project-bootstrap.md)).
+
+**27. Cleanup commands at delivery closeout** (`cleanup.commands`, a list of shell commands, default empty; optional)
+
+> Pergunta [N] de [total] · Limpeza ao encerrar uma entrega
+>
+> O que é: no fim de uma entrega, o BACO remove branches juntadas, pastas soltas em `.worktrees/` e registros antigos em `.baco/logs/`. Ele nunca decide sozinho o que mais é descartável no seu projeto (como bancos de teste, contêineres ou imagens). Aqui você pode listar comandos de limpeza próprios do projeto para rodar no encerramento.
+>
+> Por que importa: sem a lista, recursos temporários do projeto ficam acumulados; com ela, só sai o que você declarou.
+>
+> Opções:
+> (a) nenhum: só a limpeza padrão do BACO.
+> (b) listar os comandos do projeto (por exemplo `docker compose -f docker-compose.test.yml down -v`).
+>
+> Minha recomendação: [(b) se o projeto sobe banco ou contêiner descartável para testes; senão, (a)].
+>
+> Padrão: (a) nenhum.
+
+Write the list under `cleanup.commands`. Only run commands declared here (and never destructive commands against production data).
