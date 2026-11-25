@@ -949,6 +949,10 @@ Object.assign(messages['pt-BR'], {
   'mergecheck.waiting.unreadable': 'a seção "Esperando a pessoa" de progresso.md não é só uma tabela com a coluna Situação; não dá para saber se algo espera a pessoa.',
   'mergecheck.ci.wrong_base': 'o PR #{pr} aponta para {base}, não para {target}; as verificações dele não valem para esta junção.',
   'mergecheck.ci.not_open': 'o PR #{pr} não está aberto (estado {state}).',
+  'mergecheck.applied': 'PR #{pr} da entrega {id} juntado em {target} (sem apagar o ramo).',
+  'mergecheck.apply_failed': 'Falha ao juntar o PR #{pr} em {target}: {message}.',
+  'mergecheck.board_synced': 'Quadro sincronizado depois da junção ({n} card(s) atualizado(s)).',
+  'mergecheck.board_sync_failed': 'Aviso: a junção entrou, mas {n} card(s) do quadro não puderam ser atualizados agora.',
   'battery.ci_timeout_near': 'Aviso: a bateria completa levou {seconds} s, mais de 70% do maior timeout-minutes dos workflows de CI ({minutes} min). Recomende subir esse tempo, dividir a execução completa do CI em jobs ou passar test_runs.ci_full para manual.',
 });
 
@@ -1020,5 +1024,9 @@ Object.assign(messages.en, {
   'mergecheck.waiting.unreadable': 'the "Esperando a pessoa" section of progresso.md is not just a table with a Situação column; there is no telling whether something waits for the person.',
   'mergecheck.ci.wrong_base': 'PR #{pr} targets {base}, not {target}; its checks do not count for this merge.',
   'mergecheck.ci.not_open': 'PR #{pr} is not open (state {state}).',
+  'mergecheck.applied': 'PR #{pr} of delivery {id} merged into {target} (branch kept).',
+  'mergecheck.apply_failed': 'Failed to merge PR #{pr} into {target}: {message}.',
+  'mergecheck.board_synced': 'Board synced after merge ({n} card(s) updated).',
+  'mergecheck.board_sync_failed': 'Warning: merge succeeded, but {n} board card(s) could not be updated now.',
   'battery.ci_timeout_near': 'Warning: the full battery took {seconds} s, more than 70% of the largest timeout-minutes of the CI workflows ({minutes} min). Recommend raising that timeout, splitting the full CI run into jobs, or switching test_runs.ci_full to manual.',
 });

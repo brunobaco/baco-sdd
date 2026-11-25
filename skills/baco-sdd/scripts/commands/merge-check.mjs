@@ -3,15 +3,16 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deliveryDir, latestVerdict, numberedFiles, readPlanHeader, ENT_ID } from '../lib/delivery.mjs';
 import { git, refExists, revParse, isAncestor, diffQuiet } from '../lib/git.mjs';
-import { manualPendingRule } from '../lib/config.mjs';
+import { manualPendingRule, githubProject } from '../lib/config.mjs';
 import { loadTrace } from '../lib/tracefile.mjs';
 import { readText, headings, tables, fold } from '../lib/markdown.mjs';
 import { readWaiver } from '../lib/waiver.mjs';
 import { combineDecision, freshnessCheck, mergeDecision, mergeTraces, pendingItems, provenanceBlockers, ProvenanceIgnoreError } from './acceptance-report.mjs';
+import { run as boardRun } from './board.mjs';
 import { STAMP_FILE, codePathspecs } from './run-tests.mjs';
 import { t } from '../lib/messages.mjs';
 
-export const usage = 'baco merge-check <ENT-NNN> --target <branch> [--pr <number>] [--json] [--cwd <dir>]';
+export const usage = 'baco merge-check <ENT-NNN> --target <branch> [--pr <number>] [--apply] [--json] [--cwd <dir>]';
 
 const usageError = () => ({ code: 64, data: {}, messages: [{ key: 'cli.usage', params: { usage } }] });
 const SHA = /^[0-9a-f]{7,64}$/;
@@ -342,12 +343,21 @@ export function ciTimeoutMinutes(root) {
   return max;
 }
 
+function ghExec(args, root) {
+  const r = spawnSync(process.env.BACO_GH || 'gh', args, { cwd: root, encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'] });
+  if (r.error) return { ok: false, error: r.error.message };
+  if (r.status !== 0) return { ok: false, error: String(r.stderr || r.stdout || '').trim().split('\n').pop() || `exit ${r.status ?? r.signal}` };
+  return { ok: true, stdout: r.stdout ?? '' };
+}
+
 export async function run(args, ctx) {
   const entId = args._[0];
   const target = args.flags.target;
   const pr = args.flags.pr;
+  const apply = args.flags.apply === true;
   if (!entId || !ENT_ID.test(entId) || args._.length > 1 || typeof target !== 'string' || !target.trim()) return usageError();
   if (pr !== undefined && (typeof pr !== 'string' || !/^[1-9]\d*$/.test(pr))) return usageError();
+  if (apply && pr === undefined) return usageError();
 
   const dir = deliveryDir(ctx.root, ctx.config, entId); // not found -> 65 in the dispatcher
   const branch = `baco/${entId}`;
@@ -387,5 +397,36 @@ export async function run(args, ctx) {
     ...conditions.map((c) => ({ key: c.ok ? 'mergecheck.line_ok' : 'mergecheck.line_no', params: { name: t(ctx.lang, `mergecheck.name.${c.key}`), detail: c.detail } })),
     ...warnings.map((key) => ({ key, params: { seconds: batterySeconds, minutes } })),
   ];
-  return { code: ok ? 0 : 2, data, messages };
+  if (!apply) return { code: ok ? 0 : 2, data, messages };
+
+  data.apply = true;
+  data.merged = false;
+  const canAutoMerge = ok
+    && target !== ctx.config.branches?.main
+    && target === ctx.config.branches?.integration
+    && (ctx.config.delivery?.integration_merge ?? 'ask') === 'auto';
+  if (!canAutoMerge) return { code: 2, data, messages };
+
+  const merged = ghExec(['pr', 'merge', pr, '--merge'], ctx.root);
+  if (!merged.ok) {
+    data.applyError = merged.error;
+    messages.push({ key: 'mergecheck.apply_failed', params: { pr, target, message: merged.error } });
+    return { code: 1, data, messages };
+  }
+  data.merged = true;
+  messages.push({ key: 'mergecheck.applied', params: { id: entId, pr, target } });
+  // Best-effort: fetch updated target and sync the GitHub Project board so cards move to Done.
+  fetchTarget(ctx.root, target);
+  if (githubProject(ctx.config)) {
+    try {
+      const b = await boardRun({ _: [entId], flags: { apply: true } }, ctx);
+      data.boardSync = { ok: b.code === 0, applied: b.data?.applied?.length ?? 0, failed: b.data?.applyFailed?.length ?? 0 };
+      if (b.code === 0) messages.push({ key: 'mergecheck.board_synced', params: { n: data.boardSync.applied } });
+      else messages.push({ key: 'mergecheck.board_sync_failed', params: { n: data.boardSync.failed } });
+    } catch (e) {
+      data.boardSync = { ok: false, error: e.message };
+      messages.push({ key: 'mergecheck.board_sync_failed', params: { n: 1 } });
+    }
+  }
+  return { code: 0, data, messages };
 }
