@@ -1,8 +1,8 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, chmodSync, realpathSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync, chmodSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import { execFileSync } from 'node:child_process';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
 import { resetGitBinary, gitBinaries } from '../skills/baco-sdd/scripts/lib/git.mjs';
@@ -16,7 +16,7 @@ const capture = () => {
   return { out, io: { stdout: { write: (s) => { out.stdout += s; } }, stderr: { write: (s) => { out.stderr += s; } } } };
 };
 const REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
-const sandbox = mkdtempSync(join(tmpdir(), 'baco-nogit-'));
+const sandbox = makeTempDirSync('baco-nogit-');
 const saved = { PATH: process.env.PATH, BACO_GIT: process.env.BACO_GIT, ceiling: process.env.GIT_CEILING_DIRECTORIES, fallbacks: [...gitBinaries.fallbacks] };
 
 beforeEach(() => { resetGitBinary(); delete process.env.BACO_GIT; gitBinaries.fallbacks = []; });
@@ -30,12 +30,12 @@ afterEach(() => {
 
 // Puts a fake binary named `git` first in PATH.
 function fakeOnPath(body) {
-  const dir = mkdtempSync(join(sandbox, 'bin-'));
+  const dir = makeTempDirSync('bin-', null, sandbox);
   writeFileSync(join(dir, 'git'), `#!/bin/sh\n${body}\n`);
   chmodSync(join(dir, 'git'), 0o755);
   process.env.PATH = `${dir}:${saved.PATH}`;
 }
-const noGitAtAll = () => { process.env.PATH = mkdtempSync(join(sandbox, 'empty-')); };
+const noGitAtAll = () => { process.env.PATH = makeTempDirSync('empty-', null, sandbox); };
 
 const PLAN = '# Plano\n\n**Specs:** docs/specs/spec-x.md@1.0\n**Base:** main\n';
 const files = { 'docs/entregas/ENT-001-a/plano.md': PLAN, 'docs/specs/spec-x.md': '# Spec\n' };
@@ -76,7 +76,7 @@ for (const [name, argv] of COMMANDS) {
   });
 
   test(`${name}: a folder that is not a repo exits 65 with the not-a-repo message`, async () => {
-    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'baco-norepo-')));
+    const dir = realpathSync(makeTempDirSync('baco-norepo-'));
     process.env.GIT_CEILING_DIRECTORIES = dirname(dir);
     const c = capture();
     assert.equal(await main(argv(dir), c.io), 65);

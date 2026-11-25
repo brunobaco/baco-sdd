@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import {
   parseYamlSubset, loadConfig, manualPendingRule, DEFAULTS, MANDATORY_GATES, ConfigError,
   testLayers, layerCommand, queuedLayers, smokeCommand,
@@ -39,7 +39,7 @@ review:
 `;
 
 function rootWith(yaml) {
-  const root = mkdtempSync(join(tmpdir(), 'baco-cfg-'));
+  const root = makeTempDirSync('baco-cfg-');
   if (yaml !== undefined) {
     mkdirSync(join(root, '.baco'));
     writeFileSync(join(root, '.baco', 'config.yaml'), yaml);

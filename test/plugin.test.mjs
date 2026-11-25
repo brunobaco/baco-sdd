@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { existsSync, readdirSync, mkdtempSync, realpathSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readdirSync, realpathSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { makeRepo } from './helpers/tmprepo.mjs';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import { DEFAULTS } from '../skills/baco-sdd/scripts/lib/config.mjs';
 import { SKILL_ROOT, SOURCE_NAME_RE, frontmatter, read, bacoMentions } from './helpers/content.mjs';
 import { COMMANDS as ENGINE_COMMANDS } from '../skills/baco-sdd/scripts/baco.mjs';
@@ -137,7 +137,7 @@ test('guard allows a feature branch, .baco/ files, non-BACO repos, outside paths
   assert.equal(runGuard(edit(repo, '.baco/config.yaml')).stdout, '', '.baco/ on main');
   const plain = await makeRepo({ 'a.js': '' });
   assert.equal(runGuard(edit(plain, 'a.js')).stdout, '', 'repo without .baco');
-  const loose = realpathSync(mkdtempSync(join(tmpdir(), 'baco-loose-')));
+  const loose = realpathSync(makeTempDirSync('baco-loose-'));
   assert.equal(runGuard(edit(loose, 'loose.txt')).stdout, '', 'outside any repo');
   execFileSync('git', ['checkout', '-q', '-b', 'baco/ENT-001'], { cwd: repo });
   assert.equal(runGuard(edit(repo, 'src/a.js')).stdout, '', 'delivery branch');
@@ -258,7 +258,7 @@ test('Plan 3 leftovers: effort passed per call, no-commit repo, symlink in .baco
   const skill = read(join(SKILL_ROOT, 'SKILL.md'));
   assert.ok(skill.includes('pass both the model and the effort in every call'), 'SKILL.md: effort passed per call');
   assert.ok(!skill.includes('keeps the agent'), 'SKILL.md: old effort notice must be gone');
-  const fresh = realpathSync(mkdtempSync(join(tmpdir(), 'baco-nocommit-')));
+  const fresh = realpathSync(makeTempDirSync('baco-nocommit-'));
   execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: fresh });
   mkdirSync(join(fresh, '.baco'));
   writeFileSync(join(fresh, '.baco', 'config.yaml'), 'language: pt-BR\n');

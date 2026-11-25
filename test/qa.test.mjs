@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
 import { readQa, appendEvidence } from '../skills/baco-sdd/scripts/lib/qa.mjs';
 import { makeRepo } from './helpers/tmprepo.mjs';
@@ -10,7 +10,7 @@ import { makeRepo } from './helpers/tmprepo.mjs';
 const FIX_PATH = new URL('./fixtures/cenarios-qa-spec-exemplo.md', import.meta.url);
 const FIX = readFileSync(FIX_PATH, 'utf8');
 const tmpFile = (content) => {
-  const p = join(mkdtempSync(join(tmpdir(), 'baco-qa-')), 'qa.md');
+  const p = join(makeTempDirSync('baco-qa-'), 'qa.md');
   writeFileSync(p, content);
   return p;
 };

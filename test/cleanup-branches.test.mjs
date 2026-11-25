@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import { execFileSync } from 'node:child_process';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
 import { planCleanup } from '../skills/baco-sdd/scripts/commands/cleanup-branches.mjs';
@@ -113,7 +113,7 @@ async function fixture() {
   g(dir, 'checkout', '-q', '-b', 'baco/ENT-001-T02');
   commit(dir, { 't2.md': '2' }, 't2');
   g(dir, 'checkout', '-q', 'develop');
-  const wt = join(mkdtempSync(join(tmpdir(), 'baco-wt-')), 'wt1');
+  const wt = join(makeTempDirSync('baco-wt-'), 'wt1');
   g(dir, 'worktree', 'add', '-q', wt, 'baco/ENT-001-T01');
   return { dir, wt };
 }
@@ -234,7 +234,7 @@ test('branch checked out in the main worktree is skipped as checked_out', async 
 
 test('--remote deletes the remote branch on a local bare origin; failures go to data.failed', async () => {
   const { dir } = await fixture();
-  const bare = mkdtempSync(join(tmpdir(), 'baco-bare-'));
+  const bare = makeTempDirSync('baco-bare-');
   execFileSync('git', ['init', '-q', '--bare', bare]);
   g(dir, 'remote', 'add', 'origin', bare);
   g(dir, 'push', '-q', 'origin', 'baco/ENT-001-T01');
@@ -313,11 +313,11 @@ test('remote failure is reported in failed only, not in done', async () => {
 // C1: a remote branch that holds commits the local tip does not have must never be deleted.
 async function remoteAheadFixture() {
   const { dir } = await fixture();
-  const bare = mkdtempSync(join(tmpdir(), 'baco-bare-'));
+  const bare = makeTempDirSync('baco-bare-');
   execFileSync('git', ['init', '-q', '--bare', bare]);
   g(dir, 'remote', 'add', 'origin', bare);
   g(dir, 'push', '-q', 'origin', 'baco/ENT-001-T01');
-  const other = join(mkdtempSync(join(tmpdir(), 'baco-clone-')), 'c');
+  const other = join(makeTempDirSync('baco-clone-'), 'c');
   execFileSync('git', ['clone', '-q', '-b', 'baco/ENT-001-T01', bare, other]);
   g(other, 'config', 'user.name', 'Other');
   g(other, 'config', 'user.email', 'o@example.com');
@@ -339,7 +339,7 @@ test('C1: --apply --remote keeps a remote branch that is ahead (remote_ahead), e
 
 test('C1: dry run with --remote says when a remote deletion would happen', async () => {
   const { dir } = await fixture();
-  const bare = mkdtempSync(join(tmpdir(), 'baco-bare-'));
+  const bare = makeTempDirSync('baco-bare-');
   execFileSync('git', ['init', '-q', '--bare', bare]);
   g(dir, 'remote', 'add', 'origin', bare);
   g(dir, 'push', '-q', 'origin', 'baco/ENT-001-T01');

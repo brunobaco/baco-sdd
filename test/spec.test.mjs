@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import { readSpec, validateSpec } from '../skills/baco-sdd/scripts/lib/spec.mjs';
 
 const fx = (n) => new URL(`./fixtures/${n}`, import.meta.url).pathname;
 const tmp = (content) => {
-  const p = join(mkdtempSync(join(tmpdir(), 'baco-spec-')), 's.md');
+  const p = join(makeTempDirSync('baco-spec-'), 's.md');
   writeFileSync(p, content);
   return p;
 };

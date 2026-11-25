@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
 import { deliveryDir, readPlanHeader, nextNumber, DeliveryError } from '../skills/baco-sdd/scripts/lib/delivery.mjs';
 import { makeRepo } from './helpers/tmprepo.mjs';
@@ -64,7 +64,7 @@ test('readPlanHeader is lenient', () => {
 });
 
 test('nextNumber', () => {
-  const d = mkdtempSync(join(tmpdir(), 'baco-n-'));
+  const d = makeTempDirSync('baco-n-');
   assert.equal(nextNumber(d, 'handoff'), '01');
   for (const f of ['handoff-01.md', 'handoff-02.md', 'handoff-x.md', 'veredito-07.md', 'handoff-03.txt']) writeFileSync(join(d, f), '');
   assert.equal(nextNumber(d, 'handoff'), '03');
@@ -96,7 +96,7 @@ test('1.10 vs 1.1 is stale', async () => {
 });
 
 test('nextNumber passes 09 to 10 and 10 to 11', () => {
-  const d = mkdtempSync(join(tmpdir(), 'baco-n-'));
+  const d = makeTempDirSync('baco-n-');
   for (const f of ['handoff-09.md', 'handoff-10.md']) writeFileSync(join(d, f), '');
   assert.equal(nextNumber(d, 'handoff'), '11');
 });
