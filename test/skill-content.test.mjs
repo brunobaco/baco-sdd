@@ -769,7 +769,7 @@ test('harness sandbox: protegida, rede and livre, the Codex call of each, the co
   const rules = read('skills/baco-sdd/templates/codex/baco.rules');
   const tpl = read('skills/baco-sdd/templates/pt-BR/config.yaml');
   for (const p of ['**Sandbox.**', '`protegida`', '`rede`', '`livre`', 'templates/codex/baco.rules', '`.codex/rules/baco.rules`',
-    'ignores a per-call trust override, so BACO adds none', 'run `git init -q` in it', '-c sandbox_workspace_write.network_access=true',
+    'ignores a per-call trust override, so BACO adds none', 'git worktree add --detach .baco/logs/harness-check/codex-escrita HEAD', 'trust_level = "trusted"', '-c sandbox_workspace_write.network_access=true',
     'shell_environment_policy.set={npm_config_cache="/tmp/baco-npm-cache"}', '-s danger-full-access', 'Start every Codex call in the background from the beginning', 'Do not add `< /dev/null` instead',
     'Never `--approve-for-me`', '`regra: sim`', 'identical to the skill\'s template (`cmp`)']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   for (const p of ['`harnesses.<name>.sandbox`', '(a) protegida', '(b) rede', '(c) livre', 'Minha recomendação: (b) rede', 'Padrão: (b) rede.', 'A caixa vale a partir da próxima conversa', '`Bash(git switch docs/*)`',
