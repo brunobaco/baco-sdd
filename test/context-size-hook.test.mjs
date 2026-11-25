@@ -41,13 +41,17 @@ function transcript(dir, lines) {
 const input = (cwd, transcriptPath, session = 'sess-1') => ({ hook_event_name: 'PostToolUse', session_id: session, transcript_path: transcriptPath, cwd, tool_name: 'Read' });
 const context = (r) => (r.stdout ? JSON.parse(r.stdout).hookSpecificOutput : null);
 
-test('hooks.json registers the context-size hook on PostToolUse', () => {
+test('hooks.json registers the context-size and board-sync hooks on PostToolUse', () => {
   const hooks = JSON.parse(readFileSync(join(REPO, 'hooks', 'hooks.json'), 'utf8')).hooks;
   const post = hooks.PostToolUse;
-  assert.ok(Array.isArray(post) && post.length === 1, 'one PostToolUse entry');
+  assert.ok(Array.isArray(post) && post.length === 2, 'two PostToolUse entries (context-size and board-sync)');
   assert.equal(post[0].hooks[0].command, 'node "${CLAUDE_PLUGIN_ROOT}/hooks/context-size.mjs"');
   assert.ok(post[0].hooks[0].timeout <= 10);
+  assert.equal(post[1].matcher, 'Edit|Write');
+  assert.equal(post[1].hooks[0].command, 'node "${CLAUDE_PLUGIN_ROOT}/hooks/board-sync.mjs"');
+  assert.ok(post[1].hooks[0].timeout <= 10);
   assert.ok(existsSync(HOOK));
+  assert.ok(existsSync(join(REPO, 'hooks', 'board-sync.mjs')));
 });
 
 test('below the threshold: silent', async () => {
