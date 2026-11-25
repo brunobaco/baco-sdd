@@ -1,6 +1,6 @@
 # Estado do trabalho
 
-Atualizado em 2026-11-24.
+Atualizado em 2026-11-25.
 
 ## Pronto
 
@@ -32,6 +32,21 @@ Atualizado em 2026-11-24.
 
 ## Em andamento
 
+Versão 1.11.0, planejada, ainda sem código. Começa quando terminar a entrega real que está servindo de teste da 1.10.0, para juntar o que mais aparecer nela. Defeitos e evoluções achados até agora:
+
+1. Motor e ganchos mudos quando chamados por um caminho com link simbólico (pasta de configuração da ferramenta apontando para outra): a checagem de "programa principal" compara o caminho do `argv[1]` com o de `import.meta.url`, que segue o link, e o programa sai com 0 sem fazer nada. Atinge `scripts/baco.mjs`, `hooks/write-guard.mjs`, `hooks/branch-guard.mjs` e `tools/antigravity.mjs` (os dois ganchos ficam desligados sem aviso). Correção: comparar com `realpathSync` dos dois lados, num ajudante único, com teste que chama pelo link.
+2. Conferência de escrita do Codex 0.169: o Codex deixou de marcar sozinho a pasta como confiável, então não carrega `.codex/rules/baco.rules` na pasta de rascunho (criada com `git init` próprio) e a conferência dá `regra: não`. Medir antes de mudar: worktree de um repositório confiável, subpasta sem git própria e o `-c projects."<pasta>".trust_level` por chamada. Hipótese: a confiança segue a raiz do repositório principal numa worktree; nesse caso, a pasta de rascunho vira uma worktree do projeto, como as pastas de tarefa, e o BACO confere (e, com o ok da pessoa, grava) a confiança da raiz do projeto, nunca a de cada pasta de tarefa. Atualizar a seção 5 de `references/ambientes.md`. Limpar as entradas de pastas de rascunho que ficaram na configuração do Codex.
+3. Regras de permissão do Antigravity: `*--mode*--mode*` e `*leitura.json*--mode*` também casam com `--model`, então toda chamada do Antigravity (construção, retomada e leitura) pede autorização, mesmo com a conversa sem confirmações. Trocar por padrões com espaço e com `=` (`* --mode * --mode *`, `* --mode=* --mode*`, `* --mode * --mode=*`, `*leitura.json* --mode *`, `*leitura.json* --mode=*`, `* --mode *leitura.json*`, `* --mode=*leitura.json*`) em `references/configure.md`, com teste dos padrões contra as chamadas reais.
+4. O condutor nunca edita `.claude/` durante uma entrega (o Claude Code sempre pergunta antes, mesmo sem confirmações): permissão que falta vira pendência na Retomada e o trabalho segue.
+5. Junção automática na integração (`delivery.integration_merge: auto`): as regras de "perguntar" seguem valendo para `gh pr merge` e para enviar à integração, e o projeto precisa improvisar um script. Dar ao BACO um caminho próprio e liberado, que só junta na integração quando `baco merge-check` sai com 0; a principal continua sempre perguntando.
+6. Quadro do GitHub Project: hoje o motor só calcula as colunas e o condutor esquece de mover os cards. O motor passa a aplicar (move, lê de volta e registra com `--applied`), e um gancho do plugin roda isso sozinho quando o `progresso.md` da entrega muda.
+7. A configuração recomenda a conversa condutora sem confirmações para a entrega rodar sozinha (as regras de "perguntar" e "nunca" continuam valendo nesse modo).
+8. Limpeza: um ajudante único de pasta temporária nos testes, que apaga a pasta mesmo com erro (26 arquivos criam pasta temporária, 10 nunca apagam), e um teste que falha se a bateria deixar pasta `baco-*` nova no diretório temporário; a pasta da tarefa sai assim que a tarefa é juntada na branch da entrega (a branch fica até a limpeza final), no lugar de "deixar as pastas até o fim" em `references/implementation.md`; `baco cleanup-branches` remove também pastas soltas em `.worktrees/`; no encerramento, comandos de limpeza que o projeto declarar na configuração (o BACO não decide sozinho o que é descartável, como banco de teste ou imagens) e os registros de `.baco/logs/` da entrega encerrada.
+9. Revisão da entrega inteira sem terceira família: deixar explícito que a revisão do PR também se divide por parte (cada parte revisada pela família que não a construiu), como a revisão final.
+10. Reserva da mesma família: quando não sobra outra família para revisar, o revisor é um modelo diferente do construtor, configurado pela pessoa, com esforço próprio que vale sobre o do tipo da tarefa (por exemplo, o modelo mais forte com esforço baixo). A regra de família passa a distinguir modelo dentro do mesmo fabricante, e o plano continua dizendo que aquela revisão é menos independente.
+11. Várias contas da mesma ferramenta: quando a cota de uma conta acaba e existe outra conta da mesma ferramenta, a chamada passa para ela; a reserva do BACO só entra quando todas acabarem. Conferir antes como o ambiente organiza as contas e se troca de conta numa chamada pelo terminal; onde o ambiente não troca, a reserva entra direto e o plano diz isso.
+12. No fim, um roteiro de configuração só com o que a versão mudou, para projetos já configurados.
+
 Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. A etapa 3 saiu na 1.3.0: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa, e continua opcional (decisão de 2026-11-18). Falta:
 
 4. Configuração de um projeto real já em andamento como teste. É o próximo passo, e serve também para conferir as perguntas novas da etapa 3.
@@ -54,4 +69,4 @@ Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versã
 
 ## Próximo passo
 
-A primeira entrega real com a 1.10.0 serve de teste: divisão em back-end e front-end, junção automática na integração e o Antigravity construindo na caixa `rede`, com o custo medido, num projeto real configurado com a fase 0 nova (o que cobre também a etapa 4).
+A primeira entrega real com a 1.10.0 serve de teste e está em andamento: divisão em back-end e front-end, junção automática na integração e o Antigravity construindo na caixa `rede`, com o custo medido, num projeto real configurado com a fase 0 nova (o que cobre também a etapa 4). Quando ela terminar, levar o que ela mostrar para a lista da 1.11.0 (seção "Em andamento") e implementar tudo numa versão só.
