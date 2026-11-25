@@ -89,6 +89,8 @@ export const DEFAULTS = {
   // uses_ai: the system being built calls an AI model; turns on the prompt-injection requirements of
   // the architecture, the specs, the plan and the reviews.
   product: { uses_ai: false },
+  // commands: project-declared cleanup commands run at delivery closeout (BACO never guesses what is disposable).
+  cleanup: { commands: [] },
 };
 
 // Status options of the board, by event: published (phase 5), started (building), review (task
@@ -242,9 +244,9 @@ function deepMerge(base, over) {
 }
 
 // Sections that must be maps; any other non-null value is ignored (defaults kept) with a warning.
-const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github', 'planning', 'roles', 'test_runs', 'ci', 'delivery', 'qa', 'product'];
+const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github', 'planning', 'roles', 'test_runs', 'ci', 'delivery', 'qa', 'product', 'cleanup'];
 // List settings where a single scalar is accepted as a one-element list.
-const LIST_SETTINGS = [['branches', 'protected'], ['tests', 'patterns'], ['tests', 'queue']];
+const LIST_SETTINGS = [['branches', 'protected'], ['tests', 'patterns'], ['tests', 'queue'], ['cleanup', 'commands']];
 
 // Model levels never name a model: forte = the most capable one of the environment, medio = the
 // intermediate one, leve = the fastest and cheapest. The old form (`model: opus|sonnet|haiku`,

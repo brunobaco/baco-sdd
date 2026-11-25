@@ -363,3 +363,35 @@ test('M5: cleanup reason tokens are localized', async () => {
   assert.doesNotMatch(txt.out.stdout, /task_merged/);
   assert.match(txt.out.stdout, /tarefa/i);
 });
+
+test('cleanup-branches detects and removes orphan folders in .worktrees/ and closed delivery logs in .baco/logs/', async () => {
+  const { mkdirSync } = await import('node:fs');
+  const dir = await makeRepo({ '.baco/config.yaml': 'branches:\n  main: main\n  integration: develop\n' });
+  g(dir, 'checkout', '-q', '-b', 'develop');
+  g(dir, 'checkout', '-q', '-b', 'baco/ENT-001');
+  commit(dir, { 'a.txt': 'ok\n' }, 'ent work');
+  g(dir, 'checkout', '-q', 'develop');
+  g(dir, 'merge', '-q', '--no-ff', 'baco/ENT-001', '-m', 'merge ENT-001');
+
+  // Orphan folder in .worktrees/ and logs for ENT-001 + shared log that must stay
+  mkdirSync(join(dir, '.worktrees', 'T-999-orphan'), { recursive: true });
+  writeFileSync(join(dir, '.worktrees', 'T-999-orphan', 'leftover.txt'), 'x');
+  mkdirSync(join(dir, '.baco', 'logs', 'pr-ENT-001-r01'), { recursive: true });
+  writeFileSync(join(dir, '.baco', 'logs', 'quadro-ENT-001.json'), '{}');
+  writeFileSync(join(dir, '.baco', 'logs', 'harnesses.md'), 'keep\n');
+  writeFileSync(join(dir, '.baco', 'logs', 'quadro-ENT-002.json'), '{}');
+
+  const dry = JSON.parse((await run(['cleanup-branches', '--json', '--cwd', dir])).out.stdout);
+  assert.deepEqual(dry.orphanWorktrees, ['.worktrees/T-999-orphan']);
+  assert.deepEqual(dry.deliveryLogs, ['.baco/logs/pr-ENT-001-r01', '.baco/logs/quadro-ENT-001.json']);
+  assert.equal(existsSync(join(dir, '.worktrees', 'T-999-orphan')), true);
+
+  const applied = JSON.parse((await run(['cleanup-branches', '--apply', '--json', '--cwd', dir])).out.stdout);
+  assert.deepEqual(applied.removedWorktrees, ['.worktrees/T-999-orphan']);
+  assert.deepEqual(applied.removedLogs, ['.baco/logs/pr-ENT-001-r01', '.baco/logs/quadro-ENT-001.json']);
+  assert.equal(existsSync(join(dir, '.worktrees', 'T-999-orphan')), false);
+  assert.equal(existsSync(join(dir, '.baco', 'logs', 'quadro-ENT-001.json')), false);
+  assert.equal(existsSync(join(dir, '.baco', 'logs', 'pr-ENT-001-r01')), false);
+  assert.equal(existsSync(join(dir, '.baco', 'logs', 'harnesses.md')), true, 'shared log must stay');
+  assert.equal(existsSync(join(dir, '.baco', 'logs', 'quadro-ENT-002.json')), true, 'other delivery log must stay');
+});

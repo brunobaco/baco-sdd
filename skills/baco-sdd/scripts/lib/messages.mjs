@@ -218,6 +218,10 @@ Object.assign(messages['pt-BR'], {
   'cleanup.remote.keep_ahead': '  NÃO será removida no remoto {remote}: lá ela tem commits que a local não tem.',
   'cleanup.remote.none': '  não existe no remoto {remote}.',
   'cleanup.remote.error': '  não foi possível consultar o remoto {remote}.',
+  'cleanup.orphan_worktree': 'Remover pasta solta em .worktrees: {path}',
+  'cleanup.orphan_removed': 'Pasta solta removida: {path}',
+  'cleanup.delivery_log': 'Remover registro da entrega encerrada: {path}',
+  'cleanup.log_removed': 'Registro removido: {path}',
 });
 
 Object.assign(messages.en, {
@@ -238,6 +242,10 @@ Object.assign(messages.en, {
   'cleanup.remote.keep_ahead': '  will NOT be deleted on remote {remote}: it has commits the local branch lacks.',
   'cleanup.remote.none': '  does not exist on remote {remote}.',
   'cleanup.remote.error': '  could not query remote {remote}.',
+  'cleanup.orphan_worktree': 'Remove orphan folder in .worktrees: {path}',
+  'cleanup.orphan_removed': 'Removed orphan folder: {path}',
+  'cleanup.delivery_log': 'Remove closed delivery log: {path}',
+  'cleanup.log_removed': 'Removed log: {path}',
 });
 
 Object.assign(messages['pt-BR'], {

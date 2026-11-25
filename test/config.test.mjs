@@ -860,3 +860,15 @@ test('product.uses_ai: default false, a boolean loads, a bad value is dropped wi
     assert.equal(cfg.product.uses_ai, false, yaml);
   }
 });
+
+test('cleanup.commands: default empty list, scalar or list accepted, bad section warns', () => {
+  assert.deepEqual(DEFAULTS.cleanup, { commands: [] });
+  assert.deepEqual(loadConfig(rootWith()).cleanup, { commands: [] });
+  const single = loadConfig(rootWith('cleanup:\n  commands: docker compose down -v\n'));
+  assert.deepEqual(single.cleanup.commands, ['docker compose down -v']);
+  const many = loadConfig(rootWith('cleanup:\n  commands:\n    - npm run db:clean\n    - docker image prune -f\n'));
+  assert.deepEqual(many.cleanup.commands, ['npm run db:clean', 'docker image prune -f']);
+  const bad = loadConfig(rootWith('cleanup: true\n'));
+  assert.deepEqual(bad.cleanup, { commands: [] });
+  assert.deepEqual(bad.warnings, [invalid('cleanup')]);
+});

@@ -1,3 +1,5 @@
+import { existsSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { t } from '../lib/messages.mjs';
 import { protectedBranches } from '../lib/config.mjs';
 import { git, GitError, localBranches, worktrees, isAncestor, currentBranch, refExists, revParse, tagTarget } from '../lib/git.mjs';
@@ -176,6 +178,42 @@ export function applyCleanup(candidates, { root, remote = null, protectedList = 
   return { done, failed, warnings, messages };
 }
 
+const SHARED_LOGS = new Set(['harnesses.md', 'uso-ferramentas.jsonl', 'custo-fontes.json', 'quadro-sync.log', 'bateria-completa.json']);
+
+function canonical(p) {
+  try { return realpathSync(p); } catch { return p; }
+}
+
+// Finds loose folders inside `.worktrees/` that are no longer registered as live git worktrees.
+export function findOrphanWorktrees(root, wts = worktrees(root)) {
+  const dir = join(root, '.worktrees');
+  if (!existsSync(dir)) return [];
+  const live = new Set(wts.map((w) => canonical(w.path)));
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const full = join(dir, entry.name);
+    if (!live.has(canonical(full))) out.push(`.worktrees/${entry.name}`);
+  }
+  return out.sort();
+}
+
+// Finds `.baco/logs/` entries belonging to deliveries whose branch is being closed (matches ENT-NNN
+// as a whole token; shared project logs are never touched).
+export function findDeliveryLogs(root, entIds) {
+  const ids = [...new Set(entIds.filter(Boolean))];
+  if (!ids.length) return [];
+  const dir = join(root, '.baco', 'logs');
+  if (!existsSync(dir)) return [];
+  const re = new RegExp(`(?:^|[^A-Za-z0-9])(?:${ids.join('|')})(?![0-9])`, 'i');
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (SHARED_LOGS.has(entry.name)) continue;
+    if (re.test(entry.name)) out.push(`.baco/logs/${entry.name}`);
+  }
+  return out.sort();
+}
+
 export async function run(args, ctx) {
   const { root, config } = ctx;
   const { integration, main: mainBranch } = config.branches;
@@ -183,9 +221,10 @@ export async function run(args, ctx) {
   const apply = Boolean(args.flags.apply);
   const remote = args.flags.remote ? (typeof args.flags['remote-name'] === 'string' ? args.flags['remote-name'] : 'origin') : null;
 
+  const wts = worktrees(root);
   const { candidates, skipped } = evaluateCleanup({
     branches: localBranches(root),
-    worktrees: worktrees(root),
+    worktrees: wts,
     current: currentBranch(root),
     protectedList,
     integration: refExists(integration, root) ? integration : null,
@@ -193,9 +232,16 @@ export async function run(args, ctx) {
     isMergedInto: (b, target) => isAncestor(`refs/heads/${b}`, `refs/heads/${target}`, root),
     tipOf: (b) => revParse(`refs/heads/${b}`, root),
   });
+  const orphanWorktrees = findOrphanWorktrees(root, wts);
+  const closedDeliveries = candidates
+    .filter((c) => c.reason === 'delivery_merged')
+    .map((c) => DELIVERY.exec(c.branch)?.[1])
+    .filter(Boolean);
+  const deliveryLogs = findDeliveryLogs(root, closedDeliveries);
 
   const reason = (r) => t(ctx.lang, `cleanup.reason.${r}`);
   const skippedMessages = skipped.map((s) => ({ key: 'cleanup.skipped', params: { ...s, reason: reason(s.reason) } }));
+  const hasAnything = candidates.length > 0 || orphanWorktrees.length > 0 || deliveryLogs.length > 0;
   if (!apply) {
     const messages = [];
     for (const c of candidates) {
@@ -205,14 +251,46 @@ export async function run(args, ctx) {
         messages.push({ key: `cleanup.remote.${c.remote_action}`, params: { branch: c.branch, remote } });
       }
     }
+    for (const p of orphanWorktrees) messages.push({ key: 'cleanup.orphan_worktree', params: { path: p } });
+    for (const p of deliveryLogs) messages.push({ key: 'cleanup.delivery_log', params: { path: p } });
     messages.push(...skippedMessages);
-    if (!candidates.length) messages.push({ key: 'cleanup.nothing' });
+    if (!hasAnything) messages.push({ key: 'cleanup.nothing' });
     else messages.push({ key: 'cleanup.dry_run_hint' });
-    return { code: 0, data: { apply: false, candidates, skipped }, messages };
+    return { code: 0, data: { apply: false, candidates, skipped, orphanWorktrees, deliveryLogs }, messages };
   }
 
   const { done, failed, warnings, messages } = applyCleanup(candidates, { root, remote, protectedList });
+  const removedWorktrees = [];
+  for (const rel of orphanWorktrees) {
+    try {
+      rmSync(join(root, rel), { recursive: true, force: true });
+      removedWorktrees.push(rel);
+      messages.push({ key: 'cleanup.orphan_removed', params: { path: rel } });
+    } catch (e) {
+      failed.push({ branch: rel, step: 'orphan_worktree', error: e.message });
+      messages.push({ key: 'cleanup.failed', params: { branch: rel, step: 'orphan_worktree', error: e.message } });
+    }
+  }
+  if (removedWorktrees.length || done.some((d) => d.worktree_removed)) {
+    try { git(['worktree', 'prune'], root); } catch { /* best effort */ }
+  }
+  const closedOk = new Set(done.filter((d) => DELIVERY.test(d.branch)).map((d) => DELIVERY.exec(d.branch)[1]));
+  const removedLogs = [];
+  for (const rel of findDeliveryLogs(root, [...closedOk])) {
+    try {
+      rmSync(join(root, rel), { recursive: true, force: true });
+      removedLogs.push(rel);
+      messages.push({ key: 'cleanup.log_removed', params: { path: rel } });
+    } catch (e) {
+      failed.push({ branch: rel, step: 'delivery_log', error: e.message });
+      messages.push({ key: 'cleanup.failed', params: { branch: rel, step: 'delivery_log', error: e.message } });
+    }
+  }
   messages.push(...skippedMessages);
-  if (!candidates.length) messages.push({ key: 'cleanup.nothing' });
-  return { code: failed.length ? 1 : 0, data: { apply: true, candidates, skipped, done, failed, warnings }, messages };
+  if (!hasAnything) messages.push({ key: 'cleanup.nothing' });
+  return {
+    code: failed.length ? 1 : 0,
+    data: { apply: true, candidates, skipped, done, failed, warnings, orphanWorktrees, removedWorktrees, deliveryLogs, removedLogs },
+    messages,
+  };
 }
