@@ -193,3 +193,27 @@ Todo texto que vem de fora (página, e-mail, issue, documento, resposta de ferra
 ## 2026-11-23 | Orientações do projeto no `AGENTS.md`
 
 As orientações de quem desenvolve o BACO ficam no `AGENTS.md` da raiz, lido por Claude Code, Codex e Antigravity, e o `CLAUDE.md` da raiz é um link para ele. O aviso da validação do plugin sobre o `CLAUDE.md` na raiz continua sendo o único aceito. Descartado: manter o `CLAUDE.md` como fonte e o `AGENTS.md` só apontando para ele, que obrigava as outras ferramentas a um passo a mais.
+
+## 2026-11-25 | Confiança do Codex 0.169 na raiz do projeto e conferência em worktree
+
+Medido no Codex 0.169 (três chamadas com modelo leve e esforço baixo): pasta solta com `git init` não carrega `.codex/rules/baco.rules` nem se marca como confiável sozinha, e `-c projects."<pasta>".trust_level="trusted"` por chamada continua sendo ignorado; já uma worktree ligada (`git worktree add`) de um repositório cuja raiz está marcada como `trusted` em `~/.codex/config.toml` herda a confiança da raiz e carrega `.codex/rules/baco.rules` sem gravar entrada nova no `config.toml`. Por isso a conferência de escrita do Codex passa a usar uma worktree ligada do projeto (como as tarefas reais) e a conferir ou gravar, com aprovação da pessoa, apenas a raiz do projeto no `config.toml`, nunca pastas de tarefa ou de rascunho. Complementa a decisão de 2026-11-15. Descartado: adicionar cada pasta de tarefa no `config.toml` do usuário.
+
+## 2026-11-25 | Junção automática na integração pelo `baco merge-check --apply`
+
+Com `delivery.integration_merge: auto`, o próprio `baco merge-check ENT-NNN --target <integração> --pr <n> --apply` executa `gh pr merge <n> --merge` (sem `--delete-branch`) e sincroniza o quadro, mas só depois de todas as sete condições passarem e com verificação explícita de que o destino é `branches.integration` (nunca `branches.main`). Assim o projeto libera o comando do motor sem abrir `gh pr merge` solto. Descartado: liberar `gh pr merge` nas permissões ou exigir script improvisado em cada projeto.
+
+## 2026-11-25 | Quadro do GitHub Project aplicado pelo motor e por gancho `PostToolUse`
+
+`baco board ENT-NNN --apply` move cada card com `gh project item-edit` (adicionando com `item-add` se faltar), lê o quadro de volta com `gh project item-list --format json` e só grava no registro o que foi conferido; o gancho `hooks/board-sync.mjs` dispara `--apply` em segundo plano a cada edição de `progresso.md` sem travar a edição. O modo padrão sem `--apply` permanece sem chamadas de rede. Descartado: deixar a sincronia só como instrução manual para o condutor, que esquecia de mover cards no meio de entregas longas.
+
+## 2026-11-25 | Esforço opcional nas entradas de `roles` com `@<esforço>`
+
+Cada item de `roles` passa a aceitar `<harness>@<esforço>` e `<harness>/<modelo>@<esforço>` (`alto`, `medio`, `baixo`, com aliases `high`/`medium`/`low`), mantendo compatibilidade total com `<harness>` e `<harness>/<modelo>` e evitando colisão com `provedor/modelo` e `:tag` de ferramentas como o OpenCode. Descartado: usar `:` como separador ou trocar a lista por lista de mapas YAML (quebraria configurações existentes e o parser simples do motor).
+
+## 2026-11-25 | Critérios fora desta entrega por QA e pelo recorte do plano
+
+O estado `out_of_scope` (`fora desta entrega`) pode ser marcado tanto na linha `**Automação:** fora desta entrega` do arquivo de QA (para funções ainda não construídas no produto) quanto no próprio `plano.md` (`**Fora desta entrega:** CA-...` ou `fora desta entrega` na coluna `Tarefa` de `## Cobertura`), para fatias de uma spec compartilhada não precisarem alterar e reverter o arquivo de QA a cada entrega. Critérios `out_of_scope` ficam em seção própria do aceite, não entram em `manual_pending` nem travam o `merge-check`, mas continuam falhando se um teste rodar e quebrar; uma entrega onde todos os critérios são `out_of_scope` segue bloqueada por `merge.no_criteria`. Descartado: exigir edição do arquivo de QA compartilhado a cada entrega de fatia.
+
+## 2026-11-25 | Vigia sem IA via `baco check-stalled`
+
+O motor ganha `baco check-stalled [ENT-NNN] [--minutes N]` (saída 0 quando não há entrega parada; saída 2 quando uma entrega com `Execução autônoma: sim` e `Situação: rodando` está sem atualização em `progresso.md` há N minutos ou mais), usando o horário de modificação do arquivo (independente de fuso) e devolvendo a `Conversa condutora` e o próximo passo para uma automação externa opcional. Descartado: instalar cron ou rotina automaticamente pelo BACO (o agendamento pertence ao ambiente e à pessoa).
