@@ -198,7 +198,7 @@ provenance:
 #   integration_merge: ask    # ask (padrão) ou auto: com auto, se o "baco merge-check" disser que está tudo certo, junta sem perguntar
 
 # Tipos de cenário manual que só um QA especialista executa. Nunca são pedidos a você, nunca bloqueiam
-# uma junção (nem na principal) e ficam registrados só no arquivo (fora de relatórios e resumos).
+# uma junção (nem na principal) e ficam fora de perguntas e resumos no chat (listados à parte no aceite.md e no PR).
 # qa:
 #   specialist: ["acessibilidade", "leitor de tela", "idioma", "aparelho físico", "aplicativo instalado"]
 

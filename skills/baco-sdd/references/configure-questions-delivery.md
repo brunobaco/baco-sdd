@@ -179,7 +179,7 @@ Write `review.focus.always` and `review.focus.suggestion` as lists of strings. A
 >
 > O que é: alguns cenários de teste à mão pedem um especialista ou equipamento específico, como acessibilidade, leitor de tela (a tecnologia que lê a tela em voz alta), idioma e localização, aparelho físico ou aplicativo instalado. Aqui você lista os tipos de cenário que ficam com um especialista, não com você.
 >
-> Por que importa: esses cenários nunca são pedidos a você, nunca travam uma junção (nem na linha principal) e nunca aparecem nos relatórios, perguntas ou resumos para você, ficando registrados só no arquivo (mostro apenas se você pedir). Sem a lista, um cenário assim aparece para você como qualquer teste à mão. Conferência de segurança ou de permissão nunca entra aqui: ela sempre trava a junção até ser feita.
+> Por que importa: esses cenários nunca são pedidos a você, nunca travam uma junção (nem na linha principal) e nunca aparecem nas perguntas nem nos resumos no chat para você (mostro no chat apenas se você pedir); nos arquivos da entrega, o `aceite.md` e o PR listam esses cenários à parte. Sem a lista, um cenário assim aparece para você como qualquer teste à mão. Conferência de segurança ou de permissão nunca entra aqui: ela sempre trava a junção até ser feita.
 >
 > Opções:
 > (a) nenhum: todos os testes à mão são seus.
