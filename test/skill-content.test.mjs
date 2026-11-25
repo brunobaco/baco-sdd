@@ -864,24 +864,27 @@ test('antigravity: read-only reviewer call, resume, check with refusal, cost and
   for (const p of ['`agy` or `antigravity` on the PATH', '`.baco/antigravity/leitura.json`', '`Bash(antigravity -p * --settings .baco/antigravity/leitura.json *)`',
     '`Bash(antigravity *--dangerously-skip-permissions*)`', '`Bash(antigravity * --settings * --settings *)`',
     'as regras de leitura do BACO no Antigravity']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
-  // A `--mode` on the read-only call is asked in either order (space or `=`, never matching `--model`), and a second `--mode` on any call.
+  // A `--mode` on the read-only call is asked in either order (including as first arg, trailing space or `=`, never matching `--model`), and a second `--mode` on any call.
   const globToRegExp = (p) => new RegExp('^' + p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
   for (const bin of ['antigravity', 'agy']) {
     const modeAsks = [
-      `${bin} *leitura.json* --mode *`, `${bin} *leitura.json* --mode=*`,
-      `${bin} * --mode *leitura.json*`, `${bin} * --mode=*leitura.json*`,
-      `${bin} * --mode * --mode *`, `${bin} * --mode=* --mode *`,
-      `${bin} * --mode * --mode=*`, `${bin} * --mode=* --mode=*`,
+      `${bin} *leitura.json*--mode *`, `${bin} *leitura.json*--mode=*`,
+      `${bin} *--mode *leitura.json*`, `${bin} *--mode=*leitura.json*`,
+      `${bin} *--mode *--mode *`, `${bin} *--mode=*--mode *`,
+      `${bin} *--mode *--mode=*`, `${bin} *--mode=*--mode=*`,
     ];
     for (const p of [...modeAsks, `${bin} *--add-dir*`]) assert.ok(conf.includes(`\`Bash(${p})\``), `configure.md: "Bash(${p})" missing`);
     assert.ok(!conf.includes(`\`Bash(${bin} *--mode*--mode*)\``), `configure.md: old greedy --mode*--mode* pattern must be removed`);
     assert.ok(!conf.includes(`\`Bash(${bin} *leitura.json*--mode*)\``), `configure.md: old greedy leitura.json*--mode* pattern must be removed`);
+    assert.ok(!conf.includes(`\`Bash(${bin} * --mode *leitura.json*)\``), `configure.md: leading-space --mode pattern must be removed`);
 
     const matchers = modeAsks.map(globToRegExp);
     const allowedCalls = [
       `${bin} -p "Leia o pedido" --settings .baco/antigravity/leitura.json --model gemini-4-neon-high --output-format json`,
+      `${bin} --model gemini-4-neon-high -p "Leia o pedido" --settings .baco/antigravity/leitura.json --output-format json`,
       `${bin} -p "Siga" --conversation abc-123 --settings .baco/antigravity/leitura.json --model gemini-4-neon-high --output-format json`,
       `${bin} -p "Construa T-001" --settings .agents/baco-construcao.json --model gemini-4-neon-high --mode accept-edits --print-timeout 0 --output-format json`,
+      `${bin} --model gemini-4-neon-high -p "Construa T-001" --settings .agents/baco-construcao.json --mode accept-edits --print-timeout 0 --output-format json`,
       `${bin} -p "Siga" --conversation abc-123 --settings .agents/baco-construcao.json --model=gemini-4-neon-high --mode accept-edits --print-timeout 0 --output-format json`,
       `${bin} -p "Construa T-001" --settings .agents/baco-construcao.json --mode=accept-edits --model gemini-4-neon-high --print-timeout 0 --output-format json`,
     ];
@@ -893,10 +896,16 @@ test('antigravity: read-only reviewer call, resume, check with refusal, cost and
       `${bin} -p "x" --settings .baco/antigravity/leitura.json --mode=auto`,
       `${bin} -p "x" --mode auto --settings .baco/antigravity/leitura.json`,
       `${bin} -p "x" --mode=auto --settings .baco/antigravity/leitura.json`,
+      `${bin} --mode auto -p "x" --settings .baco/antigravity/leitura.json`,
+      `${bin} --mode=auto -p "x" --settings .baco/antigravity/leitura.json`,
       `${bin} -p "x" --settings .agents/baco-construcao.json --mode accept-edits --mode auto`,
       `${bin} -p "x" --settings .agents/baco-construcao.json --mode=accept-edits --mode auto`,
       `${bin} -p "x" --settings .agents/baco-construcao.json --mode accept-edits --mode=auto`,
       `${bin} -p "x" --settings .agents/baco-construcao.json --mode=accept-edits --mode=auto`,
+      `${bin} --mode auto -p "x" --settings .agents/baco-construcao.json --model gemini-4-neon-high --mode accept-edits`,
+      `${bin} --mode=auto -p "x" --settings .agents/baco-construcao.json --model gemini-4-neon-high --mode accept-edits`,
+      `${bin} --mode auto -p "x" --settings .agents/baco-construcao.json --mode=accept-edits`,
+      `${bin} --mode=auto -p "x" --settings .agents/baco-construcao.json --mode=accept-edits`,
     ];
     for (const cmd of askedCalls) {
       assert.equal(matchers.some((rx) => rx.test(cmd)), true, `escalated call must match --mode ask: ${cmd}`);
