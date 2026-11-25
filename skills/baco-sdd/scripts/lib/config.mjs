@@ -404,6 +404,25 @@ function normalizePlanning(planning, warnings) {
 // `roles.<role>`: a list (or one text) of `<harness>` or `<harness>/<model>`, in order of
 // preference. A role outside ROLE_NAMES, a list that is something else, an entry that is not text or
 // has an empty part, and an entry naming a harness absent from `harnesses` are dropped with a warning.
+function parseRoleEntry(item) {
+  const text = typeof item === 'string' ? item.trim() : '';
+  if (!text) return null;
+  const at = text.lastIndexOf('@');
+  let base = text;
+  let effort = null;
+  if (at !== -1) {
+    base = text.slice(0, at).trim();
+    const rawEffort = text.slice(at + 1).trim();
+    effort = EFFORTS[fold(rawEffort)] ?? undefined;
+    if (!effort) return null;
+  }
+  const slash = base.indexOf('/');
+  const harness = slash === -1 ? base : base.slice(0, slash).trim();
+  const model = slash === -1 ? null : base.slice(slash + 1).trim();
+  if (!harness || model === '') return null;
+  return { harness, model, effort };
+}
+
 function normalizeRoles(roles, harnesses, warnings) {
   const out = {};
   for (const [role, value] of Object.entries(roles)) {
@@ -416,31 +435,34 @@ function normalizeRoles(roles, harnesses, warnings) {
     if (list === null) { warnings.push({ key: 'config.invalid_section', params: { section: `roles.${role}` } }); continue; }
     const kept = [];
     for (const item of list) {
-      const text = typeof item === 'string' ? item.trim() : '';
-      const slash = text.indexOf('/');
-      const harness = slash === -1 ? text : text.slice(0, slash).trim();
-      const model = slash === -1 ? null : text.slice(slash + 1).trim();
-      if (!harness || model === '') { warnings.push({ key: 'config.invalid_section', params: { section: `roles.${role}` } }); continue; }
+      const parsed = parseRoleEntry(item);
+      if (!parsed) { warnings.push({ key: 'config.invalid_section', params: { section: `roles.${role}` } }); continue; }
+      const { harness, model, effort } = parsed;
       if (!Object.hasOwn(harnesses, harness)) {
         warnings.push({ key: 'config.role_harness_unknown', params: { role, harness } });
         continue;
       }
-      kept.push(model === null ? harness : `${harness}/${model}`);
+      const head = model === null ? harness : `${harness}/${model}`;
+      kept.push(effort === null ? head : `${head}@${effort}`);
     }
     if (kept.length) out[role] = kept;
   }
   return out;
 }
 
-// The resolved list of a role: [{ harness, tool, model }], model null when the entry names none (the
-// plan then takes the model of the task's level from that harness's `models`).
+// The resolved list of a role: [{ harness, tool, model }] (with `effort` when the entry pins one
+// via `@<alto|medio|baixo>`, overriding the role or task-class effort); `model` is null when the
+// entry names none (the plan then takes the model of the task's level from that harness's `models`).
 export function roleChain(config, role) {
   const list = config.roles?.[role];
   if (!Array.isArray(list)) return [];
   return list.map((entry) => {
-    const slash = entry.indexOf('/');
-    const harness = slash === -1 ? entry : entry.slice(0, slash);
-    return { harness, tool: harnessTool(config, harness), model: slash === -1 ? null : entry.slice(slash + 1) };
+    const parsed = parseRoleEntry(entry);
+    if (!parsed) return { harness: entry, tool: harnessTool(config, entry), model: null };
+    const { harness, model, effort } = parsed;
+    const out = { harness, tool: harnessTool(config, harness), model };
+    if (effort !== null) out.effort = effort;
+    return out;
   });
 }
 

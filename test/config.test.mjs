@@ -701,6 +701,43 @@ test('roles: an entry that is not text or has an empty model is dropped with a w
   ]);
 });
 
+test('roles: optional @effort override on harness or harness/model normalizes to alto|medio|baixo and warns when invalid', async () => {
+  const { roleChain } = await import('../skills/baco-sdd/scripts/lib/config.mjs');
+  const cfg = loadConfig(rootWith([
+    'harnesses:',
+    '  claude-code:',
+    '    models: { forte: opus, medio: sonnet }',
+    '  codex:',
+    '    models: { forte: gpt-x }',
+    'roles:',
+    '  task_reviewer:',
+    '    - codex',
+    '    - claude-code/opus@baixo',
+    '    - claude-code@low',
+    '    - claude-code/sonnet@invalido',
+    '    - claude-code/@medio',
+    '  pr_reviewer:',
+    '    - codex/gpt-x@high',
+    '',
+  ].join('\n')));
+  assert.deepEqual(cfg.roles, {
+    task_reviewer: ['codex', 'claude-code/opus@baixo', 'claude-code@baixo'],
+    pr_reviewer: ['codex/gpt-x@alto'],
+  });
+  assert.deepEqual(roleChain(cfg, 'task_reviewer'), [
+    { harness: 'codex', tool: 'codex', model: null },
+    { harness: 'claude-code', tool: 'claude-code', model: 'opus', effort: 'baixo' },
+    { harness: 'claude-code', tool: 'claude-code', model: null, effort: 'baixo' },
+  ]);
+  assert.deepEqual(roleChain(cfg, 'pr_reviewer'), [
+    { harness: 'codex', tool: 'codex', model: 'gpt-x', effort: 'alto' },
+  ]);
+  assert.deepEqual(cfg.warnings, [
+    { key: 'config.invalid_section', params: { section: 'roles.task_reviewer' } },
+    { key: 'config.invalid_section', params: { section: 'roles.task_reviewer' } },
+  ]);
+});
+
 // 1.10.0: risk criterion, delivery size, spec freeze, review focus, final rounds, test runs, CI
 // minutes, delivery destination and specialist QA.
 const invalid = (section) => ({ key: 'config.invalid_section', params: { section } });
