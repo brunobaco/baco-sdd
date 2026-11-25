@@ -13,6 +13,7 @@ export const QA_AUTOMATION_FIELD = 'Automação';
 export const EVIDENCE_HEADERS = ['CT', 'Resultado', 'Data', 'Onde', 'Entrega'];
 const EVIDENCE_TITLE = 'Evidências de execução';
 const AUTOMATION = ['automatizado', 'manual', 'pendente'];
+const OUT_OF_SCOPE = /^(?:fora\s+desta\s+entrega|out\s+of\s+scope)(?:\s*$|\s*[;(.:,-])/;
 const RESULTS = ['aprovado', 'reprovado'];
 
 const isEvidenceTable = (t) => {
@@ -98,8 +99,9 @@ export function readQa(path, { specialist: kinds = [] } = {}) {
     const contracts = field(block, 'Contratos');
     const auto = field(block, QA_AUTOMATION_FIELD);
     const word = auto === null ? '' : fold(auto.replace(/[`*]/g, '').trim().split(/[\s(:;,.]+/)[0] ?? '');
+    const autoClean = auto === null ? '' : fold(auto.replace(/[`*_]/g, '')).trim();
     const testRefs = testPaths(auto);
-    const automation = AUTOMATION.includes(word) ? word : null;
+    const automation = OUT_OF_SCOPE.test(autoClean) ? 'out_of_scope' : AUTOMATION.includes(word) ? word : null;
     const special = specialistOf(automation, auto, kinds);
     scenarios.push({
       id: m[1],

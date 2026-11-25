@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { fold, readText } from './markdown.mjs';
+import { fold, headings, readText, tables } from './markdown.mjs';
+import { expandRefs } from './ids.mjs';
 import { readSpec } from './spec.mjs';
 import { readQa, qaPathFor } from './qa.mjs';
 
@@ -81,6 +82,53 @@ export function deliveryKnownIdsOf(root, config, entId) {
   }
   const plan = join(dir, 'plano.md');
   return existsSync(plan) ? deliveryKnownIds(root, readPlanHeader(readText(plan)).specs) : new Set();
+}
+
+const PLAN_OUT_OF_SCOPE = /^(?:fora\s+desta\s+entrega|fora\s+do\s+plano|nao\s+construid[oa]|out\s+of\s+scope)(?:\s*$|\s*[;(.:,-])/;
+
+// Criteria explicitly marked out of scope in plano.md: either a header line
+// `**Fora desta entrega:** CA-...` or a row in `## Cobertura` whose `Tarefa` cell starts with
+// `fora desta entrega` / `fora do plano` / `não construída` / `out of scope`.
+export function readPlanOutOfScope(md) {
+  const ids = new Set();
+  const text = String(md ?? '').replace(/\r\n?/g, '\n');
+  for (const line of text.split('\n')) {
+    const m = /^\s*\*\*\s*([^*:]+?)\s*:\s*\*\*\s*(.*)$/.exec(line) ?? /^\s*\*\*\s*([^*:]+?)\s*\*\*\s*:\s*(.*)$/.exec(line);
+    if (!m) continue;
+    const label = fold(m[1]).trim();
+    if (label === 'fora desta entrega' || label === 'out of scope') {
+      for (const id of expandRefs(m[2])) if (id.startsWith('CA-')) ids.add(id);
+    }
+  }
+  const hs = headings(text);
+  const i = hs.findIndex((h) => fold(h.title).trim().startsWith('cobertura'));
+  if (i >= 0) {
+    const start = hs[i].line;
+    const end = hs.slice(i + 1).find((h) => h.level <= hs[i].level)?.line ?? Infinity;
+    for (const tb of tables(text)) {
+      if (tb.line <= start || tb.line >= end) continue;
+      const caCol = tb.headers.findIndex((h) => fold(h).trim().startsWith('criterio'));
+      const taskCol = tb.headers.findIndex((h) => fold(h).trim() === 'tarefa');
+      if (caCol < 0 || taskCol < 0) continue;
+      for (const r of tb.rows) {
+        const task = fold(String(r.cells[taskCol] ?? '').replace(/[`*_]/g, '')).trim();
+        if (!PLAN_OUT_OF_SCOPE.test(task)) continue;
+        for (const id of expandRefs(r.cells[caCol] ?? '')) if (id.startsWith('CA-')) ids.add(id);
+      }
+    }
+  }
+  return ids;
+}
+
+// Out-of-scope CAs of a delivery's plano.md; an empty set when the delivery or its plan does not exist.
+export function deliveryOutOfScopeOf(root, config, entId) {
+  let dir;
+  try { dir = deliveryDir(root, config, entId); } catch (e) {
+    if (e instanceof DeliveryError) return new Set();
+    throw e;
+  }
+  const plan = join(dir, 'plano.md');
+  return existsSync(plan) ? readPlanOutOfScope(readText(plan)) : new Set();
 }
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

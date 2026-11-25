@@ -14,13 +14,14 @@ import { t } from '../lib/messages.mjs';
 export const usage = 'baco acceptance-report <ENT-NNN> --target <branch> --trace <file.json>... [--qa <qa.md>]... [--json] [--cwd <dir>]';
 
 const usageError = () => ({ code: 64, data: {}, messages: [{ key: 'cli.usage', params: { usage } }] });
-const STATUSES = ['proven', 'failed', 'pending', 'uncovered'];
+const STATUSES = ['proven', 'failed', 'pending', 'uncovered', 'out_of_scope'];
 // R18: these blockers are verification failures (exit 1); any other blocker is a human gate (exit 2).
 export const VERIFICATION_BLOCKERS = ['merge.failed', 'merge.uncovered', 'merge.no_criteria', 'merge.scenario_failed'];
 // Worse status wins when the same CA appears in several traces; unknown statuses are the worst.
-const RANK = { proven: 0, pending: 1, uncovered: 2, failed: 3 };
-const rank = (s) => RANK[s] ?? 4;
+const RANK = { out_of_scope: 0, proven: 1, pending: 2, uncovered: 3, failed: 4 };
+const rank = (s) => RANK[s] ?? 5;
 const MANUAL_PENDING = 'manual_pending';
+const OUT_OF_SCOPE = 'out_of_scope';
 // `skipped` is an automated test that did not run: it can never count as proof.
 const NOT_RUN = ['not_run', 'skipped'];
 
@@ -28,9 +29,15 @@ const casOf = (trace) => (Array.isArray(trace?.cas) ? trace.cas : []);
 const scenariosOf = (ca) => (Array.isArray(ca.scenarios) ? ca.scenarios : []);
 // QA scenarios tied to no CA (only to a rule or requirement); traces made before them have none.
 const othersOf = (trace) => (Array.isArray(trace?.otherScenarios) ? trace.otherScenarios.filter((s) => s && typeof s === 'object') : []);
-const OTHER_PASSED = ['passed', 'manual_ok'];
+const OTHER_PASSED = ['passed', 'manual_ok', OUT_OF_SCOPE];
 // Rejected or failed, and, failing safe, any result this engine does not know.
 const otherFailed = (s) => ![...OTHER_PASSED, MANUAL_PENDING, ...NOT_RUN].includes(s.result);
+
+export function outOfScopeItems(trace) {
+  const cas = casOf(trace).filter((c) => c.status === OUT_OF_SCOPE).map((c) => c.ca);
+  const scenarios = othersOf(trace).filter((s) => s.result === OUT_OF_SCOPE).map((s) => s.id);
+  return { cas, scenarios };
+}
 
 // Pending scenarios across all criteria and the scenarios without a CA, deduplicated by id. A
 // "pending" criterion with no identifiable pending scenario is reported as not run (never silently ok).
@@ -68,7 +75,8 @@ export function mergeDecision({ trace, verdict, rule, waiver = null, specialist:
   const blockers = [];
   const warnings = [];
   const cas = casOf(trace);
-  if (cas.length === 0) blockers.push('merge.no_criteria');
+  const inScope = cas.filter((c) => c.status !== OUT_OF_SCOPE);
+  if (inScope.length === 0) blockers.push('merge.no_criteria');
   // Unknown statuses are treated as failed: never merge on data we do not understand.
   if (cas.some((c) => c.status === 'failed' || !STATUSES.includes(c.status))) blockers.push('merge.failed');
   if (cas.some((c) => c.status === 'uncovered')) blockers.push('merge.uncovered');
@@ -235,15 +243,18 @@ export function extractWriterText(md) {
 export function renderAcceptance({ entId, target, trace, verdict, decision, lang = 'pt-BR', titles = new Map(), blockerParams = {}, waiver = null, openItems: items = [], agents = null, writerText = null, specialist: kinds = [] }) {
   const T = (key, params) => t(lang, key, params);
   const cas = casOf(trace);
-  const count = (s) => cas.filter((c) => c.status === s).length;
+  const inScopeCas = cas.filter((c) => c.status !== OUT_OF_SCOPE);
+  const outScope = outOfScopeItems(trace);
+  const count = (s) => inScopeCas.filter((c) => c.status === s).length;
   const proven = count('proven');
-  const failed = cas.filter((c) => c.status === 'failed' || !STATUSES.includes(c.status)).length;
+  const failed = inScopeCas.filter((c) => c.status === 'failed' || !STATUSES.includes(c.status)).length;
   const pending = pendingItems(trace, kinds);
   const gloss = (v) => { const k = `acceptance.verdict.${v}`; return T(k) === k ? v : T(k); };
 
   const summary = [
     T(decision.allowed ? 'acceptance.summary.allowed' : 'acceptance.summary.blocked'),
-    T('acceptance.summary.counts', { total: cas.length, proven, failed, pending: count('pending'), uncovered: count('uncovered') }),
+    T('acceptance.summary.counts', { total: inScopeCas.length, proven, failed, pending: count('pending'), uncovered: count('uncovered') }),
+    ...(outScope.cas.length ? [T('acceptance.summary.out_of_scope', { count: outScope.cas.length })] : []),
     verdict ? T('acceptance.summary.review', { verdict: gloss(verdict.verdict) })
       : waiver?.current ? T('acceptance.summary.review_waived', { by: waiver.by, date: waiver.date })
         : T('acceptance.summary.review_none'),
@@ -258,6 +269,7 @@ export function renderAcceptance({ entId, target, trace, verdict, decision, lang
   }
 
   const resultOf = (s) => {
+    if (s.result === OUT_OF_SCOPE) return T('acceptance.result.out_of_scope');
     const where = s.via === 'direct' || s.automation === 'automatizado' ? 'auto' : 'manual';
     const ev = s.evidence;
     // Manual evidence: say where, when and in which delivery the test was run (R19).
@@ -266,12 +278,12 @@ export function renderAcceptance({ entId, target, trace, verdict, decision, lang
       : T(`acceptance.where.${where}`);
     return `${T(`acceptance.result.${s.result}`)} (${how})`;
   };
-  const rows = cas.map((c) => {
+  const rows = inScopeCas.map((c) => {
     const status = T(`acceptance.status.${STATUSES.includes(c.status) ? c.status : 'failed'}`);
     const proof = scenariosOf(c).map((s) => `${s.id}: ${resultOf(s)}`);
     return `| ${cell(c.ca)} | ${status} | ${cell(proof.length ? proof.join('; ') : T('acceptance.proof.none'))} |`;
   });
-  const others = othersOf(trace);
+  const others = othersOf(trace).filter((s) => s.result !== OUT_OF_SCOPE);
   const otherRows = others.length ? [
     '',
     `## ${T('acceptance.h.others')}`,
@@ -292,6 +304,16 @@ export function renderAcceptance({ entId, target, trace, verdict, decision, lang
     T('acceptance.specialist.intro'),
     '',
     ...pending.specialist.map(({ id, kind }) => `- ${id}${titles.get(id) ? `: ${titles.get(id)}` : ''}${kind ? ` (${kind})` : ''}`),
+  ] : [];
+  // Only when there is one: criteria or scenarios of unbuilt features outside this delivery.
+  const outScopeRows = outScope.cas.length || outScope.scenarios.length ? [
+    '',
+    `## ${T('acceptance.h.out_of_scope')}`,
+    '',
+    T('acceptance.out_of_scope.intro'),
+    '',
+    ...outScope.cas.map((id) => `- ${id}`),
+    ...outScope.scenarios.map((id) => `- ${id}${titles.get(id) ? `: ${titles.get(id)}` : ''}`),
   ] : [];
 
   let review;
@@ -345,6 +367,7 @@ export function renderAcceptance({ entId, target, trace, verdict, decision, lang
     '',
     ...manual,
     ...specialistRows,
+    ...outScopeRows,
     '',
     `## ${T('acceptance.h.review')}`,
     '',
