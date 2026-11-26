@@ -225,4 +225,4 @@ Write the list under `qa.specialist`. A security or permission check never goes 
 >
 > Padrão: (a) nenhum.
 
-Write the list under `cleanup.commands`. Only run commands declared here (and never destructive commands against production data). The conductor shows the configured commands to the person on the first run and whenever `cleanup.commands` changes in `.baco/config.yaml`; when unchanged, it runs them at closeout without asking again.
+Write the list under `cleanup.commands`. Only run commands declared here (and never destructive commands against production data). The conductor stores the SHA-256 hash of `cleanup.commands` in `.baco/logs/cleanup-commands.sha256` and shows the commands to the person on the first run and whenever that hash changes in `.baco/config.yaml`; when unchanged, it runs them at closeout without asking again.

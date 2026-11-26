@@ -1,10 +1,10 @@
-import { existsSync, readdirSync, realpathSync, rmdirSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, realpathSync, rmdirSync, rmSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { t } from '../lib/messages.mjs';
 import { protectedBranches } from '../lib/config.mjs';
 import { git, GitError, localBranches, worktrees, isAncestor, currentBranch, refExists, revParse, tagTarget } from '../lib/git.mjs';
 
-export const usage = 'baco cleanup-branches [--apply] [--orphans] [--remote] [--remote-name <name>] [--json] [--cwd <dir>]';
+export const usage = 'baco cleanup-branches [--apply] [--remote] [--remote-name <name>] [--json] [--cwd <dir>]';
 export const needsRepo = true;
 
 const DELIVERY = /^baco\/(ENT-\d{3})$/;
@@ -100,6 +100,55 @@ function deleteLocal(branch, sha, cwd) {
   try { git(['config', '--remove-section', `branch.${branch}`], cwd); } catch { /* no config section */ }
 }
 
+// Known 0-byte mount stubs left by Claude Code's sandbox (`rede`) inside worktrees.
+// Removed one by one before `git worktree remove` ONLY when regular, 0 bytes, and untracked by git.
+export const SANDBOX_EMPTY_STUBS = [
+  '.claude/settings.json',
+  '.claude/settings.local.json',
+  '.mcp.json',
+  '.gitconfig',
+  '.bashrc',
+  '.bash_profile',
+  '.profile',
+  '.zshrc',
+  '.zprofile',
+  '.ripgreprc',
+];
+
+export function removeSandboxEmptyStubs(worktreePath) {
+  if (!worktreePath || !existsSync(worktreePath)) return;
+  let tracked = null;
+  const isTracked = (rel) => {
+    if (tracked === null) {
+      try {
+        tracked = new Set(git(['ls-files', '--', ...SANDBOX_EMPTY_STUBS], worktreePath).split('\n').filter(Boolean));
+      } catch {
+        // Fail closed: if git cannot tell us what is tracked, delete nothing.
+        tracked = new Set(SANDBOX_EMPTY_STUBS);
+      }
+    }
+    return tracked.has(rel);
+  };
+  let touchedClaude = false;
+  for (const rel of SANDBOX_EMPTY_STUBS) {
+    const full = join(worktreePath, rel);
+    let st;
+    try { st = lstatSync(full); } catch { continue; }
+    if (!st.isFile() || st.size !== 0) continue;
+    if (isTracked(rel)) continue;
+    try {
+      unlinkSync(full);
+      if (rel.startsWith('.claude/')) touchedClaude = true;
+    } catch { /* ignore: git worktree remove will report if blocked */ }
+  }
+  if (touchedClaude) {
+    const claudeDir = join(worktreePath, '.claude');
+    try {
+      if (readdirSync(claudeDir).length === 0) rmdirSync(claudeDir);
+    } catch { /* ignore */ }
+  }
+}
+
 // Applies a plan. Each candidate is re-verified (not protected, tip unchanged and still merged)
 // before anything is touched.
 export function applyCleanup(candidates, { root, remote = null, protectedList = [] }) {
@@ -126,6 +175,7 @@ export function applyCleanup(candidates, { root, remote = null, protectedList = 
       }
       step = 'worktree';
       if (c.worktree) {
+        removeSandboxEmptyStubs(c.worktree);
         git(['worktree', 'remove', c.worktree], root);
         entry.worktree_removed = true;
       }
@@ -178,36 +228,16 @@ export function applyCleanup(candidates, { root, remote = null, protectedList = 
   return { done, failed, warnings, messages };
 }
 
-const SHARED_LOGS = new Set(['harnesses.md', 'uso-ferramentas.jsonl', 'custo-fontes.json', 'quadro-sync.log', 'bateria-completa.json']);
+const SHARED_LOGS = new Set(['harnesses.md', 'uso-ferramentas.jsonl', 'custo-fontes.json', 'quadro-sync.log', 'bateria-completa.json', 'cleanup-commands.sha256']);
 
 function canonical(p) {
   try { return realpathSync(p); } catch { return p; }
 }
 
-// Inspects a loose folder inside `.worktrees/`:
-// - empty -> removable without --orphans (via rmdirSync)
-// - clean git repo/worktree -> removable only with --orphans
-// - anything with uncommitted/untracked files or non-git files -> never removed
-export function inspectOrphanWorktree(fullPath) {
-  let entries;
-  try { entries = readdirSync(fullPath); } catch { return { kind: 'dirty', reason: 'uncommitted', safe: false }; }
-  if (entries.length === 0) return { kind: 'empty', safe: true };
-  if (!existsSync(join(fullPath, '.git'))) return { kind: 'dirty', reason: 'uncommitted', safe: false };
-  try {
-    const top = canonical(git(['rev-parse', '--show-toplevel'], fullPath));
-    if (top !== canonical(fullPath)) return { kind: 'dirty', reason: 'uncommitted', safe: false };
-    const status = git(['status', '--porcelain', '--untracked-files=all'], fullPath);
-    if (status.trim() !== '') return { kind: 'dirty', reason: 'uncommitted', safe: false };
-    return { kind: 'clean_orphan', safe: true };
-  } catch {
-    return { kind: 'dirty', reason: 'uncommitted', safe: false };
-  }
-}
-
 // Plans removal of loose folders inside `.worktrees/` not registered as live git worktrees.
-// Only empty folders are candidates by default; clean git orphans require `includeOrphans: true`;
-// folders with uncommitted or non-git files are always skipped.
-export function planOrphanWorktrees(root, wts = worktrees(root), { includeOrphans = false } = {}) {
+// ONLY empty folders are candidates (removed with rmdirSync). Any non-empty folder (git repo,
+// broken worktree, loose or ignored files) is never deleted: it is listed in `skipped` for the person.
+export function planOrphanWorktrees(root, wts = worktrees(root)) {
   const dir = join(root, '.worktrees');
   if (!existsSync(dir)) return { candidates: [], skipped: [] };
   const live = new Set(wts.map((w) => canonical(w.path)));
@@ -218,17 +248,16 @@ export function planOrphanWorktrees(root, wts = worktrees(root), { includeOrphan
     const full = join(dir, entry.name);
     if (live.has(canonical(full))) continue;
     const rel = `.worktrees/${entry.name}`;
-    const info = inspectOrphanWorktree(full);
-    if (info.kind === 'empty') candidates.push({ path: rel, kind: 'empty' });
-    else if (info.kind === 'clean_orphan' && includeOrphans) candidates.push({ path: rel, kind: 'clean_orphan' });
-    else if (info.kind === 'clean_orphan') skipped.push({ path: rel, reason: 'needs_orphans_flag' });
-    else skipped.push({ path: rel, reason: 'uncommitted' });
+    let children;
+    try { children = readdirSync(full); } catch { children = null; }
+    if (children !== null && children.length === 0) candidates.push({ path: rel, kind: 'empty' });
+    else skipped.push({ path: rel, reason: 'not_empty' });
   }
   return { candidates, skipped };
 }
 
-export function findOrphanWorktrees(root, wts = worktrees(root), opts = {}) {
-  return planOrphanWorktrees(root, wts, opts).candidates.map((c) => c.path);
+export function findOrphanWorktrees(root, wts = worktrees(root)) {
+  return planOrphanWorktrees(root, wts).candidates.map((c) => c.path);
 }
 
 // Finds `.baco/logs/` entries belonging to deliveries whose branch is being closed (matches ENT-NNN
@@ -257,7 +286,6 @@ export async function run(args, ctx) {
   const { integration, main: mainBranch } = config.branches;
   const protectedList = protectedBranches(config);
   const apply = Boolean(args.flags.apply);
-  const includeOrphans = Boolean(args.flags.orphans);
   const remote = args.flags.remote ? (typeof args.flags['remote-name'] === 'string' ? args.flags['remote-name'] : 'origin') : null;
 
   const wts = worktrees(root);
@@ -271,7 +299,7 @@ export async function run(args, ctx) {
     isMergedInto: (b, target) => isAncestor(`refs/heads/${b}`, `refs/heads/${target}`, root),
     tipOf: (b) => revParse(`refs/heads/${b}`, root),
   });
-  const orphanPlan = planOrphanWorktrees(root, wts, { includeOrphans });
+  const orphanPlan = planOrphanWorktrees(root, wts);
   const orphanWorktrees = orphanPlan.candidates.map((c) => c.path);
   const skippedOrphans = orphanPlan.skipped;
   const closedDeliveries = candidates
@@ -309,15 +337,7 @@ export async function run(args, ctx) {
   for (const item of orphanPlan.candidates) {
     const full = join(root, item.path);
     try {
-      if (item.kind === 'empty') {
-        rmdirSync(full);
-      } else {
-        const now = inspectOrphanWorktree(full);
-        if (now.kind !== 'clean_orphan' && now.kind !== 'empty') {
-          throw new Error('folder changed since plan (uncommitted files)');
-        }
-        rmSync(full, { recursive: true, force: true });
-      }
+      rmdirSync(full);
       removedWorktrees.push(item.path);
       messages.push({ key: 'cleanup.orphan_removed', params: { path: item.path } });
     } catch (e) {
