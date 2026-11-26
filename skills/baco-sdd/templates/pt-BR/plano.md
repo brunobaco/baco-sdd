@@ -69,6 +69,7 @@ Uma subseção por tarefa, com o que o publicador copia para o arquivo dela (ele
 - **Resultado esperado:** `<o que existe ou funciona depois desta tarefa, em linguagem simples>`
 - **Critério de pronto:** `<como conferir, por exemplo: o teste [CT-XYZ-001] passa>`
 - **Testes da tarefa:** `<os testes que ela cria, com o caminho, e os que já existem nos arquivos que ela mexe>`
+- **Issue de origem:** `<só quando a tarefa veio de uma issue do GitHub: o link dela, uma linha por issue; senão, apague a linha>`
 
 Tarefa com parada humana leva a palavra `PARADA` ao lado do código na coluna `Tarefa` (por exemplo `T-003 PARADA`), e o campo `Parada humana` do arquivo dela diz `sim` com o motivo. Os dois precisam combinar.
 

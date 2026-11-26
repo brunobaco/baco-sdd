@@ -1012,5 +1012,19 @@ test('issue flow: classification, spec first when it is silent, leve delivery, r
   assert.ok(ref('delivery.md').includes('`| Issues relacionadas |` row; [issue.md](issue.md), section 7'), 'delivery.md: Closes for every issue');
   assert.ok(ref('task-publication.md').includes('**reuses that issue**'), 'task-publication.md: reuse');
   const conf = ref('configure.md');
-  for (const p of ['`Bash(gh issue view *)`', '`Bash(gh issue list *)`', '(`Bash(gh issue create*)`)']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  for (const p of ['`Bash(gh issue view *)`', '`Bash(gh issue list *)`']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+  // Creating issues is not an Ask rule: phase 5 publishes task issues unattended; /baco:issue asks in chat.
+  assert.ok(!conf.includes('gh issue create'), 'configure.md: no Ask rule for gh issue create');
+  assert.ok(!conf.includes('criar uma issue'), 'configure.md: the pt-BR summary does not promise an issue ask');
+  assert.ok(iss.includes('no permission rule asks before `gh issue create`'), 'issue.md: the chat ok is the only check');
+  assert.ok(iss.includes('issues of different specs in one delivery take it out of `leve`'), 'issue.md: batch across specs is not leve');
+});
+
+test('issue source reaches planning: Issue de origem in planning.md, the planner and the plan template', () => {
+  const plan = ref('planning.md');
+  assert.ok(plan.includes('`Issue de origem: <url>`'), 'planning.md: Issue de origem field');
+  assert.ok(plan.includes("spec's history line"), 'planning.md: read the URL from the spec history (grande demais path)');
+  const planner = read(join(SKILL_ROOT, 'references', 'roles', 'planner.md'));
+  assert.ok(planner.includes('`Issue de origem: <url>`'), 'planner.md: Issue de origem');
+  assert.ok(read(join(TEMPLATES, 'plano.md')).includes('- **Issue de origem:**'), 'plano.md template: optional Issue de origem line');
 });

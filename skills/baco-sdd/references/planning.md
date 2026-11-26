@@ -99,6 +99,7 @@ Per task, write one row of the `Entregas e tarefas` table:
 | Part | `Parte`: only with the `front-back` split, `contrato`, `back-end` or `front-end`. Written in the task's subsection of `Detalhes das tarefas` and copied into the task file; with the `funcionalidade` split, omitted |
 | Lane / depends on | step 5 |
 | Task tests | `Testes da tarefa`: which tests run while building it: the tests it creates plus the existing tests of the files it touches, in their quick (Chromium) form. Written in the task's subsection of `Detalhes das tarefas` and copied into the task file ([task-publication.md](task-publication.md)) |
+| Source issue | only when the work came from a GitHub issue: `Issue de origem: <url>` in the task's subsection of `Detalhes das tarefas`, one line per issue it covers, so publication reuses the issue and the PR closes it ([issue.md](issue.md), sections 5 to 7). When the issue went the long way (`grande demais`: spec, then plan), take the URL from the spec's history line, where the spec change recorded it as the source |
 | Human stop | step below |
 
 When unsure between two classes, take the higher one. Cost matters, so do not mark everything `arriscada`.
