@@ -54,11 +54,23 @@ Atualizado em 2026-11-25.
 
 ## Em andamento
 
-Pendências da 1.11.0 que aguardam validação no Claude Code ou evolução do ambiente:
+A 1.11.0 está pronta na branch `feat/1.11.0` e espera o ok para juntar na `main`, marcar `v1.11.0` e publicar o release. Conferido:
 
-1. Conferir os ganchos do plugin dentro do Claude Code ao vivo por caminho com link simbólico, rodar os evals (`claude plugin eval`), revisar a branch `feat/1.11.0`, juntar na `main`, marcar `v1.11.0` e publicar o release.
-2. Item 14: conferir ao vivo se `defaultMode` na configuração de permissões do projeto vale para conversas abertas por outra conversa no ambiente (se não valer, encaminhar pedido ao time do ambiente).
-3. Item 11 (parte do ambiente) e Item 23: dependem de mudança no ambiente (troca automática de conta em chamadas CLI de `codex`/`antigravity` e conclusão automática ou ocultação de conversas criadas por chamadas de terminal). Pedidos redigidos fora do repositório para envio ao time do ambiente.
+- Ganchos ao vivo no Claude Code pelo caminho com link simbólico: na 1.10.0 o `branch-guard` saía calado; na 1.11.0 ele nega a edição na `main`.
+- Evals: seis passaram de primeira. `ca-modificado` falha também na 1.10.0 (defeito anterior); `gate-obrigatorio` oscilou uma vez e passou 2 de 2; `meio-do-ciclo` teve um falso negativo do juiz.
+- Três rodadas de revisão independente. A última deixou um item obrigatório (com o portão `plan` desligado, o `--by` gravava um aprovador), corrigido junto com a exigência de `approve-plan`, `waive-review` e `import-verdict` virem logo depois de `baco.mjs`.
+
+Dependem do ambiente (pedidos fora do repositório): troca automática de conta nas chamadas de terminal (item 11), conclusão ou ocultação das conversas criadas por chamadas de terminal (item 23) e o modo de permissão das conversas abertas por outra conversa, que vem fixo na linha de comando e por isso não segue o `defaultMode` do projeto (item 14).
+
+Sugestões das revisões que ficaram para uma 1.11.x:
+
+1. `approve-plan`: recusar gravar sem `--replace` quando o histórico da branch já tem um retrato (hoje apagar o arquivo antes contorna), e o `merge-check` exigir o retrato mais recente do histórico.
+2. Entrega no formato da 1.11 com portão `plan` ligado e sem retrato vira portão humano (`merge.plan_unapproved`).
+3. Retrato com a versão lida do arquivo da spec (ou hash das linhas de CA), e universo com chave `caminho#ID`.
+4. Cenário marcado fora desta entrega mas com teste que passou: `trace` e `computeSpecScope` discordam no aceite.
+5. Trava do `board-sync`: renovar a validade a cada rodada e apagar só se for do próprio processo.
+6. Caixa `rede`: conferir ao vivo se os arquivos vazios da montagem saem de dentro da caixa antes do `git worktree remove`; se não saírem, toda tarefa vira pendência.
+7. Hash dos `cleanup.commands` por um comando do motor, com forma canônica.
 
 Versão 1.12.0, planejada para depois da 1.11.0: entrada de trabalho pela issue do GitHub, num comando próprio, `/baco:issue` (sem número, escreve uma issue nova com a pessoa; com o número, implementa aquela issue). (a) Escrever a issue: a pessoa descreve a mudança e o BACO conversa com ela; numa melhoria, pergunta o que falta para entender o pedido; num defeito, pede evidências (passos, o que esperava e o que aconteceu, ambiente, registro de erro, print) e cria a issue com o tipo marcado. (b) Implementar a issue: classifica em defeito (correção com teste primeiro, ligada ao critério que o defeito quebra, entrega `leve` de uma tarefa) ou melhoria pequena (evolução pontual da spec, e do protótipo quando mexe em tela, entrega `leve`), com PR e junção; várias issues pequenas podem virar uma entrega só.
 
@@ -84,4 +96,4 @@ Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versã
 
 ## Próximo passo
 
-Revisar a branch `feat/1.11.0`, testar os ganchos ao vivo no Claude Code pelo caminho com link simbólico, conferir o comportamento de `defaultMode` em conversa aberta por outra conversa (item 14), rodar `claude plugin eval`, juntar na `main`, marcar `v1.11.0` e publicar o release com o pacote da skill. Depois, avançar para a 1.12.0 (`/baco:issue`).
+Com o ok da pessoa: juntar `feat/1.11.0` na `main`, marcar `v1.11.0` e publicar o release com o pacote da skill. Depois, a 1.11.x com as sugestões acima e a 1.12.0 (`/baco:issue`).
