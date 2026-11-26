@@ -238,6 +238,95 @@ test('board --apply paginates gh project item-list beyond 200 items using totalC
   assert.equal(listCalls[listCalls.length - 1][listCalls[listCalls.length - 1].indexOf('--limit') + 1], '250');
 });
 
+// 1.12.0: a task that treats several issues moves the card of each one and reads each one back.
+const MULTI_TASK = (id, main, related) => `${TASK(id, main)}| Issues relacionadas | ${related} |\n`;
+// Fake gh that keeps the board in a file; edits of the URLs in `failUrls` fail (item-add too).
+const boardGh = (repo, failUrls = []) => `
+    const fs = require('fs');
+    const stateFile = ${JSON.stringify(join(repo, '.baco/logs/fake-gh-state.json'))};
+    const logFile = ${JSON.stringify(join(repo, '.baco/logs/fake-gh-calls.log'))};
+    const fail = ${JSON.stringify(failUrls)};
+    const args = process.argv.slice(2);
+    fs.mkdirSync(${JSON.stringify(join(repo, '.baco/logs'))}, { recursive: true });
+    fs.appendFileSync(logFile, JSON.stringify(args) + '\\n');
+    const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
+    const url = args.includes('--url') ? args[args.indexOf('--url') + 1] : null;
+    if (args[0] === 'project' && (args[1] === 'item-edit' || args[1] === 'item-add') && fail.includes(url)) {
+      process.stderr.write('could not move the card\\n');
+      process.exit(1);
+    }
+    if (args[0] === 'project' && args[1] === 'item-add') process.exit(0);
+    if (args[0] === 'project' && args[1] === 'item-edit') {
+      state[url] = args[args.indexOf('--value') + 1];
+      fs.writeFileSync(stateFile, JSON.stringify(state));
+      process.exit(0);
+    }
+    if (args[0] === 'project' && args[1] === 'item-list') {
+      const items = Object.entries(state).map(([u, status]) => ({ content: { url: u }, status }));
+      process.stdout.write(JSON.stringify({ items }));
+      process.exit(0);
+    }
+    process.exit(1);
+  `;
+
+test('board --apply moves and reads back the card of the main issue and of each related issue', async (t) => {
+  const repo = await makeRepo({
+    '.baco/config.yaml': CONFIG,
+    'docs/entregas/ENT-001-app/plano.md': '# Plano\n',
+    'docs/entregas/ENT-001-app/progresso.md': PROG(),
+    'docs/entregas/ENT-001-app/tarefas/T-001.md': MULTI_TASK('T-001', issueUrl(2), `${issueUrl(5)}, #6`),
+  });
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
+  const { bin } = makeFakeGh(t, boardGh(repo));
+  const prevGh = process.env.BACO_GH;
+  process.env.BACO_GH = bin;
+  t.after(() => { if (prevGh === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prevGh; });
+
+  const c = capture();
+  const code = await main(['board', 'ENT-001', '--apply', '--json', '--cwd', repo], c.io);
+  assert.equal(code, 0, c.out.stderr + c.out.stdout);
+  const d = JSON.parse(c.out.stdout);
+  assert.deepEqual(d.applyFailed, []);
+  assert.deepEqual(d.applied.map((a) => [a.item, a.url, a.status]), [
+    [null, issueUrl(1), 'In progress'],
+    ['T-001', issueUrl(2), 'In progress'],
+    ['T-001', issueUrl(5), 'In progress'],
+    ['T-001', issueUrl(6), 'In progress'],
+  ]);
+  const calls = readFileSync(join(repo, '.baco/logs/fake-gh-calls.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const edited = calls.filter((a) => a[1] === 'item-edit').map((a) => a[a.indexOf('--url') + 1]);
+  assert.deepEqual(edited, [issueUrl(1), issueUrl(2), issueUrl(5), issueUrl(6)]);
+  const rec = JSON.parse(readFileSync(join(repo, '.baco/logs/quadro-ENT-001.json'), 'utf8'));
+  assert.deepEqual(rec.applied, { [issueUrl(1)]: 'In progress', [issueUrl(2)]: 'In progress', [issueUrl(5)]: 'In progress', [issueUrl(6)]: 'In progress' });
+});
+
+test('board --apply: a related issue that fails to move is a failure like any other card, and the rest is recorded', async (t) => {
+  const repo = await makeRepo({
+    '.baco/config.yaml': CONFIG,
+    'docs/entregas/ENT-001-app/plano.md': '# Plano\n',
+    'docs/entregas/ENT-001-app/progresso.md': PROG(),
+    'docs/entregas/ENT-001-app/tarefas/T-001.md': MULTI_TASK('T-001', issueUrl(2), `${issueUrl(5)} ${issueUrl(6)}`),
+  });
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
+  const { bin } = makeFakeGh(t, boardGh(repo, [issueUrl(6)]));
+  const prevGh = process.env.BACO_GH;
+  process.env.BACO_GH = bin;
+  t.after(() => { if (prevGh === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prevGh; });
+
+  const c = capture();
+  const code = await main(['board', 'ENT-001', '--apply', '--json', '--cwd', repo], c.io);
+  assert.equal(code, 1);
+  const d = JSON.parse(c.out.stdout);
+  assert.deepEqual(d.applied.map((a) => a.url), [issueUrl(1), issueUrl(2), issueUrl(5)]);
+  assert.deepEqual(d.applyFailed.map((f) => [f.item, f.url, f.status]), [['T-001', issueUrl(6), 'In progress']]);
+  const rec = JSON.parse(readFileSync(join(repo, '.baco/logs/quadro-ENT-001.json'), 'utf8'));
+  assert.equal(rec.applied[issueUrl(6)], undefined, 'the failed card is not recorded, so the next round retries it');
+  // The human text names the issue of the failed card, not only the task.
+  const h = capture();
+  assert.equal(await main(['board', 'ENT-001', '--apply', '--cwd', repo], h.io), 1);
+  assert.match(h.out.stdout, /T-001 \(#6\)/);
+});
+
 async function syncRepo(t) {
   const conf = await makeRepo({
     '.baco/config.yaml': CONFIG,

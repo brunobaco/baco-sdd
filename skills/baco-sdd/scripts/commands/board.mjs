@@ -16,18 +16,45 @@ const TASK_FILE = /^([A-Z]+-\d+)\.md$/;
 const UNPUBLISHED = /^(FIX|INT)-/;
 const clean = (s) => String(s ?? '').replace(/[`*]/g, '').trim().replace(/^_+|_+$/g, '');
 
-// Issue URL of a task file: the row `| Issue | <url> |` of its table (backticks, angle brackets or a
-// markdown link around the URL allowed). null when the task was not published to GitHub.
-export function taskIssue(md) {
+// Every issue of a task file, in order: the URL of the row `| Issue | <url> |` first, then each issue
+// of the rows `| Issues relacionadas | ... |` (a task born from several issues, references/issue.md,
+// section 6), as full URLs or `#N` separated by commas or spaces (backticks, angle brackets or a
+// markdown link around each allowed). `#N` resolves against the repository of the `| Issue |` URL;
+// without that URL it is skipped. Duplicates are dropped. [] when the task was not published to GitHub.
+export function taskIssues(md) {
+  let main = null;
+  const related = [];
   for (const tb of tables(md)) {
     for (const r of tb.rows) {
-      if (fold(clean(r.cells[0])) !== 'issue') continue;
-      const m = ISSUE_URL.exec(r.cells.slice(1).join(' '));
-      if (m) return m[0];
+      const key = fold(clean(r.cells[0]));
+      const text = r.cells.slice(1).join(' ');
+      if (key === 'issue') {
+        const m = ISSUE_URL.exec(text);
+        if (m && !main) main = m[0];
+      } else if (/^issues? relacionadas?$/.test(key)) {
+        related.push(text.replace(/\[[^\]]*\]\(([^)]*)\)/g, ' $1 ')); // a link counts by its target
+      }
     }
   }
-  return null;
+  const repo = main ? main.replace(/\/issues\/\d+$/, '') : null;
+  const urls = main ? [main] : [];
+  const token = new RegExp(`(${ISSUE_URL.source})|(?:^|[^\\w/&])#(\\d+)\\b`, 'g');
+  for (const text of related) {
+    for (const m of text.matchAll(token)) {
+      const url = m[1] ?? (repo ? `${repo}/issues/${m[2]}` : null);
+      if (url && !urls.includes(url)) urls.push(url);
+    }
+  }
+  return urls;
 }
+
+// The first issue of a task file (the `| Issue |` row); null when there is none.
+export function taskIssue(md) {
+  return taskIssues(md)[0] ?? null;
+}
+
+// `T-001 (#6)` for a task with several issues, so a message names the card; the task id otherwise.
+const issueLabel = (task, url, multi) => (multi ? `${task} (#${/\/issues\/(\d+)$/.exec(url)?.[1] ?? '?'})` : task);
 
 // Parent issue URL in progresso.md: the first line naming "Issue mãe" that holds an issue URL.
 export function parentIssue(md) {
@@ -91,7 +118,9 @@ function taskState(id, andamento, registro) {
   return /^FEITO(_COM_RESSALVAS)?$/.test(last) ? 'merged' : 'started';
 }
 
-// Pure mapping from the parsed delivery to the board items, the parent first.
+// Pure mapping from the parsed delivery to the board items, the parent first. A task gives one item
+// per issue (`urls`, or the single `url`), all with the task's state; an issue already on the list
+// (listed by two tasks) keeps its first item.
 export function boardItems({ parentUrl, tasks, started, merged, andamento, registro, status }) {
   const items = [];
   const anyTask = tasks.some((t) => andamento.has(t.id) || registro.has(t.id));
@@ -101,7 +130,10 @@ export function boardItems({ parentUrl, tasks, started, merged, andamento, regis
   }
   for (const t of tasks) {
     const state = merged ? 'merged' : taskState(t.id, andamento, registro);
-    items.push({ kind: 'task', task: t.id, url: t.url, state, status: status[state] });
+    for (const url of t.urls ?? [t.url]) {
+      if (items.some((it) => it.url === url)) continue;
+      items.push({ kind: 'task', task: t.id, url, state, status: status[state] });
+    }
   }
   return items;
 }
@@ -236,8 +268,8 @@ export async function run(args, ctx) {
   names.sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
   for (const name of names) {
     const id = TASK_FILE.exec(name)[1];
-    const url = taskIssue(readText(join(taskDir, name)));
-    if (url) tasks.push({ id, url });
+    const urls = taskIssues(readText(join(taskDir, name)));
+    if (urls.length) tasks.push({ id, urls });
     else missing.push(id);
   }
   const progressPath = join(dir, 'progresso.md');
@@ -273,7 +305,9 @@ export async function run(args, ctx) {
     it.change = args.flags.all === true || it.recorded !== it.status;
   }
   const changes = items.filter((it) => it.change);
-  const command = (it) => `gh project item-edit ${project.number} --owner ${project.owner} --url ${it.url} --field "${project.field}" --value "${it.status}"`;
+  const multi = new Set(tasks.filter((t) => t.urls.length > 1).map((t) => t.id));
+  const label = (task, url) => (task ? issueLabel(task, url, multi.has(task)) : entId);
+  const command =(it) => `gh project item-edit ${project.number} --owner ${project.owner} --url ${it.url} --field "${project.field}" --value "${it.status}"`;
 
   if (args.flags.apply === true) {
     const { applied: moved, failed } = changes.length ? applyBoardChanges(changes, project, ctx.root) : { applied: [], failed: [] };
@@ -286,7 +320,7 @@ export async function run(args, ctx) {
     if (!parentUrl) messages.push({ key: 'board.parent_missing' });
     if (missing.length) messages.push({ key: 'board.tasks_missing', params: { tasks: missing.join(', ') } });
     if (moved.length) messages.push({ key: 'board.applied_ok', params: { n: moved.length, path: recordRel } });
-    for (const f of failed) messages.push({ key: 'board.apply_failed', params: { item: f.item ?? entId, status: f.status, error: f.error } });
+    for (const f of failed) messages.push({ key: 'board.apply_failed', params: { item: label(f.item, f.url), status: f.status, error: f.error } });
     return {
       code: failed.length ? 1 : 0,
       data: {
@@ -308,7 +342,7 @@ export async function run(args, ctx) {
   const messages = [{ key: 'board.summary', params: { ent: entId, owner: project.owner, number: project.number, total: items.length, changes: changes.length } }];
   if (!parentUrl) messages.push({ key: 'board.parent_missing' });
   if (missing.length) messages.push({ key: 'board.tasks_missing', params: { tasks: missing.join(', ') } });
-  for (const it of changes) messages.push({ key: 'board.change', params: { item: it.task ?? entId, status: it.status, command: command(it) } });
+  for (const it of changes) messages.push({ key: 'board.change', params: { item: label(it.task, it.url), status: it.status, command: command(it) } });
   if (updates.length) messages.push({ key: 'board.recorded', params: { n: updates.length, path: recordRel } });
   if (changes.length) messages.push({ key: 'board.next', params: { ent: entId } });
   return {

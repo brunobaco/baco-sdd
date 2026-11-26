@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
-import { boardItems } from '../skills/baco-sdd/scripts/commands/board.mjs';
+import { boardItems, taskIssue, taskIssues } from '../skills/baco-sdd/scripts/commands/board.mjs';
 import { makeRepo, commit } from './helpers/tmprepo.mjs';
 
 // 1.2.0: the GitHub Project board mirrors the delivery's files, one way. The engine reads the task
@@ -222,6 +222,53 @@ test('board: issue URLs in angle brackets, backticks or a markdown link are read
   assert.deepEqual(r.data.items.slice(1).map((i) => i.url), [URL(2), URL(3), URL(4)]);
 });
 
+// 1.12.0: a task born from several issues (`/baco:issue`) lists the first in `| Issue |` and the
+// others in `| Issues relacionadas |`; the board moves the card of each one, with the task's state.
+const multiTask = (id, main, related) => `${task(id, main)}| Issues relacionadas | ${related} |\n`;
+
+test('board: a task with related issues puts every issue on the board, with the task state', async () => {
+  const dir = await repo({
+    tasks: {},
+    prog: progress({ situacao: '`rodando`', andamento: [['T-001', 'revisão']] }),
+    extra: {
+      [`${DIR}/tarefas/T-001.md`]: multiTask('T-001', URL(2), `${URL(5)}, ${URL(6)}`),
+      [`${DIR}/tarefas/T-002.md`]: task('T-002', URL(3)),
+    },
+  });
+  const r = await run(dir, 'ENT-001', '--json');
+  assert.equal(r.code, 0);
+  assert.deepEqual(r.data.items.map((i) => [i.task ?? 'mãe', i.url, i.status]), [
+    ['mãe', URL(1), 'In progress'],
+    ['T-001', URL(2), 'In review'],
+    ['T-001', URL(5), 'In review'],
+    ['T-001', URL(6), 'In review'],
+    ['T-002', URL(3), 'Backlog'],
+  ]);
+  assert.equal(r.data.changes.length, 5);
+  // A related issue is part of the delivery for --applied too.
+  const a = await run(dir, 'ENT-001', '--json', '--applied', `${URL(6)}=In review`);
+  assert.equal(a.code, 0);
+  assert.deepEqual(a.data.changes.map((c) => c.url), [URL(1), URL(2), URL(5), URL(3)]);
+});
+
+test('board: related issues as #N, separated by commas or spaces, in brackets or links, are read and deduplicated', async () => {
+  const dir = await repo({
+    tasks: {},
+    extra: {
+      [`${DIR}/tarefas/T-001.md`]: multiTask('T-001', `<${URL(2)}>`, `#5 #6,\`#7\`; [#8](${URL(8)}) ${URL(2)} https://github.com/acme/outro/issues/9`),
+    },
+  });
+  const r = await run(dir, 'ENT-001', '--json');
+  assert.deepEqual(r.data.items.slice(1).map((i) => i.url), [URL(2), URL(5), URL(6), URL(7), URL(8), 'https://github.com/acme/outro/issues/9']);
+  assert.deepEqual(r.data.missing, []);
+});
+
+test('board: a task with a single issue keeps one card, as before', async () => {
+  const dir = await repo({ tasks: { 'T-001': URL(2) } });
+  const r = await run(dir, 'ENT-001', '--json');
+  assert.deepEqual(r.data.items.map((i) => i.url), [URL(1), URL(2)]);
+});
+
 test('board: --applied records what was set, and only real changes are listed afterwards', async () => {
   const dir = await repo();
   let r = await run(dir, 'ENT-001', '--json', '--applied', `${URL(1)}=Backlog`, '--applied', `${URL(2)}=Backlog`);
@@ -280,4 +327,19 @@ test('boardItems: pure mapping from the parsed files', () => {
     status: { published: 'B', started: 'P', review: 'R', merged: 'D' },
   });
   assert.deepEqual(items.map((i) => [i.kind, i.state, i.status]), [['parent', 'published', 'B'], ['task', 'published', 'B']]);
+  const multi = boardItems({
+    parentUrl: null, tasks: [{ id: 'T-001', urls: [URL(2), URL(5)] }], started: true, merged: false,
+    andamento: new Map(), registro: new Map([['T-001', 'FEITO']]),
+    status: { published: 'B', started: 'P', review: 'R', merged: 'D' },
+  });
+  assert.deepEqual(multi.map((i) => [i.task, i.url, i.status]), [['T-001', URL(2), 'D'], ['T-001', URL(5), 'D']]);
+});
+
+test('taskIssues: the Issue row first, then the related ones; taskIssue keeps the first', () => {
+  const md = multiTask('T-001', URL(2), `${URL(5)} #6`);
+  assert.deepEqual(taskIssues(md), [URL(2), URL(5), URL(6)]);
+  assert.equal(taskIssue(md), URL(2));
+  assert.deepEqual(taskIssues(task('T-002', null)), []);
+  // #N without a full Issue URL has no repository to resolve against: only full URLs count.
+  assert.deepEqual(taskIssues(`${task('T-003', null)}| Issues relacionadas | #6, ${URL(7)} |\n`), [URL(7)]);
 });
