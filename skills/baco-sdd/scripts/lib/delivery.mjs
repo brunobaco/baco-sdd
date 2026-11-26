@@ -278,7 +278,8 @@ const RESUME_LABEL_1_11 = /^\s*[-*]\s*\*\*\s*(execucao autonoma|conversa conduto
 // There is no version stamp in a delivery, so it is told apart by what only 1.11+ writes: a
 // `fora desta entrega` or `regressão` mark in plano.md, or the `Execução autônoma` / `Conversa
 // condutora` fields of progresso.md. A delivery with none of them is treated as older (no portrait
-// required), so deliveries from before 1.11 keep passing.
+// required), so deliveries from before 1.11 keep passing. Known limit: a 1.11+ delivery with no mark
+// in its plan and a progresso.md outside the template (without those fields) is treated as older too.
 export function isPortraitEra({ planText = '', progressText = '' } = {}) {
   const scope = readPlanScope(planText);
   if (scope.outOfScope.size || scope.regression.size) return true;
