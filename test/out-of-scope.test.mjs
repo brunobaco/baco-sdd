@@ -294,6 +294,37 @@ test('built function marked out of scope: an approved manual run of this deliver
   assert.deepEqual(data.builtOutOfScope, ['CA-002']);
 });
 
+const otherDeliveryEvidence = '## Evidências de execução\n\n| CT | Resultado | Data | Onde | Entrega |\n|---|---|---|---|---|\n| CT-002 | aprovado | 2026-11-20 | homologação | ENT-002 |\n';
+async function traceText(dir) {
+  const c = capture();
+  const code = await main([
+    'trace', '--spec', 'docs/specs/spec-a.md', '--qa', 'docs/qa/cenarios-qa-spec-a.md',
+    '--delivery', 'ENT-001', '--cwd', dir,
+  ], c.io);
+  return { code, stdout: c.out().stdout };
+}
+
+test('trace warns, without failing, when an out-of-scope scenario has an approved manual run of another delivery', async (t) => {
+  const { dir, code, data } = await builtRepo(t, { evidence: otherDeliveryEvidence });
+  assert.equal(code, 0);
+  assert.equal(data.builtOutOfScope, undefined);
+  const { code: textCode, stdout } = await traceText(dir);
+  assert.equal(textCode, 0);
+  assert.match(stdout, /CT-002/);
+  assert.match(stdout, /ENT-002/);
+  assert.match(stdout, /outra entrega/);
+});
+
+test('trace gives no other-delivery warning when the evidence is rejected, or without --delivery', async (t) => {
+  const rejected = otherDeliveryEvidence.replace('aprovado', 'reprovado');
+  const { dir } = await builtRepo(t, { evidence: rejected });
+  assert.doesNotMatch((await traceText(dir)).stdout, /outra entrega/);
+  const { dir: dir2 } = await builtRepo(t, { evidence: otherDeliveryEvidence });
+  const c = capture();
+  await main(['trace', '--spec', 'docs/specs/spec-a.md', '--qa', 'docs/qa/cenarios-qa-spec-a.md', '--cwd', dir2], c.io);
+  assert.doesNotMatch(c.out().stdout, /outra entrega/);
+});
+
 test('out of scope without proof stays a plain out-of-scope criterion (no contradiction)', async (t) => {
   const { code, data } = await builtRepo(t);
   assert.equal(code, 0);

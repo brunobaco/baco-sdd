@@ -164,6 +164,24 @@ export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown
 // `layer_mismatch`: the tests that passed are not of the layer the scenario declares; never proof.
 export function isFailedResult(r) { return r === 'failed' || r === 'manual_fail' || r === 'layer_mismatch'; }
 
+// Scenarios whose result is out_of_scope in this delivery's trace but that have an approved manual
+// evidence row of ANOTHER delivery: ["CT-002 (ENT-002)", ...], in scenario order.
+function otherDeliveryProofs(data, qa, delivery) {
+  const scenarios = [...data.cas.flatMap((c) => c.scenarios), ...data.otherScenarios];
+  const seen = new Set();
+  const out = [];
+  for (const s of scenarios) {
+    if (s.via === 'direct' || s.result !== 'out_of_scope' || seen.has(s.id)) continue;
+    seen.add(s.id);
+    const from = [...new Set(qa.evidence
+      .filter((e) => e.ct === s.id && e.result === 'aprovado')
+      .map((e) => String(e.delivery).trim())
+      .filter((d) => d !== '' && d !== delivery))];
+    if (from.length) out.push(`${s.id} (${from.join(', ')})`);
+  }
+  return out;
+}
+
 export function junitFiles(args, ctx) {
   const given = [].concat(args.flags.junit ?? []).filter((v) => typeof v === 'string');
   if (given.length) return given.map((p) => resolve(ctx.cwd, p));
@@ -284,6 +302,12 @@ export async function run(args, ctx) {
     });
   }
   if (data.orphanTests.length) messages.push({ key: 'trace.orphans', params: { tests: data.orphanTests.join('; ') } });
+  // Non-blocking: a scenario out of this delivery whose approved manual run belongs to another delivery
+  // (the delivery filter hides that row, so nothing else would say the function may already exist).
+  if (delivery) {
+    const items = otherDeliveryProofs(data, qa, delivery);
+    if (items.length) messages.push({ key: 'trace.out_of_scope_other_delivery', params: { items: items.join(', ') } });
+  }
   const otherFailed = data.otherScenarios.some((s) => isFailedResult(s.result));
   return { code: summary.uncovered + summary.failed > 0 || otherFailed || scopeContradictions.length > 0 || built.length > 0 ? 1 : 0, data, messages };
 }
