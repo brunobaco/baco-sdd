@@ -41,7 +41,7 @@ A point evolution of the spec ([spec-change.md](spec-change.md)): the changed cr
 ## 5. Delivery
 
 1. **Level.** The plan proposes `leve` ([planning.md](planning.md), 1A) when every condition of `leve` holds. When one fails (money, personal data, hard to undo, an `arriscada` task), the issue is not small: the plan proposes the higher level and says why, or the issue goes back to section 2 as `grande demais`.
-2. **Batch.** Several small issues may become a single delivery: one plan, one PR. Group them only when they are independent or touch the same spec; prefer one task per issue. A task that covers several issues lists them all.
+2. **Batch.** Several small issues may become a single delivery: one plan, one PR. Group them only when they are independent or touch the same spec; prefer one task per issue. `leve` covers one spec only ([planning.md](planning.md), 1A): issues of different specs in one delivery take it out of `leve`, so either split the batch into one delivery per spec or keep it together as a `normal` delivery, and say which and why. A task that covers several issues lists them all.
 3. **Source in the plan.** In `Detalhes das tarefas`, each task born from an issue gets the line `- **Issue de origem:** <url>` (one URL per issue it covers). The plan summary names the issues of the delivery.
 4. **The rest is the usual flow:** plan gate, publication ([task-publication.md](task-publication.md)), construction, review, delivery. No phase is skipped because the work came from an issue; the `leve` level only trims the optional work.
 
@@ -64,7 +64,7 @@ Without a number, help the person write a good issue, then publish it only with 
 3. **Defeito:** ask for the evidence: steps to reproduce, what was expected, what happened, the environment (device, browser, version, which account type, never a password), the error log and a screenshot when there is one. Data from a real customer is replaced by fictitious data.
 4. Find the spec and criteria it touches (section 1, step 3) and name them in the text.
 5. Show the full text (title, body, type) in a fenced block. Use only labels that already exist (`gh label list`): the type goes as the label `bug` or `enhancement` when they exist, or the closest existing one; create none without authorization. When the repository has issue types, set the type as well.
-6. Only after an explicit ok: `gh issue create --title "<título>" --body-file .baco/logs/issue-nova.md --label <rótulo>`, with the body file under `.baco/logs/` (inside the project, not versioned). Read it back with `gh issue view <N>` and give the person the number and the link. Then offer to treat it now (`/baco:issue <N>`).
+6. Only after an explicit ok: `gh issue create --title "<título>" --body-file .baco/logs/issue-nova.md --label <rótulo>`, with the body file under `.baco/logs/` (inside the project, not versioned). That ok, asked in the chat, is the only check: no permission rule asks before `gh issue create`, so never skip it, not even in an unattended run. Read it back with `gh issue view <N>` and give the person the number and the link. Then offer to treat it now (`/baco:issue <N>`).
 
 ## 9. Without `gh` or without GitHub
 
