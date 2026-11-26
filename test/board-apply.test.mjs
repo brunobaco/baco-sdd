@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
 import { makeRepo } from './helpers/tmprepo.mjs';
-import { extractDeliveryFromPath, maybeSyncBoard, runBoardSyncWorker } from '../hooks/board-sync.mjs';
+import { extractDeliveryFromPath, maybeSyncBoard, runBoardSyncWorker, LOCK_TTL_MS, ROUND_TIMEOUT_MS } from '../hooks/board-sync.mjs';
 
 const REPO_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -333,6 +333,48 @@ test('board-sync worker never removes a lock that expired and now belongs to ano
   assert.equal(existsSync(lockPath), false);
 });
 
+test('board-sync long round: the lock outlives a slow board --apply, so a new edit never starts a second worker', async (t) => {
+  const { conf, lockPath, dirtyPath } = await syncRepo(t);
+  let now = 1_000_000;
+  let spawns = 0;
+  // Default TTL (no ttlMs override): what the real hook uses.
+  const edit = () => maybeSyncBoard({
+    subagent: () => false,
+    cwd: conf,
+    filePath: join(conf, 'docs/entregas/ENT-001-app/progresso.md'),
+  }, { nowFn: () => now, spawnFn: () => { spawns++; return { unref() {} }; } });
+  assert.equal(edit(), true);
+  const owner = readLock(lockPath).nonce;
+  assert.ok(ROUND_TIMEOUT_MS < LOCK_TTL_MS, 'a round is cut before the lock can expire');
+  const opts = [];
+  const rounds = runBoardSyncWorker({
+    entId: 'ENT-001', root: conf, owner, nowFn: () => now,
+    execFn: (_c, _a, o) => {
+      opts.push(o);
+      // Many gh calls: each round takes three minutes, far over the old 30 s.
+      now += 3 * 60_000;
+      if (opts.length === 1) assert.equal(edit(), false, 'the edit during the long round does not take the lock');
+      return { status: 0 };
+    },
+  });
+  assert.equal(spawns, 1, 'no second worker in parallel');
+  assert.equal(rounds, 2, 'the edit during the round is picked up by the same worker');
+  assert.ok(opts.every((o) => o.timeout === ROUND_TIMEOUT_MS), 'every round is bounded by the round timeout');
+  assert.equal(existsSync(lockPath), false);
+  assert.equal(existsSync(dirtyPath), false);
+});
+
+test('board-sync worker without an owner never adopts the nonce of the lock it finds', async (t) => {
+  const { conf, lockPath, hook } = await syncRepo(t);
+  hook({ now: () => 1_000_000 });
+  const before = readFileSync(lockPath, 'utf8');
+  let calls = 0;
+  const rounds = runBoardSyncWorker({ entId: 'ENT-001', root: conf, nowFn: () => 1_001_000, execFn: () => { calls++; return { status: 0 }; } });
+  assert.equal(rounds, 0);
+  assert.equal(calls, 0, 'a worker without the owner nonce does not run beside the owner');
+  assert.equal(readFileSync(lockPath, 'utf8'), before, 'the owner lock is left alone');
+});
+
 test('board-sync worker whose lock vanished takes it back, and a corrupt lock is not its own', async (t) => {
   const { conf, lockPath, hook } = await syncRepo(t);
   hook({ now: () => 1_000_000 });
@@ -437,6 +479,7 @@ test('board-sync hook derives root from edited filePath (not cwd), enforces shor
   const rounds = runBoardSyncWorker({
     entId: 'ENT-001',
     root: conf,
+    owner: capturedArgs.args.at(-1), // the nonce the hook handed to the worker
     execFn: (_cmd, args) => {
       workerCalls.push(args);
       if (workerCalls.length === 1) {
@@ -462,6 +505,7 @@ test('board-sync hook derives root from edited filePath (not cwd), enforces shor
   assert.throws(() => runBoardSyncWorker({
     entId: 'ENT-001',
     root: conf,
+    owner: capturedArgs.args.at(-1),
     execFn: () => { throw new Error('boom'); },
   }), /boom/);
   assert.equal(existsSync(lockPath), false, 'worker must remove lock even on error');

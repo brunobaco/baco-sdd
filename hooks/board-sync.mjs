@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // PostToolUse hook on Edit/Write (Antigravity: file-writing tools): when a delivery's progresso.md
 // is edited in a BACO project with `github.project` configured, triggers `baco board <ENT-NNN> --apply`
-// in a detached worker. Uses a short-lived lock file per delivery plus a dirty mark so concurrent
-// edits never spawn parallel syncs and never lose the last edit; the lock names one owner (pid and
-// random nonce), the worker renews its timestamp each round and removes it when finished only while
-// it is still its own; the project root comes from the edited file path; quadro-sync.log is capped.
+// in a detached worker. Uses a lock file per delivery plus a dirty mark so concurrent edits never
+// spawn parallel syncs and never lose the last edit; the lock names one owner (pid and random nonce),
+// the worker renews its timestamp each round (each round has a timeout below the lock TTL) and removes
+// it when finished only while it is still its own; the project root comes from the edited file path;
+// quadro-sync.log is capped.
 // Failures are logged and never block or fail the edit. Zero dependencies.
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
@@ -18,7 +19,14 @@ import { readHookInput, quietAnswer } from './host.mjs';
 const PROGRESS_RE = /(?:^|[/\\])entregas[/\\](ENT-\d{3})-[^/\\]+[/\\]progresso\.md$/;
 const SELF_FILE = fileURLToPath(import.meta.url);
 const BACO_BIN = resolve(dirname(SELF_FILE), '..', 'skills', 'baco-sdd', 'scripts', 'baco.mjs');
-const DEFAULT_LOCK_TTL_MS = 30_000;
+// A round of `baco board --apply` makes several `gh` calls (each up to 30 s), so it can take minutes.
+// The worker renews the lock before every round and each round is killed after ROUND_TIMEOUT_MS, so a
+// live worker's lock is never older than one round: kept below the TTL, a new edit never finds it
+// expired and never starts a second worker beside the first. A worker that died leaves the lock for at
+// most LOCK_TTL_MS; the dirty mark keeps the edit until the next sync.
+export const LOCK_TTL_MS = 10 * 60_000;
+export const ROUND_TIMEOUT_MS = 5 * 60_000;
+const DEFAULT_LOCK_TTL_MS = LOCK_TTL_MS;
 const MAX_LOG_BYTES = 256 * 1024;
 const KEEP_LOG_BYTES = 64 * 1024;
 
@@ -122,13 +130,14 @@ function trimLogIfNeeded(logPath, maxBytes = MAX_LOG_BYTES, keepBytes = KEEP_LOG
 // Worker loop run by the detached child process: runs `baco board <ENT-NNN> --apply`, checks if a
 // concurrent edit recorded a dirty mark while it ran, re-runs until clean (capped at maxRounds),
 // and removes the lock file on exit, but only while the lock is still its own. Each round renews the
-// lock timestamp; when the lock went to another process (it expired during a long round) the worker
-// stops and leaves the dirty mark for the new owner. `owner` is the nonce the hook wrote in the lock.
+// lock timestamp and is bounded by ROUND_TIMEOUT_MS; when the lock went to another process the worker
+// stops and leaves the dirty mark for the new owner. `owner` is the nonce the hook wrote in the lock;
+// without it the worker never adopts the nonce it finds there (that lock belongs to someone else).
 export function runBoardSyncWorker({ entId, root, execFn = spawnSync, maxRounds = 5, owner, nowFn = () => Date.now() } = {}) {
   const logDir = join(root, '.baco', 'logs');
   const lockPath = join(logDir, `quadro-sync-${entId}.lock`);
   const dirtyPath = join(logDir, `quadro-sync-${entId}.dirty`);
-  const nonce = owner ?? readLock(lockPath)?.lock?.nonce ?? newNonce();
+  const nonce = owner ?? newNonce();
   let rounds = 0;
   const runOnce = () => {
     try { unlinkSync(dirtyPath); } catch { /* not dirty */ }
@@ -136,6 +145,7 @@ export function runBoardSyncWorker({ entId, root, execFn = spawnSync, maxRounds 
     execFn(process.execPath, [BACO_BIN, 'board', entId, '--apply', '--cwd', root], {
       cwd: root,
       stdio: 'inherit',
+      timeout: ROUND_TIMEOUT_MS,
     });
   };
   try {
