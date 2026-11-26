@@ -83,6 +83,13 @@ Every finding also names its **class**: the kind of problem in a few words, the 
 
 **Review of a fix.** A review of a fix (task review 02 onwards, a delta round of the final review, a PR round after FIX tasks) checks what the fix promises (each finding it says it closes) and what it may have broken, in the lines it changed and in what they directly affect. It does not look for new edge cases, and it opens no finding on code that did not change.
 
+## Quality of findings, tests and shortcuts
+
+- **Concrete case required.** Every code finding names a concrete input or situation and the wrong outcome it causes. Never open vague warnings ("consider...", "could be cleaner") or style preferences.
+- **Callers outside the diff and expected load.** Whenever a change alters a function signature, return shape or behavior, `grep` its callers outside the diff so broken callers are caught. Judge scale findings (N+1 queries, O(n^2) loops, unbounded lists, per-process state) against the expected load declared in `docs/arquitetura/README.md`, never in the abstract.
+- **Cosmetic or fragile tests.** Flag as a weak test (`importante`, or `crítico` when it leaves a CA unproven) any test that: computes its expected value by repeating the production code's logic; asserts only what a mock returns or private internal state instead of observable behavior; or cannot fail on a real regression. Ask for the test to be rewritten against observable behavior, never deleted without preserving the criterion proof.
+- **Deliberate shortcuts (`shortcut:`).** A comment in the form `shortcut: <limit>, <when to revisit>` whose limit is not crossed by the declared expected load is a conscious decision, not a finding. Flag it as a finding when it names no revisit trigger or when the expected load already crosses its limit.
+
 ## Handling review findings
 
 These rules apply to every review of the method: spec reviews (phase 2), task and final reviews (phase 6 and 7) and the external review. Other references point here.

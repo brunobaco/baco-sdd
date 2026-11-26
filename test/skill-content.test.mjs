@@ -1028,3 +1028,61 @@ test('issue source reaches planning: Issue de origem in planning.md, the planner
   assert.ok(planner.includes('`Issue de origem: <url>`'), 'planner.md: Issue de origem');
   assert.ok(read(join(TEMPLATES, 'plano.md')).includes('- **Issue de origem:**'), 'plano.md template: optional Issue de origem line');
 });
+
+test('1.13.0 architecture lifecycle: boundaries, complexity guards, failure modes, data contract, transitions and audit mode', () => {
+  const skill = read(join(SKILL_ROOT, 'SKILL.md'));
+  for (const p of ['Architecture: auditar', '[architecture-audit.md](references/architecture-audit.md)', '"auditar arquitetura" -> auditar']) {
+    assert.ok(skill.includes(p), `SKILL.md: "${p}" missing`);
+  }
+  const arch = ref('architecture.md');
+  for (const p of ['Recovery tolerance (RTO/RPO)', 'Full monthly budget', 'Guards against premature complexity', 'ADR threshold',
+    'Internal boundaries (especially single-repo fullstack)', 'Data contract, multi-tenant isolation and consistency',
+    'Integrations, failure modes, API and health', 'subtraction test', 'Mode Audit (code architecture audit)', 'Plano de transição e lições aprendidas']) {
+    assert.ok(arch.includes(p), `architecture.md: "${p}" missing`);
+  }
+  const audit = ref('architecture-audit.md');
+  for (const p of ['Discovering the real state of an existing repository', 'Materiality gate', 'Shortcut inventory (`shortcut:`)',
+    'Measured protocol for performance or structural evolution', 'Safe transition plan for live systems', 'expand -> migrate -> contract']) {
+    assert.ok(audit.includes(p), `architecture-audit.md: "${p}" missing`);
+  }
+  const archRole = read(join(SKILL_ROOT, 'references', 'roles', 'architect.md'));
+  for (const p of ['Mode Audit', 'Discovery on existing code', 'Quando revisitar', 'Plano de transição e lições aprendidas']) {
+    assert.ok(archRole.includes(p), `architect.md: "${p}" missing`);
+  }
+  const da = read(join(SKILL_ROOT, 'references', 'roles', 'devils-advocate.md'));
+  for (const p of ['subtraction test', 'RTO/RPO', 'IDOR', 'expand -> migrate -> contract']) {
+    assert.ok(da.includes(p), `devils-advocate.md: "${p}" missing`);
+  }
+  const archTpl = read(join(TEMPLATES, 'arquitetura.md'));
+  for (const p of ['## Fronteiras e organização interna', '## Padrões transversais e operação', '## Modos de falha', '## O que fica de fora agora e quando revisitar']) {
+    assert.ok(archTpl.includes(p), `arquitetura.md template: "${p}" missing`);
+  }
+  const adrTpl = read(join(TEMPLATES, 'adr.md'));
+  for (const p of ['## Quando revisitar', '## Plano de transição e lições aprendidas']) {
+    assert.ok(adrTpl.includes(p), `adr.md template: "${p}" missing`);
+  }
+  assert.ok(ref('planning.md').includes('Architectural materiality triggers'), 'planning.md: architectural materiality');
+  assert.ok(read(join(SKILL_ROOT, 'references', 'roles', 'pr-reviewer.md')).includes('architectural materiality'), 'pr-reviewer.md: architectural materiality');
+});
+
+test('1.13.0 lean implementation, structural simplifier and concrete-case review rules', () => {
+  const impl = read(join(SKILL_ROOT, 'references', 'roles', 'implementer.md'));
+  for (const p of ['Smallest complete solution', 'Never cut:', 'shortcut: <limit>, <when to revisit>', 'repeating the production formula']) {
+    assert.ok(impl.includes(p), `implementer.md: "${p}" missing`);
+  }
+  const simp = read(join(SKILL_ROOT, 'references', 'roles', 'simplifier.md'));
+  for (const p of ['Hidden links:', 'Needless links:', 'Surplus:', 'Special cases:', 'Comments and splits', 'never by line count']) {
+    assert.ok(simp.includes(p), `simplifier.md: "${p}" missing`);
+  }
+  const proto = ref('review-protocol.md');
+  for (const p of ['Quality of findings, tests and shortcuts', 'Concrete case required', 'Callers outside the diff and expected load', 'Cosmetic or fragile tests', 'Deliberate shortcuts (`shortcut:`)']) {
+    assert.ok(proto.includes(p), `review-protocol.md: "${p}" missing`);
+  }
+  for (const role of ['task-reviewer.md', 'final-reviewer.md', 'pr-reviewer.md']) {
+    const t = read(join(SKILL_ROOT, 'references', 'roles', role));
+    assert.ok(t.includes('Quality of findings, tests and shortcuts'), `${role}: missing review-protocol link`);
+    assert.ok(t.includes('shortcut: <limit>, <when to revisit>'), `${role}: missing shortcut rule`);
+  }
+  const av = read(join(SKILL_ROOT, 'references', 'roles', 'acceptance-validator.md'));
+  assert.ok(av.includes("production code's own formula"), 'acceptance-validator.md: formula repetition check');
+});
