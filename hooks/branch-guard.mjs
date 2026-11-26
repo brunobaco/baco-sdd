@@ -55,6 +55,8 @@ function branchName(root) {
   }
 }
 
+const ENGINE_ONLY_RE = /(?:^|\/)entregas\/[^/]+\/(?:aprovacao-plano\.md|revisao\/dispensa-revisao-externa\.md)$/;
+
 // `hook` is the normalized input of host.mjs.
 export function decide(hook) {
   const path = hook.filePath;
@@ -69,6 +71,13 @@ export function decide(hook) {
   const target = existsSync(end) ? realpathSync(end) : join(realpathSync(endDir), relative(endDir, end));
   const rel = relative(realpathSync(root), target);
   if (rel === '.baco' || rel.startsWith(`.baco${sep}`)) return ALLOW;
+  const relPosix = rel.split(sep).join('/');
+  if (ENGINE_ONLY_RE.test(relPosix)) {
+    return {
+      deny: true,
+      reason: 'Edição bloqueada: aprovações do plano (aprovacao-plano.md) e dispensas de revisão externa (dispensa-revisao-externa.md) só podem ser gravadas pelo motor do BACO (baco approve-plan / baco waive-review).',
+    };
+  }
   const branch = branchName(root);
   if (!protectedBranches(projectConfig(root)).includes(branch)) return ALLOW;
   return {

@@ -154,6 +154,31 @@ test('guard reads the protected list from the project config', async () => {
   assert.ok(denied(runGuard(edit(repo, 'a.js'))));
 });
 
+test('guard denies Write and Edit on aprovacao-plano.md and dispensa-revisao-externa.md even on a delivery branch', async () => {
+  const repo = await makeRepo({
+    '.baco/config.yaml': 'language: pt-BR\n',
+    'docs/entregas/ENT-001-teste/plano.md': '# Plano\n',
+  });
+  execFileSync('git', ['checkout', '-q', '-b', 'baco/ENT-001'], { cwd: repo });
+  for (const rel of [
+    'docs/entregas/ENT-001-teste/aprovacao-plano.md',
+    'docs/entregas/ENT-001-teste/revisao/dispensa-revisao-externa.md',
+  ]) {
+    for (const tool_name of ['Edit', 'Write']) {
+      const r = runGuard({ ...edit(repo, rel), tool_name });
+      assert.ok(denied(r), `${tool_name} on ${rel} must be denied`);
+      const out = JSON.parse(r.stdout).hookSpecificOutput;
+      assert.match(out.permissionDecisionReason, /motor|baco approve-plan|baco waive-review/i);
+    }
+  }
+  // A symlink pointing at aprovacao-plano.md is also denied
+  mkdirSync(join(repo, 'tmp'), { recursive: true });
+  symlinkSync(join(repo, 'docs/entregas/ENT-001-teste/aprovacao-plano.md'), join(repo, 'tmp/link.md'));
+  assert.ok(denied(runGuard({ ...edit(repo, 'tmp/link.md'), tool_name: 'Write' })), 'symlink to aprovacao-plano.md must be denied');
+  // Normal delivery files on the delivery branch remain allowed
+  assert.equal(runGuard(edit(repo, 'docs/entregas/ENT-001-teste/plano.md')).stdout, '');
+});
+
 test('guard: phase 0 setup writes go on baco/configuracao, since the integration branch is protected too', async () => {
   const repo = await makeRepo({ 'a.js': '' });
   const git = (...a) => execFileSync('git', a, { cwd: repo });
