@@ -53,6 +53,11 @@ Conferidos em 2026-11-22: o eval `afrouxar-teste` passou neste Linux (nota 1,00)
 
 Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versão para o Codex sem perder o que o plugin dá (agentes próprios, bloqueio de edição em `main` e `develop`, reconhecimento automático do projeto, comandos); adaptar para OpenCode; metas numéricas de código na revisão; documentar sistema legado; resultado do CI como gatilho; comando do motor que lista as tarefas prontas para começar; conferência de `Próximos números livres` pelo histórico do Git; revisor automático do PR trabalhando na cópia isolada (o modo `repositorio` com despacho e rodadas automáticas, como o `pr`); marca explícita de formato no modelo do plano, se os sinais da 1.11 falharem.
 
+## Próxima versão (anotado)
+
+1. `simplifier` e revisão final: incorporar a taxonomia de quatro defeitos estruturais (`untangle-codebase`, `caldoai/skills`): vínculos ocultos (lógica duplicada, dependência implícita de ordem ou estado global), vínculos desnecessários (acoplamento a detalhes internos ou módulo estável importando módulo volátil), sobras (wrappers de passagem, extensibilidade sem segundo uso) e casos especiais (`if` pontual, flag global, `sleep`, exceção engolida); incluir também o critério de comentários (remover comentário que só repete o código e manter o que explica restrição externa).
+2. Revisores (`task-reviewer`, `final-reviewer`, `acceptance-validator`): reforçar a detecção de testes cosméticos ou frágeis (`prune-tests`, `caldoai/skills`): teste que repete a lógica do código de produção para calcular o esperado, teste que valida o retorno do próprio mock ou estado privado, e teste que nunca falharia numa regressão; usado para cobrar testes melhores na revisão, sem autorizar remoção ou enfraquecimento de testes ligados a critérios.
+
 ## Próximo passo
 
 A próxima entrega de um projeto real, já com a 1.12.0, serve de conferência, junto com a etapa 4 (projeto real já em andamento) e a primeira issue real pelo `/baco:issue`.
