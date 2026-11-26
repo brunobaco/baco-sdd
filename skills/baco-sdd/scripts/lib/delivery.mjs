@@ -1,9 +1,10 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { fold, headings, readText, tables } from './markdown.mjs';
 import { expandRefs } from './ids.mjs';
 import { readSpec } from './spec.mjs';
 import { readQa, qaPathFor } from './qa.mjs';
+import { criteriaHash } from './plan-approval.mjs';
 
 export class DeliveryError extends Error {
   constructor(code, message, id = null) {
@@ -179,13 +180,24 @@ export function computeSpecScope({ spec, qa, planOutOfScope = new Set(), covered
   };
 }
 
+// A plan spec path as a stable key: relative to the repo root, forward slashes (`./docs/a.md` and
+// `docs/a.md` are the same spec).
+export const specKey = (root, path) => relative(root, resolve(root, path)).split(sep).join('/');
+
 // Single unified scope calculation for a whole delivery (shared by approve-plan, acceptance-report
 // and merge-check), calling computeSpecScope for every spec in plano.md's **Specs:** header.
+// Besides the bare IDs, it returns the universe as `<spec path>#<ID>` keys (scenarios keyed by the
+// spec their QA file belongs to), the version read from each spec file (`specVersions`, `path@version`,
+// or just `path` when the file has none) and a normalized hash of each CA definition (`criteria`).
 export function computeDeliveryScope({ root, planText, config }) {
   const { specs: planSpecs } = readPlanHeader(planText);
   const planScope = readPlanScope(planText);
   const universeCas = new Set();
   const universeScenarios = new Set();
+  const universeCaKeys = new Set();
+  const universeScenarioKeys = new Set();
+  const specVersions = [];
+  const criteria = {};
   const outOfScope = new Set(planScope.outOfScope);
   const outOfScopeScenarios = new Set();
   const contradictions = new Set(planScope.contradictions);
@@ -193,20 +205,33 @@ export function computeDeliveryScope({ root, planText, config }) {
   for (const { path } of planSpecs) {
     const specAbs = resolve(root, path);
     if (!existsSync(specAbs)) continue;
+    const key = specKey(root, path);
     const spec = readSpec(specAbs);
     const qaAbs = qaPathFor(specAbs);
     const qa = existsSync(qaAbs) ? readQa(qaAbs, { specialist: config?.qa?.specialist }) : { scenarios: [], evidence: [] };
     const s = computeSpecScope({ spec, qa, planOutOfScope: planScope.outOfScope, coveredByTask: planScope.coveredByTask });
-    for (const id of s.universeCas) universeCas.add(id);
-    for (const id of s.universeScenarios) universeScenarios.add(id);
+    specVersions.push(spec.version ? `${key}@${spec.version}` : key);
+    for (const id of s.universeCas) {
+      universeCas.add(id);
+      universeCaKeys.add(`${key}#${id}`);
+      criteria[`${key}#${id}`] = criteriaHash(spec.definitions.filter((d) => d.id === id));
+    }
+    for (const id of s.universeScenarios) {
+      universeScenarios.add(id);
+      universeScenarioKeys.add(`${key}#${id}`);
+    }
     for (const id of s.outOfScopeCas) outOfScope.add(id);
     for (const id of s.outOfScopeScenarios) outOfScopeScenarios.add(id);
     for (const id of s.contradictions) contradictions.add(id);
   }
   return {
     specs: planSpecs.map((s) => (s.version ? `${s.path}@${s.version}` : s.path)),
+    specVersions: [...new Set(specVersions)],
+    criteria,
     universeCas: [...universeCas].sort(),
     universeScenarios: [...universeScenarios].sort(),
+    universeCaKeys: [...universeCaKeys].sort(),
+    universeScenarioKeys: [...universeScenarioKeys].sort(),
     outOfScope: [...outOfScope].sort(),
     outOfScopeScenarios: [...outOfScopeScenarios].sort(),
     contradictions: [...contradictions].sort(),
@@ -244,6 +269,20 @@ export function unmarkedCriteria(scope) {
   const out = new Set(scope.outOfScope);
   const regression = scope.regression ?? new Set();
   return scope.universeCas.filter((id) => !scope.coveredByTask.has(id) && !out.has(id) && !regression.has(id));
+}
+
+// Labels of the `## Retomada` block that the 1.11 progresso.md template brought.
+const RESUME_LABEL_1_11 = /^\s*[-*]\s*\*\*\s*(execucao autonoma|conversa condutora|autonomous|conductor conversation)\s*:?\s*\*\*/;
+
+// A delivery made with 1.11 or later, where every plan approval is recorded in aprovacao-plano.md.
+// There is no version stamp in a delivery, so it is told apart by what only 1.11+ writes: a
+// `fora desta entrega` or `regressão` mark in plano.md, or the `Execução autônoma` / `Conversa
+// condutora` fields of progresso.md. A delivery with none of them is treated as older (no portrait
+// required), so deliveries from before 1.11 keep passing.
+export function isPortraitEra({ planText = '', progressText = '' } = {}) {
+  const scope = readPlanScope(planText);
+  if (scope.outOfScope.size || scope.regression.size) return true;
+  return String(progressText ?? '').replace(/\r\n?/g, '\n').split('\n').some((l) => RESUME_LABEL_1_11.test(fold(l)));
 }
 
 export function readPlanOutOfScope(md) {

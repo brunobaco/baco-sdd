@@ -530,8 +530,8 @@ test('E: mixed scenarios on CA-001 (CT-001 passed, CT-003 fora desta entrega, T-
   assert.equal(approval.gate, 'on');
   assert.equal('planSha256' in approval, false, 'planSha256 must be removed');
   assert.deepEqual(approval.specs, ['docs/specs/spec-a.md@1.0']);
-  assert.deepEqual(approval.universeCas, ['CA-001']);
-  assert.deepEqual(approval.universeScenarios, ['CT-001', 'CT-003']);
+  assert.deepEqual(approval.universeCas, ['docs/specs/spec-a.md#CA-001']);
+  assert.deepEqual(approval.universeScenarios, ['docs/specs/spec-a.md#CT-001', 'docs/specs/spec-a.md#CT-003']);
   assert.deepEqual(approval.outOfScope, []);
   assert.deepEqual(approval.outOfScopeScenarios, ['CT-003']);
 

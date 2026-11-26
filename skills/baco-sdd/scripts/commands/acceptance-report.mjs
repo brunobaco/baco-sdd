@@ -1,6 +1,6 @@
 import { writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { deliveryDir, readPlanHeader, computeDeliveryScope, latestVerdict, deliveryKnownIds, builtOutOfScopeDetail, describeBuilt, ENT_ID } from '../lib/delivery.mjs';
+import { deliveryDir, readPlanHeader, computeDeliveryScope, latestVerdict, deliveryKnownIds, builtOutOfScopeDetail, describeBuilt, isPortraitEra, ENT_ID } from '../lib/delivery.mjs';
 import { orphansOf } from './trace.mjs';
 import { revParse, isAncestor, diffQuiet, showFile } from '../lib/git.mjs';
 import { loadTrace } from '../lib/tracefile.mjs';
@@ -8,7 +8,7 @@ import { manualPendingRule, provenancePathspecs, parseYamlSubset, resolveConfig 
 import { readQa, resolveSpecialistKind } from '../lib/qa.mjs';
 import { readText, headings, tables, fold } from '../lib/markdown.mjs';
 import { readWaiver } from '../lib/waiver.mjs';
-import { readPlanApproval } from '../lib/plan-approval.mjs';
+import { loadPlanApproval } from '../lib/plan-approval.mjs';
 import { agentRuns } from './cost.mjs';
 import { t } from '../lib/messages.mjs';
 
@@ -56,9 +56,18 @@ const sameList = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]
 
 // Checks out-of-scope consistency and the approved portrait (aprovacao-plano.md) using the single
 // shared computeDeliveryScope calculation. Contradictions are verification failures (exit 1);
-// missing portrait when out-of-scope exists, removed/changed spec versions, shrunk CA/CT universe,
-// changed out-of-scope set, or gate-off portrait with non-empty out-of-scope are human gates (exit 2).
-export function planScopeBlockers({ root, planText, config, trace, approval }) {
+// missing portrait when out-of-scope exists (or, in a 1.11+ delivery with the plan gate on, at all),
+// deleted portrait, removed/changed spec versions (plan header or spec file), changed CA text,
+// shrunk CA/CT universe, changed out-of-scope set, or gate-off portrait with non-empty out-of-scope
+// are human gates (exit 2).
+//
+// `deleted` ({ commit }): the portrait is gone from the disk (or unreadable) but the branch history
+// had it; `approval` is then that latest historical version, and the deletion is a human gate too.
+// `requireApproval`: the plan gate is on and the delivery is 1.11+ (isPortraitEra), so a missing
+// portrait is a human gate even with nothing out of scope.
+// Universe entries `path#ID` are compared per spec; bare IDs (1.11.0 portraits) by ID only. Spec
+// file versions and CA hashes are compared only when the portrait recorded them.
+export function planScopeBlockers({ root, planText, config, trace, approval, deleted = null, requireApproval = false }) {
   const current = computeDeliveryScope({ root, planText, config });
   const oos = outOfScopeItems(trace);
   const currentCas = [...new Set([...current.outOfScope, ...oos.cas])].sort();
@@ -80,20 +89,31 @@ export function planScopeBlockers({ root, planText, config, trace, approval }) {
     params['merge.out_of_scope_built'] = { ids: describeBuilt(builtDetail) };
   }
   const hasCurrent = currentCas.length > 0 || currentScenarios.length > 0;
+  if (deleted) {
+    blockers.push('merge.plan_approval_deleted');
+    params['merge.plan_approval_deleted'] = { commit: String(deleted.commit ?? '').slice(0, 12) };
+  }
   if (!approval) {
     if (hasCurrent) {
       blockers.push('merge.out_of_scope_unapproved');
       params['merge.out_of_scope_unapproved'] = { ids: [...currentCas, ...currentScenarios].join(', ') };
+    } else if (requireApproval && !deleted) {
+      blockers.push('merge.plan_unapproved');
     }
   } else {
+    // Declared in the plan header and read from the spec file are compared each on its own side.
     const currentSpecSet = new Set(current.specs);
-    const missingSpecs = approval.specs.filter((s) => !currentSpecSet.has(s));
+    const currentFileSet = new Set(current.specVersions);
+    const missingSpecs = [...new Set([
+      ...approval.specs.filter((s) => !currentSpecSet.has(s)),
+      ...(approval.specVersions ?? []).filter((s) => !currentFileSet.has(s)),
+    ])];
     if (missingSpecs.length) {
       blockers.push('merge.plan_specs_changed');
       params['merge.plan_specs_changed'] = { specs: missingSpecs.join(', ') };
     }
-    const uCasSet = new Set(current.universeCas);
-    const uScSet = new Set(current.universeScenarios);
+    const uCasSet = new Set([...current.universeCas, ...current.universeCaKeys]);
+    const uScSet = new Set([...current.universeScenarios, ...current.universeScenarioKeys]);
     const missingUniverse = [
       ...approval.universeCas.filter((id) => !uCasSet.has(id)),
       ...approval.universeScenarios.filter((id) => !uScSet.has(id)),
@@ -101,6 +121,14 @@ export function planScopeBlockers({ root, planText, config, trace, approval }) {
     if (missingUniverse.length) {
       blockers.push('merge.plan_universe_shrank');
       params['merge.plan_universe_shrank'] = { ids: missingUniverse.join(', ') };
+    }
+    const changedCriteria = Object.entries(approval.criteria ?? {})
+      .filter(([key, hash]) => current.criteria[key] !== undefined && current.criteria[key] !== hash)
+      .map(([key]) => key)
+      .sort();
+    if (changedCriteria.length) {
+      blockers.push('merge.plan_criteria_changed');
+      params['merge.plan_criteria_changed'] = { ids: changedCriteria.join(', ') };
     }
     const approvedCas = [...new Set(approval.outOfScope)].sort();
     const approvedScenarios = [...new Set(approval.outOfScopeScenarios)].sort();
@@ -117,6 +145,16 @@ export function planScopeBlockers({ root, planText, config, trace, approval }) {
     }
   }
   return { blockers, params, contradictions, built, currentCas, currentScenarios };
+}
+
+// The portrait inputs of planScopeBlockers for a delivery folder, with the history read at `ref`
+// (HEAD for the acceptance report, the delivery branch tip for merge-check).
+export function planApprovalInputs({ root, config, dir, entId, ref = 'HEAD', planText }) {
+  const { approval, deleted } = loadPlanApproval({ root, config, dir, entId, ref });
+  const progressFile = join(dir, 'progresso.md');
+  const progressText = existsSync(progressFile) ? readText(progressFile) : '';
+  const requireApproval = config?.gates?.plan !== false && isPortraitEra({ planText, progressText });
+  return { approval, deleted, requireApproval };
 }
 
 // Pending scenarios across all criteria and the scenarios without a CA, deduplicated by id. A
@@ -527,7 +565,10 @@ export async function run(args, ctx) {
     return { code: 65, data: {}, messages: [{ key: 'acceptance.provenance_ignore_failed', params: { message: e.message } }] };
   }
   const specialist = ctx.config.qa?.specialist ?? [];
-  const scopeCheck = planScopeBlockers({ root: ctx.root, planText, config: ctx.config, trace, approval: readPlanApproval(dir) });
+  const scopeCheck = planScopeBlockers({
+    root: ctx.root, planText, config: ctx.config, trace,
+    ...planApprovalInputs({ root: ctx.root, config: ctx.config, dir, entId, ref: 'HEAD', planText }),
+  });
   const baseDecision = mergeDecision({ trace, verdict, rule: manualPendingRule(ctx.config, target), waiver, specialist });
   const decision = combineDecision(baseDecision, {
     blockers: [...prov.blockers, ...scopeCheck.blockers],

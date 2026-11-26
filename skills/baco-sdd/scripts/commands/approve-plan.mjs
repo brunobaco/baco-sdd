@@ -2,7 +2,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deliveryDir, computeDeliveryScope, unmarkedCriteria, ENT_ID } from '../lib/delivery.mjs';
 import { readText } from '../lib/markdown.mjs';
-import { PLAN_APPROVAL_FILE, renderPlanApproval } from '../lib/plan-approval.mjs';
+import { PLAN_APPROVAL_FILE, renderPlanApproval, portraitInHistory } from '../lib/plan-approval.mjs';
 import { formatZoned } from './waive-review.mjs';
 
 export const usage = 'baco approve-plan <ENT-NNN> [--by <name>] [--replace] [--json] [--cwd <dir>]';
@@ -10,8 +10,10 @@ export const usage = 'baco approve-plan <ENT-NNN> [--by <name>] [--replace] [--j
 const usageError = () => ({ code: 64, data: {}, messages: [{ key: 'cli.usage', params: { usage } }] });
 
 // Records the approved delivery cut portrait in aprovacao-plano.md:
-// specs, CA/CT universe, out-of-scope CAs/CTs, approver, and plan gate state.
-// Refuses to overwrite an existing portrait unless --replace is passed (exit 2).
+// specs (plan header and spec file versions), CA hashes, CA/CT universe (`path#ID`),
+// out-of-scope CAs/CTs, approver, and plan gate state.
+// Refuses to overwrite an existing portrait unless --replace is passed (exit 2), and also when the
+// file is gone but a commit of the branch history had it (exit 2, `deletedInHistory`).
 // With empty --by (or omitted --by when gates.plan is off), records gate: 'off'.
 // With gates.plan off, a first recording is always gate: 'off' (--by ignored).
 export async function run(args, ctx) {
@@ -51,6 +53,18 @@ export async function run(args, ctx) {
       messages: [{ key: 'approve_plan.already_exists', params: { file } }],
     };
   }
+  // Deleting the file must not reopen a first recording: a portrait that ever existed in a commit of
+  // the branch (under any folder name of this delivery) also needs --replace.
+  if (!replace) {
+    const past = portraitInHistory({ root: ctx.root, config: ctx.config, entId });
+    if (past) {
+      return {
+        code: 2,
+        data: { file, deletedInHistory: { commit: past.commit, path: past.path } },
+        messages: [{ key: 'approve_plan.deleted_in_history', params: { file, path: past.path, commit: past.commit.slice(0, 12) } }],
+      };
+    }
+  }
 
   const planText = readText(join(dir, 'plano.md')); // ENOENT -> 65 in dispatcher
   const scope = computeDeliveryScope({ root: ctx.root, planText, config: ctx.config });
@@ -78,8 +92,10 @@ export async function run(args, ctx) {
     gate,
     date,
     specs: scope.specs,
-    universeCas: scope.universeCas,
-    universeScenarios: scope.universeScenarios,
+    specVersions: scope.specVersions,
+    criteria: scope.criteria,
+    universeCas: scope.universeCaKeys,
+    universeScenarios: scope.universeScenarioKeys,
     outOfScope: scope.outOfScope,
     outOfScopeScenarios: scope.outOfScopeScenarios,
   }));
@@ -92,8 +108,9 @@ export async function run(args, ctx) {
       gate,
       date,
       specs: scope.specs,
-      universeCas: scope.universeCas,
-      universeScenarios: scope.universeScenarios,
+      specVersions: scope.specVersions,
+      universeCas: scope.universeCaKeys,
+      universeScenarios: scope.universeScenarioKeys,
       outOfScope: scope.outOfScope,
       outOfScopeScenarios: scope.outOfScopeScenarios,
       ...(scope.unrecognizedTasks.length ? { unrecognizedTasks: scope.unrecognizedTasks } : {}),
