@@ -1,6 +1,6 @@
 ---
-description: Escolhe ou confere a tecnologia do sistema e registra as decisões.
-argument-hint: "[tecnologia que você já tem, se houver]"
+description: Escolhe, confere ou audita a arquitetura do sistema e registra as decisões.
+argument-hint: "[tecnologia que você já tem, ou 'auditar']"
 disable-model-invocation: true
 ---
 

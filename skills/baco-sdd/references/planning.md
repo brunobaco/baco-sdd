@@ -42,6 +42,8 @@ When unsure, take the higher level. No level changes the never-off gates or the 
 
 > Nível: **leve** (pequena, fácil de desfazer, sem dinheiro nem dados pessoais), por isso não revisei a arquitetura.
 
+**Architectural materiality triggers (when to run phase 3 Revisit before planning).** Trigger an architecture `Revisit` ([architecture.md](architecture.md)) whenever the cut introduces any of these objective signals: changes crossing 2+ layers or 3+ core modules, a new async job, queue, retry loop or state machine, a schema, foreign-key, index or public API contract change, or a new dependency between modules outside the boundaries declared in `docs/arquitetura/README.md`.
+
 ## 1B. External review
 
 The external look is the review of the delivery's pull request (PR) at the end of construction ([review.md](review.md), sections 3 and 4). The plan records it in `**Revisão externa:**`, from `review.pr` in `.baco/config.yaml`, so the person approves it with the plan and the conductor only follows it:

@@ -1,6 +1,6 @@
 # Phase 3: Architecture
 
-Output: `docs/arquitetura/README.md` (from [arquitetura.md](../templates/pt-BR/arquitetura.md)) and one ADR per important choice in `docs/arquitetura/adr/ADR-NNN-<slug>.md` (from [adr.md](../templates/pt-BR/adr.md)), plus the test commands in `.baco/config.yaml`. Gate: `architecture` (see [gates.md](gates.md)). Load this reference when approved specs exist and no architecture is approved yet, when the user brings a stack to check, or when a new spec pressures the current architecture. Also load [common-process.md](common-process.md): its discovery and reconciliation rules apply here.
+Output: `docs/arquitetura/README.md` (from [arquitetura.md](../templates/pt-BR/arquitetura.md)) and one ADR per important choice in `docs/arquitetura/adr/ADR-NNN-<slug>.md` (from [adr.md](../templates/pt-BR/adr.md)), plus the test commands in `.baco/config.yaml`. In mode `Audit`, output is only the read-only report `.baco/logs/revisoes/arquitetura-auditoria-NN.md`. Gate: `architecture` (see [gates.md](gates.md); none for `Audit`). Load this reference when approved specs exist and no architecture is approved yet, when the user brings a stack to check, when a new spec pressures the current architecture, or to audit an existing codebase. Also load [common-process.md](common-process.md), and load [architecture-audit.md](architecture-audit.md) whenever the repository already has code (`Validate`, `Revisit`, `Audit`) or a live system needs a transition or performance plan.
 
 Roles named below are subagents when the host has them; otherwise run the role inline in the session. The role [architect](roles/architect.md) can do the factor extraction (step 1) and the drafts of the stack, the ADRs and the test commands (Suggest or Validate). It writes its short report (the factors, the stack, the test commands, the open risks) to the path you name, usually `.baco/logs/revisoes/architect-NN.md`, and writes each draft ADR as its own file in `docs/arquitetura/adr/` (status `Proposta`) and the draft `docs/arquitetura/README.md` itself, so you do not transcribe them; it returns a short summary and the report path. It never touches `.baco/config.yaml`, existing accepted ADRs or anything else, and never commits. Read the report and review the files, then run `git status`: only the report, the new draft ADR files and the README draft may have changed, anything else is reverted and becomes a finding (SKILL.md, "Roles"). You fill the test commands in `.baco/config.yaml`, send the proposal through the devil's advocate and run the gate.
 
@@ -18,21 +18,22 @@ If the user did not say, ask once:
 
 > Você já tem uma tecnologia escolhida para o projeto, ou prefere que eu proponha uma? (a) proponha para mim; (b) já tenho uma e quero que você confira se serve.
 
-(a) is Suggest; (b) is Validate. If `docs/arquitetura/README.md` (or the project's own architecture document) already exists, read it and treat the request as Revisit.
+(a) is Suggest; (b) is Validate. If the user asks to audit an existing codebase's architecture ("auditar arquitetura"), run **Mode Audit** (below). If `docs/arquitetura/README.md` (or the project's own architecture document) already exists and the user is not asking for an audit, read it and treat the request as Revisit.
 
 ## Step 1: Extract the decision factors
 
-Read the approved specs and the vision. List only factors the documents support, each with its source (spec code and ID). Never invent a factor.
+Read the approved specs and the vision. When the repository already has code (`Validate` or `Revisit`), also discover the real running state from the code first ([architecture-audit.md](architecture-audit.md), section 1). List only factors the documents or code support, each with its source (spec code and ID, or file path). Never invent a factor.
 
 Start from the vision's "Restrições técnicas conhecidas": treat each as a factor with high weight, confirm each one with the user in one question before proposing a stack (it may have changed since the start), and in the vision mark it "confirmada pela arquitetura" (citing the ADR) or record that it was dropped and why.
 
 - Multi-tenant: several client companies in one system, each isolated from the others.
 - Personal and financial data: anything under LGPD (names, documents, payments, health, minors).
-- Initial scale: users, records, requests, and the expected growth.
+- Initial scale and order of magnitude: expected users, records, average/peak requests and yearly storage growth.
+- Recovery tolerance (RTO/RPO): how long the business accepts the system being down and how much recent data loss is acceptable, guiding backups and restore tests.
 - Team size and skills: who will maintain this, and what they already know.
 - Platforms: web, mobile (iOS, Android or both), integrations.
-- Budget: the monthly amount the owner accepts to pay.
-- Others the specs impose: availability, offline use, files, notifications, auditing.
+- Full monthly budget: hosting plus the sum of third-party SaaS add-ons (auth, e-mail, logs, queues, managed database, AI), so add-ons do not blow the ceiling.
+- Others the specs impose: availability, sync vs async work, offline use, files, notifications, auditing.
 - Use of AI: the system sends text to an AI model (`product.uses_ai`, or a spec that asks for it); see "AI calls and prompt injection".
 
 Ask the user only what the documents do not answer and the choice depends on: team, budget, expected scale, where the data must live. One question at a time, in business words:
@@ -57,9 +58,10 @@ Give the factor table a `Peso` column (`alto`, `médio` or `baixo`), each weight
    - Por quê: time, risk, team, cost.
    - Critério que decidiu: the highest-weight factor that decided the choice, with its weight.
    - Custo de reverter: easy, medium or hard, and why, including what becomes harder after this decision. Highlight hard-to-reverse choices (database, login provider, hosting) so the human weighs them.
-   - Custo mensal estimado: in reais, with what it depends on. No number without a basis: write "a estimar" and who will estimate.
+   - Custo mensal estimado: in reais, with what it depends on (including third-party add-ons). No number without a basis: write "a estimar" and who will estimate.
+   - Quando revisitar: the concrete trigger (volume, latency, cost, team size or new requirement) that reopens this decision.
    - Status `Proposta`; leave `Aprovada por` empty.
-4. Fill `docs/arquitetura/README.md` from its template: overview, stack table, test tools, environments, ADR list. Never write a version, price or tool name nobody confirmed.
+4. Fill `docs/arquitetura/README.md` from its template: overview, stack table, internal boundaries (and a concise Mermaid diagram when integrations, async jobs or multiple entrypoints exist), cross-cutting API/operation rules, failure modes, deferred pieces with revisit triggers, test tools, environments and ADR list. Never write a version, price or tool name nobody confirmed. When code exists, anchor every diagram block to its real folder or entrypoint.
 5. Proof of installation. Any claim about installing, building or running on the target machine (a dependency that needs no compiler, a version that runs, a port that opens) that was not proven by running it is written in the ADR as "a provar na tarefa do esqueleto", and the planner lists it among that task's done criteria ([planning.md](planning.md)). An unproven claim never reads as a fact.
 
 Number ADRs in sequence. A decision already accepted is never edited away: a new ADR replaces it and the old one becomes `Substituída`. A `Substituída` ADR is history only: read it to understand why things changed, never apply it as a current decision.
@@ -77,8 +79,11 @@ The user supplies the stack (or it is read from the repository). Do not rewrite 
 ## Rules
 
 - Prefer popular, stable technology: more documentation, fewer AI mistakes, easier to hire for. A newer or niche option needs a stated reason in its ADR and a hard look at its cost to reverse.
-- Do not choose more pieces than the specs need. Fewer moving parts means lower monthly cost and fewer failures.
-- Protect personal and financial data by design: say where it lives, who can read it, and how tenants stay isolated. Name the LGPD consequences in the ADR in plain words.
+- **Guards against premature complexity.** Do not choose more pieces than the specs need. A small team starts with a synchronous modular monolith (a simple queue only for clear exceptions such as e-mail, webhooks or batch jobs), never microservices or event-driven ceremony without evidence. Keep marketing or institutional sites outside the product app. Run a quick order-of-magnitude check (initial request rate and yearly storage) before proposing cache, queues or separate workers; list deferred pieces in `docs/arquitetura/README.md` with the concrete trigger that reopens them.
+- **ADR threshold.** Write an ADR for choices that affect boundaries, data storage, security, monthly cost, external dependencies or are costly to reverse. Local library swaps or implementation details stay in the plan or code.
+- **Internal boundaries (especially single-repo fullstack).** Record in `docs/arquitetura/README.md` how domain modules separate inside the repository, the dependency direction (business rules isolated from UI, HTTP, ORM and external SDKs so rules can be tested without heavy infrastructure), where shared front/back contracts and types live, and explicit `allow`/`disallow` rules between layers/modules. Balance this with depth: avoid pass-through wrapper layers or heavy ceremony for simple CRUD.
+- **Data contract, multi-tenant isolation and consistency.** Protect personal and financial data by design: say where it lives, who can read it, and name the LGPD effects in plain words. For relational databases with critical or multi-tenant data, the data ADR defines: the tenant isolation mechanism (for example Row-Level Security or mandatory scoped queries with tenant-keyed indexes), which store is the source of truth vs derived data (cache, search index, projection) and how derived data is rebuilt, where transactions open and close (never held open across remote calls), and how concurrent writes are protected (isolation level, optimistic version or explicit lock).
+- **Integrations, failure modes, API and health.** Record a short failure-modes table in `docs/arquitetura/README.md`. Every external integration defines an explicit timeout, a retry policy only for idempotent operations (with cap and backoff) and a degraded mode. Define cross-cutting API and runtime rules proportional to the project (single error shape, mandatory pagination on listings, idempotency on critical actions such as payments or sends, resource ownership checks against IDOR, rate limits on sensitive routes, real dependency health check, and structured logs without credentials or personal data).
 - Production actions (deploy, destructive migration) are irreversible actions: the stop in `gates.md` applies, whatever the architecture says.
 
 ### Test tools per platform
@@ -147,7 +152,7 @@ Sources:
 
 Before the human sees anything, run the role [devils-advocate](roles/devils-advocate.md) on the proposal (Suggest) or on your verdict (Validate). Give it the factor table, the stack, the ADR drafts, the approved specs and the per-browser result of the homologation check; no conversation history.
 
-- It attacks: a chosen browser never opened in the homologation environment ("browser not checked in the environment"), wrong factor weights, a requirement the stack cannot meet, cost that grows faster than the budget, lock-in, a choice that is hard to reverse, a test tool with no JUnit output, a missing factor, an alternative listed only to lose (straw-man), an AI call whose ADR misses a measure of "AI calls and prompt injection" or treats a filter as the boundary and, in a Revisit or a technical change, no comparison with keeping things as they are (keep as is).
+- It attacks: a chosen browser never opened in the homologation environment ("browser not checked in the environment"), wrong factor weights, a requirement the stack cannot meet, cost that grows faster than the budget (including third-party add-ons), lock-in, a choice that is hard to reverse, a test tool with no JUnit output, a missing factor (such as RTO/RPO, LGPD, multi-tenant isolation or scale), an alternative listed only to lose (straw-man), premature complexity via a **subtraction test** (removing a disputed piece or layer to see if a spec guarantee is lost or only maintenance work), an external call without timeout, inside a DB transaction, or retried without idempotency, derived data without a rebuild rule, API/login missing error/pagination/IDOR/rate-limit basics, an AI call whose ADR misses a measure of "AI calls and prompt injection" or treats a filter as the boundary and, in a Revisit or a technical change, no comparison with keeping things as they are (keep as is) or no compatible transition and rollback plan on a live system.
 - For each objection, either change the proposal and ADR, or keep it and write the reason in the ADR's Por quê. Never drop an objection silently.
 - Show the human the objections that remain open, in plain words, with your answer to each. Report this as `proposto`, never as verified.
 
@@ -190,21 +195,25 @@ Trigger: a new or changed spec brings a factor the architecture did not weigh (n
 
 1. Re-run step 1 for the new spec only and compare with `docs/arquitetura/README.md` and the accepted ADRs.
 2. No pressure found: say so and change nothing.
-3. Pressure found: say which spec, which ADR and what breaks, with the cost of keeping versus changing. Write a new ADR for each changed choice; never edit an accepted ADR; mark the replaced one `Substituída`. Update the stack table and ADR list.
+3. Pressure found: say which spec, which ADR and what breaks, with the cost of keeping versus changing. Write a new ADR for each changed choice; never edit an accepted ADR; mark the replaced one `Substituída`. When the system is already live with real users or data, include `Plano de transição e lições aprendidas` in the new ADR ([architecture-audit.md](architecture-audit.md), section 4); when triggered by slowness or structural debt, apply the measured protocol (section 3). Update the stack table and ADR list.
 4. Run the devil's advocate and the gate again, only for the changed decisions. An unchanged accepted ADR keeps its approval.
 5. Tell the planning phase which approved plans depend on a replaced ADR; those plans need a human look before running.
 
 ## Technical change without behavior change
 
-Trigger: a technical decision that changes no behavior: change hosting, database or framework, or update a version to close a security flaw. Without this path the change either gets a fake spec to justify it or happens with no record of why.
+Trigger: a technical decision that changes no behavior: change hosting, database or framework, optimize measured slowness, pay structural debt, or update a version to close a security flaw. Without this path the change either gets a fake spec to justify it or happens with no record of why.
 
-1. Write a new ADR and take it through the devil's advocate and the `architecture` gate. Its alternatives always include keep as is, with the cost of keeping versus changing.
+1. Write a new ADR and take it through the devil's advocate and the `architecture` gate. Its alternatives always include keep as is, with the cost of keeping versus changing (including team learning curve). With a live system, include `Plano de transição e lições aprendidas` ([architecture-audit.md](architecture-audit.md), section 4); when triggered by slowness or debt, follow the measured protocol (section 3).
 2. With nothing implemented yet (no catalog row has a `Versão implementada`), there are no criterion tests to protect: update the ADR and `docs/arquitetura/README.md` only, and there is no delivery.
 3. Otherwise open a delivery ([planning.md](planning.md)) whose plan lists in `**Specs:**` every implemented spec the change can touch, at its current version. There are no spec changes. The tasks are technical; the done criterion is that every existing criterion test still passes: `baco trace` per spec and `baco acceptance-report` as usual, with every CA in `Cobertura` pointing to its existing test. Manual scenarios count too: re-run them with the user and record each with `baco qa-evidence <qa.md> --ct <CT-ID> --result aprovado --where <text> --delivery ENT-NNN`, because only evidence of this delivery counts.
 4. The trace checks every CA of the spec file. A spec that is not fully built (state other than `implementada`, or `Versão` ahead of `Versão implementada`) has CAs with no test, and those block the acceptance. Then either wait until that spec's delivery is done, or ask the human how to cut the change; never mark those CAs as covered.
 5. The level is at least `normal`, and `completo` when the change is costly to undo (database, login provider, hosting).
 6. If the change would alter behavior, stop: it is a spec evolution first ([spec-change.md](spec-change.md)).
 7. When phase 0 changes `test_runs` in the config and an accepted ADR states what runs when (for example that the full battery runs on every merge), offer the person a new ADR that supersedes that item, with the new rule and the reason. It goes through the `architecture` gate like any ADR: the person approves it, and you never write or accept it alone.
+
+## Mode Audit (code architecture audit)
+
+Trigger: the user asks to audit the architecture of an existing codebase ("auditar arquitetura"), typically between deliveries or before a major evolution. No gate and no code or ADR edits. Dispatch [architect](roles/architect.md) in mode `Audit` following [architecture-audit.md](architecture-audit.md), section 2, writing only `.baco/logs/revisoes/arquitetura-auditoria-NN.md`. Check `git status` afterwards, present the material findings and the `shortcut:` ledger in plain pt-BR, and turn chosen items into a `Revisit` or a normal delivery only with the user's go-ahead.
 
 ## Hand-off
 

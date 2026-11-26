@@ -42,7 +42,21 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o ADR real)
 
 ## Custo mensal estimado
 
-`<quanto isto custa por mês, em reais, e do que depende; ou "a estimar">`
+`<quanto isto custa por mês, em reais, somando serviços de terceiros envolvidos, e do que depende; ou "a estimar">`
+
+## Quando revisitar
+
+`<gatilho concreto de volume, latência, custo, tamanho do time ou requisito novo que reabre esta decisão>`
+
+## Plano de transição e lições aprendidas
+
+<!-- Opcional: obrigatório quando este ADR substitui outro ou muda tecnologia em um sistema já em uso. Sem sistema no ar nem substituição, apague esta seção. -->
+
+- **Etapas de migração segura:** `<expandir, migrar em lotes idempotentes com conferência, virar leitura/escrita e só remover o antigo após janela de uso zero>`
+- **Rollback e ponto sem retorno:** `<como voltar atrás separadamente em código, configuração, tráfego, esquema e dados; qual é o ponto sem retorno e o plano para seguir adiante>`
+- **Critérios de aborto:** `<taxa de erro, latência ou divergência de dados que interrompe a virada>`
+- **Consumidores externos:** `<janela de convivência e aviso antes de remover rota ou campo, se houver integradores externos; caso contrário, "não se aplica">`
+- **O que aprendemos com a decisão anterior:** `<em duas ou três frases, para não repetir a mesma premissa>`
 
 ## Injeção de instruções
 

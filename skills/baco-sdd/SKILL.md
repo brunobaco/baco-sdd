@@ -17,7 +17,7 @@ description: >-
   "aprovar spec", "gate". Do NOT use for generic coding with no spec intent,
   or to document a legacy system (planned for a future version).
 metadata:
-  version: "1.12.0"
+  version: "1.13.0"
 ---
 
 # BACO-SDD
@@ -85,7 +85,8 @@ Read only the reference of the current phase (plus the ones it tells you to load
 | 2 | Specify: auditar | check a spec's gaps and readiness | [review-protocol.md](references/review-protocol.md) + [spec-model.md](references/spec-model.md) | none (report only) |
 | 2 | Specify: evoluir | an approved or implemented spec must change | [spec-change.md](references/spec-change.md) + [spec-model.md](references/spec-model.md) | `spec_approval` (never off) |
 | 3 | Architecture: sugerir | approved specs, no stack chosen yet | [architecture.md](references/architecture.md) | `architecture` |
-| 3 | Architecture: validar | the user brings a stack to check, or a spec pressures it | [architecture.md](references/architecture.md) | `architecture` |
+| 3 | Architecture: validar | the user brings a stack to check, or a spec pressures it | [architecture.md](references/architecture.md) + [architecture-audit.md](references/architecture-audit.md) | `architecture` |
+| 3 | Architecture: auditar | read-only audit of code drift, boundaries, shortcuts or slowness | [architecture.md](references/architecture.md) + [architecture-audit.md](references/architecture-audit.md) | none (report only) |
 | 4 | Plan | approved specs to build, or a stale plan | [planning.md](references/planning.md) | `plan` |
 | 5 | Publish tasks | plan approved, work to release | [task-publication.md](references/task-publication.md) | `task_batch` |
 | 6 | Implement | plan and task batch approved | [implementation.md](references/implementation.md) | runs on its own through the PR review (phase 7) until the delivery is ready to test (phase 8), unless the review waits for a person; `Parada humana` and `each_task` hold only their task before merge; `irreversible_action` queued for the human |
@@ -95,7 +96,7 @@ Read only the reference of the current phase (plus the ones it tells you to load
 
 Load [gates.md](references/gates.md) when a phase reaches a gate, when the engine exits 2 or 3, or when the user changes how much you may do alone. Gate keys and layers are defined there.
 
-Mode hints: "criar spec" -> criar; "auditar spec" -> auditar; "evoluir spec" or a change to an `Aprovada` spec -> evoluir. "adicionar porta de entrada" in batch -> evoluir; a spec without the block being evolved -> offer section 5 of spec-change.md once. "definir arquitetura" without a stack -> sugerir; with a stack -> validar. "mudança só técnica" (trocar hospedagem, banco, framework, atualizar versão) -> validar, section "Technical change without behavior change" of architecture.md. A GitHub issue ("issue", "corrigir a issue #N", "abrir issue") -> [issue.md](references/issue.md).
+Mode hints: "criar spec" -> criar; "auditar spec" -> auditar; "evoluir spec" or a change to an `Aprovada` spec -> evoluir. "adicionar porta de entrada" in batch -> evoluir; a spec without the block being evolved -> offer section 5 of spec-change.md once. "definir arquitetura" without a stack -> sugerir; with a stack -> validar; "auditar arquitetura" -> auditar. "mudança só técnica" (trocar hospedagem, banco, framework, atualizar versão) -> validar, section "Technical change without behavior change" of architecture.md. A GitHub issue ("issue", "corrigir a issue #N", "abrir issue") -> [issue.md](references/issue.md).
 
 ## Stopping points and entering mid-cycle
 

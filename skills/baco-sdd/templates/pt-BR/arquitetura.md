@@ -22,6 +22,30 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o documento real)
 | Dados (onde as informações ficam) | `<banco de dados>` | `<motivo>` |
 | Hospedagem | `<onde o sistema roda>` | `<motivo>` |
 
+## Fronteiras e organização interna
+
+`<como o código se organiza por módulos de domínio dentro do repositório (monólito modular), direção de dependência (regras separadas de interface, HTTP, ORM e SDK externo), onde vivem contratos/tipos compartilhados entre front-end e back-end, e regras claras do que pode importar o quê (allow/disallow); evitar camadas de repasse sem valor>`
+
+<!-- Opcional: inclua um diagrama Mermaid curto quando houver integrações externas, tarefas em segundo plano ou vários pontos de entrada. Quando já houver código, ancore cada bloco na pasta ou ponto de entrada real. -->
+
+## Padrões transversais e operação
+
+- **Contratos de API e segurança:** `<formato único de erro, paginação obrigatória em listagens, idempotência em ações críticas, checagem de dono do recurso (IDOR) e limite de requisições em rotas sensíveis>`
+- **Saúde e logs:** `<como a saúde real das dependências é verificada e o que entra nos logs estruturados, sem credenciais nem dados pessoais>`
+- **Recuperação (RTO e RPO):** `<tempo máximo aceito fora do ar, perda máxima de dados aceita, rotina de cópia de segurança e teste de restauração>`
+
+## Modos de falha
+
+| Dependência ou componente | Impacto para quem usa | Como o sistema responde (timeout, retry idempotente, degradação) |
+|---|---|---|
+| `<ex.: serviço de e-mail ou pagamento>` | `<o que para e o que segue funcionando>` | `<timeout explícito, fila/retry só onde é seguro repetir, aviso à pessoa>` |
+
+## O que fica de fora agora e quando revisitar
+
+| Peça adiada | Por que fica fora agora | Gatilho para revisitar |
+|---|---|---|
+| `<ex.: cache distribuído, microsserviços, fila dedicada>` | `<conta simples de carga ou tamanho do time>` | `<volume, latência, custo ou requisito que reabre esta escolha>` |
+
 ## Ferramentas de teste por plataforma
 
 | Plataforma | Ferramenta | O que ela confere | Comando |
