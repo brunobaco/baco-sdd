@@ -209,7 +209,7 @@ test('handoff llm grader: findings without a location are allowed', () => {
 });
 
 test('read graders do not demand one tool: they judge the trace, and no tool_used grader pins Read or Bash catalog for a read', () => {
-  for (const [c, name] of [['retomada', 'le-progresso-e-t002'], ['meio-do-ciclo', 'le-o-catalogo']]) {
+  for (const [c, name] of [['retomada', 'le-progresso-e-t002']]) {
     const g = frontmatter(read(join(EVALS, c, 'graders', `${name}.md`)));
     assert.equal(g.data.type, 'llm', name);
     assert.equal(g.data.focus, 'trace', name);
@@ -218,6 +218,27 @@ test('read graders do not demand one tool: they judge the trace, and no tool_use
   }
   assert.ok(!existsSync(join(EVALS, 'retomada', 'graders', 'le-t002.md')));
   assert.ok(!existsSync(join(EVALS, 'retomada', 'graders', 'le-o-progresso.md')));
+});
+
+test('meio-do-ciclo le-o-catalogo: a regex over the raw trace (the llm judge elides the middle), matching only tool inputs', () => {
+  const g = frontmatter(read(join(EVALS, 'meio-do-ciclo', 'graders', 'le-o-catalogo.md')));
+  assert.equal(g.data.type, 'regex');
+  assert.equal(g.data.target, 'trace');
+  assert.match(g.body, /any means/);
+  const re = new RegExp(g.data.pattern, g.data.flags);
+  for (const s of [
+    '"name":"Read","input":{"file_path":"/w/cwd/docs/catalogo-de-specs.md"}',
+    '"name":"Bash","input":{"command":"ls -a; cat docs/catalogo-de-specs.md | head","description":"x"}',
+    '"name":"Grep","input":{"pattern":"Status","path":"docs/catalogo-de-specs.md"}',
+    '"name":"Bash","input":{"command":"node \\"$SK/scripts/baco.mjs\\" catalog get TAR"}',
+    '"name":"Read","input":{"file_path":"/w/cwd/docs/catalogo-de-specs.md","offset":1,"limit":40}',
+  ]) assert.ok(re.test(s), s);
+  for (const s of [
+    '"type":"text","text":"Locate `docs/` and `docs/catalogo-de-specs.md`."',
+    '"name":"Read","input":{"file_path":"/p/references/planning.md"},"caller":{}},{"type":"text","text":"docs/catalogo-de-specs.md"}',
+    '"name":"Bash","input":{"command":"ls docs"}},{"type":"text","text":"catalogo-de-specs"}',
+    '"name":"Edit","input":{"file_path":"/w/cwd/docs/catalogo-de-specs.md"}',
+  ]) assert.ok(!re.test(s), s);
 });
 
 test('ca-modificado: the prompt asks for the test and the code, and the file graders check the new value and the source edit', () => {
@@ -243,7 +264,11 @@ test('ca-modificado: the prompt asks for the test and the code, and the file gra
   for (const v of ['return a + b;', 'return a+b;', 'return;', '', 'return a + b + 10;'])
     assert.ok(!ok.test(v), v);
   assert.ok(!existsSync(join(dir, 'graders', 'atualiza-o-teste.md')), 'the model edits with sed via Bash, so tool_used Edit graders never pass; files are judged instead');
-  assert.ok(existsSync(join(dir, 'graders', 'roda-guard-tests.md')), 'kept: expected to fail on macOS (git), see README');
+  assert.ok(!existsSync(join(dir, 'graders', 'roda-guard-tests.md')), 'the sandbox denies the shell any read of the plugin, so no engine call can run; replaced by conta-o-guard-tests');
+  const guard = frontmatter(read(join(dir, 'graders', 'conta-o-guard-tests.md')));
+  assert.equal(guard.data.type, 'regex');
+  assert.equal(guard.data.target, 'last_message');
+  assert.ok(new RegExp(guard.data.pattern, guard.data.flags).test('**Não rodado:** `run-tests` e `guard-tests`, porque o motor ficou inacessível.'));
 });
 
 test('meio-do-ciclo: the fixture has an approved architecture and ADR, so planning is the correct path', async () => {
