@@ -1,6 +1,6 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { deliveryDir, computeDeliveryScope, ENT_ID } from '../lib/delivery.mjs';
+import { deliveryDir, computeDeliveryScope, unmarkedCriteria, ENT_ID } from '../lib/delivery.mjs';
 import { readText } from '../lib/markdown.mjs';
 import { PLAN_APPROVAL_FILE, renderPlanApproval } from '../lib/plan-approval.mjs';
 import { formatZoned } from './waive-review.mjs';
@@ -58,6 +58,10 @@ export async function run(args, ctx) {
     key: 'plan.unrecognized_task_marker',
     params: { cas: u.cas.join(', '), value: u.value, line: u.line },
   }));
+  // Criteria of the plan specs with neither a task nor the out-of-scope mark: in a slice delivery
+  // they would surface at the end as manual tests the person never had to do. The planner decides.
+  const unmarked = unmarkedCriteria(scope);
+  if (unmarked.length) warnings.push({ key: 'approve_plan.unmarked', params: { ids: unmarked.join(', ') } });
 
   if (scope.contradictions.length) {
     return {
@@ -93,6 +97,7 @@ export async function run(args, ctx) {
       outOfScope: scope.outOfScope,
       outOfScopeScenarios: scope.outOfScopeScenarios,
       ...(scope.unrecognizedTasks.length ? { unrecognizedTasks: scope.unrecognizedTasks } : {}),
+      ...(unmarked.length ? { unmarked } : {}),
     },
     messages: [
       ...warnings,

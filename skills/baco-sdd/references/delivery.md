@@ -75,6 +75,7 @@ baco acceptance-report ENT-NNN --target <branch> --trace docs/entregas/ENT-NNN-<
 | `merge.no_plan_specs`, `merge.spec_not_traced` | fix the plan header or add the missing spec's trace |
 | `merge.out_of_scope_unapproved`, `merge.out_of_scope_changed`, `merge.out_of_scope_gate_off`, `merge.plan_specs_changed`, `merge.plan_universe_shrank` | ask the human to approve the delivery cut portrait and record it with `baco approve-plan --by "<nome>"` (with `--replace` if `aprovacao-plano.md` already exists) |
 | `merge.out_of_scope_contradiction` | fix the contradiction in `plano.md` / QA (exit 1: a CA cannot be both `fora desta entrega` and assigned to a `T-NNN` task in `## Cobertura`) |
+| `merge.out_of_scope_built` | the criterion is marked `fora desta entrega` but already has proof (a passing test or an approved manual run), so the function exists: remove the mark in `plano.md` / QA, re-approve the cut with the person (`baco approve-plan ... --replace`) and trace again (exit 1) |
 | manual items pending for this target | run them with the user (section 2); under rule `block` they cannot be accepted instead. Specialist scenarios never count here |
 
 Risks and agents in the report:

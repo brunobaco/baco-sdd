@@ -9,7 +9,7 @@ import { readQa } from '../skills/baco-sdd/scripts/lib/qa.mjs';
 import { readPlanOutOfScope, readPlanScope } from '../skills/baco-sdd/scripts/lib/delivery.mjs';
 import { readPlanApproval } from '../skills/baco-sdd/scripts/lib/plan-approval.mjs';
 import { traceCoverage } from '../skills/baco-sdd/scripts/commands/trace.mjs';
-import { mergeDecision, pendingItems, outOfScopeItems, renderAcceptance } from '../skills/baco-sdd/scripts/commands/acceptance-report.mjs';
+import { mergeDecision, pendingItems, outOfScopeItems, renderAcceptance, planScopeBlockers } from '../skills/baco-sdd/scripts/commands/acceptance-report.mjs';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
 
 const capture = () => {
@@ -214,6 +214,94 @@ test('trace exits 1 on contradiction and warns on unrecognized free-text markers
   const c2 = capture();
   const code2 = await main(['approve-plan', 'ENT-001', '--by', 'Ana', '--json', '--cwd', dir], c2.io);
   assert.equal(code2, 1);
+});
+
+// A criterion marked out of this delivery whose function already exists (a passing test or an
+// approved manual run) is a contradiction: the mark would hide a built function from the person.
+async function builtRepo(t, { junit = '', evidence = '' } = {}) {
+  const dir = await makeRepo({
+    '.baco/config.yaml': 'branches:\n  main: main\n  integration: develop\n',
+    'docs/specs/spec-a.md': '# Spec A\n\n| Versão | 1.0 |\n|---|---|\n\n- **CA-001:** Ok.\n- **CA-002:** Já existe.\n',
+    'docs/qa/cenarios-qa-spec-a.md': [
+      '# QA', '',
+      '### CT-001 | Ok', '- **Contratos:** CA-001', '- **Automação:** automatizado', '',
+      '### CT-002 | Já existe', '- **Contratos:** CA-002', '- **Automação:** fora desta entrega', '',
+      evidence,
+    ].join('\n'),
+    'docs/entregas/ENT-001-fatia/plano.md': '# Plano\n\n**Specs:** docs/specs/spec-a.md@1.0\n\n## Cobertura\n\n| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |\n|---|---|---|---|\n| `CA-001` | `T-001` | `CT-001` | `regra` |\n| `CA-002` | `fora desta entrega` | `CT-002` | `-` |\n',
+    '.baco/junit/a.xml': `<testsuite><testcase classname="a" name="[CT-001] ok"/>${junit}</testsuite>\n`,
+  });
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const c = capture();
+  const code = await main([
+    'trace', '--spec', 'docs/specs/spec-a.md', '--qa', 'docs/qa/cenarios-qa-spec-a.md',
+    '--delivery', 'ENT-001', '--json', '--cwd', dir,
+  ], c.io);
+  return { dir, code, data: JSON.parse(c.out().stdout) };
+}
+
+test('built function marked out of scope: a passing test makes trace fail and blocks the merge as a contradiction', async (t) => {
+  const { dir, code, data } = await builtRepo(t, { junit: '<testcase classname="a" name="[CT-002] existe"/>' });
+  assert.equal(code, 1);
+  assert.deepEqual(data.builtOutOfScope, ['CA-002']);
+  const planText = readFileSync(join(dir, 'docs/entregas/ENT-001-fatia/plano.md'), 'utf8');
+  const check = planScopeBlockers({ root: dir, planText, config: {}, trace: data, approval: null });
+  assert.ok(check.blockers.includes('merge.out_of_scope_built'), check.blockers.join(', '));
+  assert.deepEqual(check.built, ['CA-002']);
+});
+
+test('built function marked out of scope: an approved manual run of this delivery is a contradiction too', async (t) => {
+  const evidence = '## Evidências de execução\n\n| CT | Resultado | Data | Onde | Entrega |\n|---|---|---|---|---|\n| CT-002 | aprovado | 2026-11-20 | homologação | ENT-001 |\n';
+  const { code, data } = await builtRepo(t, { evidence });
+  assert.equal(code, 1);
+  assert.deepEqual(data.builtOutOfScope, ['CA-002']);
+});
+
+test('out of scope without proof stays a plain out-of-scope criterion (no contradiction)', async (t) => {
+  const { code, data } = await builtRepo(t);
+  assert.equal(code, 0);
+  assert.equal(data.builtOutOfScope, undefined);
+  assert.equal(data.cas.find((c) => c.ca === 'CA-002').status, 'out_of_scope');
+});
+
+test('approve-plan warns about criteria of the plan specs with neither a task nor the out-of-scope mark', async (t) => {
+  const dir = await makeRepo({
+    '.baco/config.yaml': 'branches:\n  main: main\n  integration: develop\n',
+    'docs/specs/spec-a.md': '# Spec A\n\n- **Versão:** 1.0\n\n- **CA-001:** Ok.\n- **CA-002:** Fora.\n- **CA-003:** Sem marca.\n- **CA-004:** Sem marca.\n',
+    'docs/qa/cenarios-qa-spec-a.md': '# QA\n\n### CT-001 | Ok\n- **Contratos:** CA-001\n- **Automação:** automatizado\n',
+    'docs/entregas/ENT-001-fatia/plano.md': '# Plano\n\n**Specs:** docs/specs/spec-a.md@1.0\n**Fora desta entrega:** CA-002\n\n## Cobertura\n\n| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |\n|---|---|---|---|\n| `CA-001` | `T-001` | `CT-001` | `regra` |\n',
+  });
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  // Before the plan is presented: plan-freshness already warns, without failing.
+  const f = capture();
+  assert.equal(await main(['plan-freshness', 'ENT-001', '--json', '--cwd', dir], f.io), 0, f.out().stderr);
+  assert.deepEqual(JSON.parse(f.out().stdout).unmarked, ['CA-003', 'CA-004']);
+  const c = capture();
+  assert.equal(await main(['approve-plan', 'ENT-001', '--by', 'Ana', '--json', '--cwd', dir], c.io), 0, c.out().stderr);
+  assert.deepEqual(JSON.parse(c.out().stdout).unmarked, ['CA-003', 'CA-004']);
+  const c2 = capture();
+  await main(['approve-plan', 'ENT-001', '--by', 'Ana', '--replace', '--cwd', dir], c2.io);
+  assert.match(c2.out().stdout + c2.out().stderr, /CA-003, CA-004/);
+});
+
+test('acceptance summary in plain words: proven, not yet built and manual tests to do (63 scenarios: 57 future, 6 manual of which 1 is for a specialist)', () => {
+  const ids = Array.from({ length: 63 }, (_, i) => String(i + 1).padStart(3, '0'));
+  const spec = { definitions: ids.map((n) => ({ kind: 'CA', id: `CA-${n}` })) };
+  const qa = {
+    evidence: [],
+    scenarios: ids.map((n, i) => ({
+      id: `CT-${n}`, contracts: [`CA-${n}`], testRefs: [],
+      automation: i < 57 ? 'out_of_scope' : 'manual',
+      ...(i === 62 ? { specialist: true, specialistKind: 'leitor de tela' } : {}),
+    })),
+  };
+  const trace = traceCoverage({ spec, qa });
+  const kinds = ['leitor de tela'];
+  assert.equal(pendingItems(trace, kinds).manual.length, 5);
+  const decision = mergeDecision({ trace, verdict: { verdict: 'aprovado' }, rule: 'block', specialist: kinds });
+  assert.deepEqual(decision.blockers, ['merge.manual_pending']);
+  const md = renderAcceptance({ entId: 'ENT-003', target: 'main', trace, verdict: { verdict: 'aprovado' }, decision, specialist: kinds });
+  assert.ok(md.includes('0 critérios provados, 57 de funções ainda não construídas, 5 testes manuais por fazer.'), md.slice(0, 800));
 });
 
 async function setupOutOfScopeDelivery(t, { specText, qaText, planText, approve = false, approveBy = 'Ana', extraConfig = '' } = {}) {

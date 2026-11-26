@@ -210,6 +210,13 @@ export function computeDeliveryScope({ root, planText, config }) {
   };
 }
 
+// Criteria of the plan specs with neither a T-NNN task nor the out-of-scope mark. In a slice
+// delivery an unbuilt one would surface at the end as a manual test nobody had to do.
+export function unmarkedCriteria(scope) {
+  const out = new Set(scope.outOfScope);
+  return scope.universeCas.filter((id) => !scope.coveredByTask.has(id) && !out.has(id));
+}
+
 export function readPlanOutOfScope(md) {
   return readPlanScope(md).outOfScope;
 }

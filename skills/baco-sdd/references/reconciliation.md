@@ -25,6 +25,8 @@ For every definition of the cut (RF, RN, RNF, INV, CA) it reports one status wit
 
 A behavior the spec does not mention (`excedente`, or any divergence about it) is first checked with one question: is it a business rule? If it is not (keyboard focus, tie-break by millisecond, internal ordering, component details), record it in the reconciliation report as **detalhe técnico, fora da spec**, with the evidence, and do not propose a spec change: the spec gains only business rules. It is not a divergence to decide in section 3.
 
+Criteria marked `fora desta entrega` (in the plan or in QA) get a status too: for each one, the reconciler looks in the code for the function the criterion describes (routes, screens, services, tests). If it finds it, the criterion is listed as **suspeito: função parece existir**, with the evidence, and the proposal is to remove the mark and give it a task or a regression test in the next delivery. This is a search, not proof, so it goes to the report and does not block; the engine already blocks the certain case (a marked criterion with a passing test or an approved manual run, `merge.out_of_scope_built`).
+
 The trace proves CAs only. A CA `proven` is not proof of the RF or RN above it unless the semantic link holds (actor, operation, boundary, polarity, effect). Never claim a check that was not made; separate **proposto**, **alterado** and **verificado**.
 
 ## 3. Divergences are the human's decision

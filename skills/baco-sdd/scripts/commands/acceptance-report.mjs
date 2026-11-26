@@ -17,7 +17,7 @@ export const usage = 'baco acceptance-report <ENT-NNN> --target <branch> --trace
 const usageError = () => ({ code: 64, data: {}, messages: [{ key: 'cli.usage', params: { usage } }] });
 const STATUSES = ['proven', 'failed', 'pending', 'uncovered', 'out_of_scope'];
 // R18: these blockers are verification failures (exit 1); any other blocker is a human gate (exit 2).
-export const VERIFICATION_BLOCKERS = ['merge.failed', 'merge.uncovered', 'merge.no_criteria', 'merge.scenario_failed', 'merge.out_of_scope_contradiction'];
+export const VERIFICATION_BLOCKERS = ['merge.failed', 'merge.uncovered', 'merge.no_criteria', 'merge.scenario_failed', 'merge.out_of_scope_contradiction', 'merge.out_of_scope_built'];
 // Worse status wins when the same CA appears in several traces; unknown statuses are the worst.
 const RANK = { out_of_scope: 0, proven: 1, pending: 2, uncovered: 3, failed: 4 };
 const rank = (s) => RANK[s] ?? 5;
@@ -73,6 +73,11 @@ export function planScopeBlockers({ root, planText, config, trace, approval }) {
     blockers.push('merge.out_of_scope_contradiction');
     params['merge.out_of_scope_contradiction'] = { ids: contradictions.join(', ') };
   }
+  const built = builtOutOfScope(trace, new Set(current.outOfScope));
+  if (built.length) {
+    blockers.push('merge.out_of_scope_built');
+    params['merge.out_of_scope_built'] = { ids: built.join(', ') };
+  }
   const hasCurrent = currentCas.length > 0 || currentScenarios.length > 0;
   if (!approval) {
     if (hasCurrent) {
@@ -110,7 +115,23 @@ export function planScopeBlockers({ root, planText, config, trace, approval }) {
       params['merge.out_of_scope_gate_off'] = { ids: [...currentCas, ...currentScenarios].join(', ') };
     }
   }
-  return { blockers, params, contradictions, currentCas, currentScenarios };
+  return { blockers, params, contradictions, built, currentCas, currentScenarios };
+}
+
+// Criteria (or scenarios without a criterion) marked out of this delivery that already have proof:
+// a passing test or an approved manual run. `planOutOfScope`: CAs the plan puts out of the delivery.
+// Works on one trace or on merged traces, and on trace files written before this check existed.
+export function builtOutOfScope(trace, planOutOfScope = new Set()) {
+  const proof = (s) => s.result === 'passed' || s.result === 'manual_ok';
+  const built = new Set();
+  for (const c of casOf(trace)) {
+    const marked = planOutOfScope.has(c.ca)
+      ? scenariosOf(c)
+      : scenariosOf(c).filter((s) => s.via !== 'direct' && s.automation === OUT_OF_SCOPE);
+    if (marked.some(proof)) built.add(c.ca);
+  }
+  for (const s of othersOf(trace)) if (s.automation === OUT_OF_SCOPE && proof(s)) built.add(s.id);
+  return [...built].sort();
 }
 
 // Pending scenarios across all criteria and the scenarios without a CA, deduplicated by id. A
@@ -324,11 +345,16 @@ export function renderAcceptance({ entId, target, trace, verdict, decision, lang
   const failed = inScopeCas.filter((c) => c.status === 'failed' || !STATUSES.includes(c.status)).length;
   const pending = pendingItems(trace, kinds);
   const gloss = (v) => { const k = `acceptance.verdict.${v}`; return T(k) === k ? v : T(k); };
+  const plural = (what, n) => T(`acceptance.plain.${what}.${n === 1 ? 'one' : 'other'}`, { n });
 
   const summary = [
     T(decision.allowed ? 'acceptance.summary.allowed' : 'acceptance.summary.blocked'),
+    T('acceptance.summary.plain', {
+      proven: plural('proven', proven),
+      future: plural('future', outScope.cas.length),
+      manual: plural('manual', pending.manual.length),
+    }),
     T('acceptance.summary.counts', { total: inScopeCas.length, proven, failed, pending: count('pending'), uncovered: count('uncovered') }),
-    ...(outScope.cas.length ? [T('acceptance.summary.out_of_scope', { count: outScope.cas.length })] : []),
     verdict ? T('acceptance.summary.review', { verdict: gloss(verdict.verdict) })
       : waiver?.current ? T('acceptance.summary.review_waived', { by: waiver.by, date: waiver.date })
         : T('acceptance.summary.review_none'),

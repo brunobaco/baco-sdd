@@ -143,6 +143,18 @@ export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown
     return withLayer(sc, { id: sc.id, contracts: sc.contracts, automation: sc.automation, tests: sc.testRefs ?? [], result, evidence });
   });
 
+  // A criterion or scenario marked out of this delivery that already has proof (a test that passed or
+  // an approved manual run) is a function that exists: the mark would hide it, so it is a contradiction.
+  const proof = (r) => r === 'passed' || r === 'manual_ok';
+  const built = [];
+  for (const c of cas) {
+    const marked = outOfScope.has(c.ca)
+      ? c.scenarios
+      : c.scenarios.filter((s) => s.via === 'qa' && s.automation === 'out_of_scope');
+    if (marked.some((s) => proof(s.result))) built.push(c.ca);
+  }
+  for (const s of otherScenarios) if (s.automation === 'out_of_scope' && proof(s.result)) built.push(s.id);
+
   const known = new Set([...spec.definitions.map((d) => d.id), ...qa.scenarios.map((s) => s.id), ...alsoKnown]);
   const orphanTests = orphansOf(cases.map((c) => c.name), known);
 
@@ -153,7 +165,7 @@ export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown
     else summary[c.status]++;
   }
   if (oos > 0) summary.out_of_scope = oos;
-  return { cas, otherScenarios, orphanTests, summary };
+  return { cas, otherScenarios, orphanTests, summary, ...(built.length ? { builtOutOfScope: built } : {}) };
 }
 
 // `layer_mismatch`: the tests that passed are not of the layer the scenario declares; never proof.
@@ -228,6 +240,9 @@ export async function run(args, ctx) {
       else coverage.summary[c.status]++;
     }
     if (oos > 0) coverage.summary.out_of_scope = oos;
+    const builtKept = (coverage.builtOutOfScope ?? []).filter((id) => filter.includes(id));
+    if (builtKept.length) coverage.builtOutOfScope = builtKept;
+    else delete coverage.builtOutOfScope;
   }
   const specCaSet = new Set(coverage.cas.map((c) => c.ca));
   const scopeContradictions = [...new Set([
@@ -256,6 +271,8 @@ export async function run(args, ctx) {
     messages.push({ key: 'plan.unrecognized_task_marker', params: { cas: u.cas.join(', '), value: u.value, line: u.line } });
   }
   if (scopeContradictions.length) messages.push({ key: 'trace.scope_contradiction', params: { ids: scopeContradictions.join(', ') } });
+  const built = data.builtOutOfScope ?? [];
+  if (built.length) messages.push({ key: 'trace.built_out_of_scope', params: { ids: built.join(', ') } });
   for (const c of data.cas) {
     messages.push({
       key: 'trace.ca',
@@ -274,5 +291,5 @@ export async function run(args, ctx) {
   }
   if (data.orphanTests.length) messages.push({ key: 'trace.orphans', params: { tests: data.orphanTests.join('; ') } });
   const otherFailed = data.otherScenarios.some((s) => isFailedResult(s.result));
-  return { code: summary.uncovered + summary.failed > 0 || otherFailed || scopeContradictions.length > 0 ? 1 : 0, data, messages };
+  return { code: summary.uncovered + summary.failed > 0 || otherFailed || scopeContradictions.length > 0 || built.length > 0 ? 1 : 0, data, messages };
 }

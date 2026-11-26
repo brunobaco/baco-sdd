@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { deliveryDir, readPlanHeader, ENT_ID } from '../lib/delivery.mjs';
+import { deliveryDir, readPlanHeader, computeDeliveryScope, unmarkedCriteria, ENT_ID } from '../lib/delivery.mjs';
 import { readSpec, numeric } from '../lib/spec.mjs';
 import { readText } from '../lib/markdown.mjs';
 
@@ -20,7 +20,8 @@ export async function run(args, ctx) {
     planPath = join(deliveryDir(ctx.root, ctx.config, arg), 'plano.md');
     planLabel = arg;
   }
-  const { specs } = readPlanHeader(readText(planPath)); // ENOENT -> 65 in the dispatcher
+  const planText = readText(planPath); // ENOENT -> 65 in the dispatcher
+  const { specs } = readPlanHeader(planText);
   // A plan that names no spec cannot be fresh: nothing was checked.
   if (!specs.length) return { code: 1, data: { stale: [], noSpecs: true }, messages: [{ key: 'freshness.no_specs', params: { plan: planLabel } }] };
   const specRoot = ctx.root ?? ctx.cwd;
@@ -37,5 +38,8 @@ export async function run(args, ctx) {
   const messages = [{ key: 'freshness.summary', params: { plan: planLabel, total: specs.length, stale: stale.length } }];
   for (const s of stale) messages.push({ key: 'freshness.stale', params: { path: s.path, planned: s.planned ?? '-', current: s.current ?? '-' } });
   messages.push({ key: stale.length ? 'freshness.stale_plan' : 'freshness.fresh' });
-  return { code: stale.length ? 1 : 0, data: { stale }, messages };
+  // Warning only, settled by the planner before the plan is presented (never fails the check).
+  const unmarked = stale.length ? [] : unmarkedCriteria(computeDeliveryScope({ root: specRoot, planText, config: ctx.config }));
+  if (unmarked.length) messages.push({ key: 'approve_plan.unmarked', params: { ids: unmarked.join(', ') } });
+  return { code: stale.length ? 1 : 0, data: { stale, ...(unmarked.length ? { unmarked } : {}) }, messages };
 }
