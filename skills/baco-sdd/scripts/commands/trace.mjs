@@ -1,7 +1,7 @@
 import { relative, resolve, sep } from 'node:path';
 import { existsSync, readdirSync, realpathSync, writeFileSync, mkdirSync } from 'node:fs';
 import { revParse } from '../lib/git.mjs';
-import { ENT_ID, deliveryKnownIdsOf, deliveryScopeOf } from '../lib/delivery.mjs';
+import { ENT_ID, computeSpecScope, deliveryKnownIdsOf, deliveryScopeOf } from '../lib/delivery.mjs';
 import { t } from '../lib/messages.mjs';
 import { dirname } from 'node:path';
 import { readText } from '../lib/markdown.mjs';
@@ -87,10 +87,11 @@ function scenarioResult(sc, qa, casesById, delivery, files, forceOutOfScope = fa
 
 function caStatus(scenarios, caOutOfScope = false) {
   if (scenarios.some((s) => isFailedResult(s.result))) return 'failed';
-  if (scenarios.length > 0 && scenarios.every((s) => s.result === 'passed' || s.result === 'manual_ok')) return 'proven';
+  const inScope = scenarios.filter((s) => s.result !== 'out_of_scope');
+  if (inScope.length > 0 && inScope.every((s) => s.result === 'passed' || s.result === 'manual_ok')) return 'proven';
   if (caOutOfScope) return 'out_of_scope';
   if (scenarios.length === 0) return 'uncovered';
-  if (scenarios.every((s) => s.result === 'out_of_scope' || s.result === 'passed' || s.result === 'manual_ok')) return 'out_of_scope';
+  if (inScope.length === 0) return 'out_of_scope';
   return 'pending';
 }
 
@@ -210,7 +211,8 @@ export async function run(args, ctx) {
   const alsoKnown = delivery && ctx.root ? deliveryKnownIdsOf(ctx.root, ctx.config, delivery) : new Set();
   const planScope = delivery && ctx.root
     ? deliveryScopeOf(ctx.root, ctx.config, delivery)
-    : { outOfScope: new Set(), coveredByTask: new Set(), contradictions: [] };
+    : { outOfScope: new Set(), coveredByTask: new Set(), contradictions: [], unrecognizedTasks: [] };
+  const specScope = computeSpecScope({ spec, qa, planOutOfScope: planScope.outOfScope, coveredByTask: planScope.coveredByTask });
   const coverage = traceCoverage({ spec, qa, cases, delivery, alsoKnown, outOfScope: planScope.outOfScope });
   // --ca: only those criteria count (result and exit code). The JSON records the filter so a partial
   // trace is never taken as the proof of a whole delivery (acceptance-report and build-handoff refuse it).
@@ -230,8 +232,9 @@ export async function run(args, ctx) {
   const specCaSet = new Set(coverage.cas.map((c) => c.ca));
   const scopeContradictions = [...new Set([
     ...planScope.contradictions.filter((id) => !filter || specCaSet.has(id)),
-    ...coverage.cas.filter((c) => c.status === 'out_of_scope' && planScope.coveredByTask.has(c.ca)).map((c) => c.ca),
+    ...specScope.contradictions.filter((id) => !filter || specCaSet.has(id)),
   ])].sort();
+  const unrecognizedTasks = planScope.unrecognizedTasks ?? [];
   const data = {
     head,
     spec: { path: specPath, version: spec.version ?? null },
@@ -239,6 +242,7 @@ export async function run(args, ctx) {
     filter,
     ...coverage,
     ...(scopeContradictions.length ? { scopeContradictions } : {}),
+    ...(unrecognizedTasks.length ? { unrecognizedTasks } : {}),
   };
   if (typeof args.flags.out === 'string') {
     const out = resolve(ctx.cwd, args.flags.out);
@@ -248,6 +252,9 @@ export async function run(args, ctx) {
   const { summary } = data;
   const messages = [{ key: summary.out_of_scope ? 'trace.summary_out_of_scope' : 'trace.summary', params: { ...summary } }];
   if (filter) messages.push({ key: 'trace.filtered', params: { ids: filter.join(', ') } });
+  for (const u of unrecognizedTasks) {
+    messages.push({ key: 'plan.unrecognized_task_marker', params: { cas: u.cas.join(', '), value: u.value, line: u.line } });
+  }
   if (scopeContradictions.length) messages.push({ key: 'trace.scope_contradiction', params: { ids: scopeContradictions.join(', ') } });
   for (const c of data.cas) {
     messages.push({

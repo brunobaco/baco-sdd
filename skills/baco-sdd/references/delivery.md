@@ -73,8 +73,8 @@ baco acceptance-report ENT-NNN --target <branch> --trace docs/entregas/ENT-NNN-<
 | `merge.stale_verdict`, `merge.no_verdict`, `merge.verdict_not_approved` | a new review round ([review.md](review.md), section 6); `merge.no_verdict` is never accepted without a current waiver recorded by the human |
 | `merge.trace_other_delivery` | re-run the trace with the right `--delivery` |
 | `merge.no_plan_specs`, `merge.spec_not_traced` | fix the plan header or add the missing spec's trace |
-| `merge.out_of_scope_unapproved`, `merge.out_of_scope_changed` | ask the human to approve the out-of-scope set and record it with `baco approve-plan` |
-| `merge.out_of_scope_contradiction` | fix the contradiction in `plano.md` / QA (exit 1: a CA cannot be both `fora desta entrega` and assigned to a real task in `## Cobertura`) |
+| `merge.out_of_scope_unapproved`, `merge.out_of_scope_changed`, `merge.out_of_scope_gate_off`, `merge.plan_specs_changed`, `merge.plan_universe_shrank` | ask the human to approve the delivery cut portrait and record it with `baco approve-plan --by "<nome>"` (with `--replace` if `aprovacao-plano.md` already exists) |
+| `merge.out_of_scope_contradiction` | fix the contradiction in `plano.md` / QA (exit 1: a CA cannot be both `fora desta entrega` and assigned to a `T-NNN` task in `## Cobertura`) |
 | manual items pending for this target | run them with the user (section 2); under rule `block` they cannot be accepted instead. Specialist scenarios never count here |
 
 Risks and agents in the report:

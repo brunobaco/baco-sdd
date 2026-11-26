@@ -1,46 +1,66 @@
-// The human's recorded approval of the plan gate (`baco approve-plan`), including the approved
-// out-of-scope set and the SHA-256 hash of plano.md so silent post-approval cutouts are caught.
-import { createHash } from 'node:crypto';
+// The recorded portrait of the approved delivery cut (`baco approve-plan`):
+// specs (`path@version`), CA and QA scenario universe of those specs, approved out-of-scope CAs and
+// scenarios, who approved, and whether the `plan` gate was on or off.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const PLAN_APPROVAL_FILE = 'aprovacao-plano.md';
 
 const FOOTER = /<!-- baco:plan-approval (.*) -->\s*$/;
-const oneLine = (s) => String(s).replace(/\s*\r?\n\s*/g, ' ').trim();
+const oneLine = (s) => String(s ?? '').replace(/\s*\r?\n\s*/g, ' ').trim();
 const sortUnique = (arr) => [...new Set(arr)].sort();
+const isStringArray = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
 
-export function sha256Text(text) {
-  return createHash('sha256').update(String(text ?? ''), 'utf8').digest('hex');
-}
-
-export function renderPlanApproval({ entId, by, date, planSha256, outOfScope = [], outOfScopeScenarios = [] }) {
+export function renderPlanApproval({
+  entId,
+  by = '',
+  gate = 'on',
+  date,
+  specs = [],
+  universeCas = [],
+  universeScenarios = [],
+  outOfScope = [],
+  outOfScopeScenarios = [],
+}) {
+  const cleanBy = gate === 'off' ? '' : oneLine(by);
+  const specList = [...new Set(specs)];
+  const uCas = sortUnique(universeCas);
+  const uScenarios = sortUnique(universeScenarios);
   const cas = sortUnique(outOfScope);
   const scenarios = sortUnique(outOfScopeScenarios);
-  const payload = { by: oneLine(by), date, planSha256, outOfScope: cas, outOfScopeScenarios: scenarios };
+  const payload = {
+    by: cleanBy,
+    gate,
+    date,
+    specs: specList,
+    universeCas: uCas,
+    universeScenarios: uScenarios,
+    outOfScope: cas,
+    outOfScopeScenarios: scenarios,
+  };
   const json = JSON.stringify(payload).replace(/--/g, '-\\u002d');
-  const oosText = cas.length ? cas.join(', ') : 'nenhum';
   const lines = [
     `# Aprovação do plano | ${entId}`,
     '',
-    `- **Quem aprovou:** ${oneLine(by)}`,
+    `- **Quem aprovou:** ${cleanBy || 'portão plan desligado'}`,
+    `- **Portão plan:** ${gate === 'on' ? 'ligado' : 'desligado'}`,
     `- **Data:** ${date}`,
-    `- **Hash do plano (SHA-256):** ${planSha256}`,
-    `- **Fora desta entrega (critérios):** ${oosText}`,
-  ];
-  if (scenarios.length) lines.push(`- **Fora desta entrega (cenários sem CA):** ${scenarios.join(', ')}`);
-  lines.push(
+    `- **Specs:** ${specList.length ? specList.join(', ') : 'nenhuma'}`,
+    `- **Universo (critérios):** ${uCas.length ? uCas.join(', ') : 'nenhum'}`,
+    `- **Universo (cenários):** ${uScenarios.length ? uScenarios.join(', ') : 'nenhum'}`,
+    `- **Fora desta entrega (critérios):** ${cas.length ? cas.join(', ') : 'nenhum'}`,
+    `- **Fora desta entrega (cenários):** ${scenarios.length ? scenarios.join(', ') : 'nenhum'}`,
     '',
-    'O conjunto fora desta entrega acima foi aprovado no portão do plano. Se o plano ou os cenários mudarem esse conjunto, o relatório de aceite e o merge-check bloqueiam até nova aprovação humana.',
+    'Este arquivo guarda o retrato do recorte aprovado no portão do plano. Se uma spec sair ou mudar de versão, se o universo de critérios ou cenários encolher, ou se o conjunto fora desta entrega mudar, o relatório de aceite e o merge-check bloqueiam como portão humano.',
     '',
     `<!-- baco:plan-approval ${json} -->`,
     '',
-  );
+  ];
   return lines.join('\n');
 }
 
-// { by, date, planSha256, outOfScope, outOfScopeScenarios } from deliveryDir/aprovacao-plano.md,
-// or null when absent or unreadable.
+// Reads the recorded plan approval portrait from `deliveryDir/aprovacao-plano.md`,
+// or returns null when absent or unreadable.
 export function readPlanApproval(dir) {
   let md;
   try {
@@ -52,18 +72,20 @@ export function readPlanApproval(dir) {
   const m = FOOTER.exec(md);
   if (!m) return null;
   try {
-    const parsed = JSON.parse(m[1]);
-    if (typeof parsed?.by !== 'string' || typeof parsed?.date !== 'string' || typeof parsed?.planSha256 !== 'string') return null;
-    if (!Array.isArray(parsed.outOfScope) || !parsed.outOfScope.every((x) => typeof x === 'string')) return null;
-    const scenarios = Array.isArray(parsed.outOfScopeScenarios) && parsed.outOfScopeScenarios.every((x) => typeof x === 'string')
-      ? sortUnique(parsed.outOfScopeScenarios)
-      : [];
+    const p = JSON.parse(m[1]);
+    if (typeof p?.by !== 'string' || typeof p?.date !== 'string') return null;
+    if (p.gate !== 'on' && p.gate !== 'off') return null;
+    if (!isStringArray(p.specs) || !isStringArray(p.universeCas) || !isStringArray(p.universeScenarios)) return null;
+    if (!isStringArray(p.outOfScope) || !isStringArray(p.outOfScopeScenarios)) return null;
     return {
-      by: parsed.by,
-      date: parsed.date,
-      planSha256: parsed.planSha256,
-      outOfScope: sortUnique(parsed.outOfScope),
-      outOfScopeScenarios: scenarios,
+      by: p.by,
+      gate: p.gate,
+      date: p.date,
+      specs: [...new Set(p.specs)],
+      universeCas: sortUnique(p.universeCas),
+      universeScenarios: sortUnique(p.universeScenarios),
+      outOfScope: sortUnique(p.outOfScope),
+      outOfScopeScenarios: sortUnique(p.outOfScopeScenarios),
     };
   } catch {
     return null;

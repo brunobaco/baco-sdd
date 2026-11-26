@@ -85,15 +85,19 @@ export function deliveryKnownIdsOf(root, config, entId) {
 }
 
 const PLAN_OUT_OF_SCOPE = /^fora\s+desta\s+entrega(?:\s*$|\s*[;(.:,-])/;
-const EMPTY_TASK = /^(?:[-—–]+|n\/a|<[^>]*>)$/i;
+const REAL_TASK_ID = /\bT-\d+\b/i;
+const EMPTY_TASK = /^(?:[-—–]+|<[^>]*>)$/;
 
-// Scope cutout declared in plano.md: only the 1.11.0 marker `fora desta entrega` counts (in the
-// header `**Fora desta entrega:** CA-...` or in the `Tarefa` cell of `## Cobertura`), so legacy
-// plans with other phrasing do not change meaning. Also returns every CA assigned to a real task in
-// `## Cobertura` and any contradictions (marked out of scope while also assigned to a real task).
+// Scope cutout declared in plano.md:
+// - Only the 1.11.0 marker `fora desta entrega` counts as out of scope (header `**Fora desta entrega:** CA-...`
+//   or `Tarefa` cell of `## Cobertura`).
+// - Only a task ID (`T-\d+`) in the `Tarefa` cell counts as a real task.
+// - Any other non-empty non-placeholder text in `Tarefa` (e.g. "próxima entrega", "nenhuma", "fora do plano")
+//   is neither a real task nor out of scope, and is returned in `unrecognizedTasks` for a warning.
 export function readPlanScope(md) {
   const outOfScope = new Set();
   const coveredByTask = new Set();
+  const unrecognizedTasks = [];
   const text = String(md ?? '').replace(/\r\n?/g, '\n');
   for (const line of text.split('\n')) {
     const m = /^\s*\*\*\s*([^*:]+?)\s*:\s*\*\*\s*(.*)$/.exec(line) ?? /^\s*\*\*\s*([^*:]+?)\s*\*\*\s*:\s*(.*)$/.exec(line);
@@ -114,19 +118,96 @@ export function readPlanScope(md) {
       const taskCol = tb.headers.findIndex((h) => fold(h).trim() === 'tarefa');
       if (caCol < 0 || taskCol < 0) continue;
       for (const r of tb.rows) {
-        const task = fold(String(r.cells[taskCol] ?? '').replace(/[`*_]/g, '')).trim();
+        const rawTask = String(r.cells[taskCol] ?? '').replace(/[`*_]/g, '').trim();
+        const task = fold(rawTask).trim();
         const cas = expandRefs(r.cells[caCol] ?? '').filter((id) => id.startsWith('CA-'));
         if (!cas.length) continue;
         if (PLAN_OUT_OF_SCOPE.test(task)) {
           for (const id of cas) outOfScope.add(id);
-        } else if (task && !EMPTY_TASK.test(task)) {
+        } else if (REAL_TASK_ID.test(rawTask)) {
           for (const id of cas) coveredByTask.add(id);
+        } else if (rawTask && !EMPTY_TASK.test(rawTask)) {
+          unrecognizedTasks.push({ cas, value: rawTask, line: r.line });
         }
       }
     }
   }
   const contradictions = [...outOfScope].filter((id) => coveredByTask.has(id)).sort();
-  return { outOfScope, coveredByTask, contradictions };
+  return { outOfScope, coveredByTask, contradictions, unrecognizedTasks };
+}
+
+// Single unified out-of-scope calculation for one spec + its QA file against the plan cutout:
+// - A CA is out of scope only when declared out of scope in plano.md OR ALL of its linked QA
+//   scenarios are marked `fora desta entrega`.
+// - A CA with mixed scenarios (some in scope, some `fora desta entrega`) stays IN scope, and its
+//   marked scenarios go into `outOfScopeScenarios` (no contradiction with a task in ## Cobertura).
+// - Unlinked QA scenarios marked `fora desta entrega` also go into `outOfScopeScenarios`.
+export function computeSpecScope({ spec, qa, planOutOfScope = new Set(), coveredByTask = new Set() }) {
+  const universeCas = spec.definitions.filter((d) => d.kind === 'CA').map((d) => d.id);
+  const caSet = new Set(universeCas);
+  const scenarios = qa?.scenarios ?? [];
+  const universeScenarios = scenarios.map((s) => s.id);
+  const outOfScopeCas = new Set();
+  const outOfScopeScenarios = new Set();
+
+  for (const caId of universeCas) {
+    const linked = scenarios.filter((s) => s.contracts.includes(caId));
+    const allScenariosOos = linked.length > 0 && linked.every((s) => s.automation === 'out_of_scope');
+    if (planOutOfScope.has(caId) || allScenariosOos) {
+      outOfScopeCas.add(caId);
+    } else {
+      for (const sc of linked) if (sc.automation === 'out_of_scope') outOfScopeScenarios.add(sc.id);
+    }
+  }
+  for (const sc of scenarios) {
+    if (!sc.contracts.some((id) => caSet.has(id)) && sc.automation === 'out_of_scope') {
+      outOfScopeScenarios.add(sc.id);
+    }
+  }
+  const contradictions = [...outOfScopeCas].filter((id) => coveredByTask.has(id)).sort();
+  return {
+    universeCas: [...new Set(universeCas)].sort(),
+    universeScenarios: [...new Set(universeScenarios)].sort(),
+    outOfScopeCas,
+    outOfScopeScenarios,
+    contradictions,
+  };
+}
+
+// Single unified scope calculation for a whole delivery (shared by approve-plan, acceptance-report
+// and merge-check), calling computeSpecScope for every spec in plano.md's **Specs:** header.
+export function computeDeliveryScope({ root, planText, config }) {
+  const { specs: planSpecs } = readPlanHeader(planText);
+  const planScope = readPlanScope(planText);
+  const universeCas = new Set();
+  const universeScenarios = new Set();
+  const outOfScope = new Set(planScope.outOfScope);
+  const outOfScopeScenarios = new Set();
+  const contradictions = new Set(planScope.contradictions);
+
+  for (const { path } of planSpecs) {
+    const specAbs = resolve(root, path);
+    if (!existsSync(specAbs)) continue;
+    const spec = readSpec(specAbs);
+    const qaAbs = qaPathFor(specAbs);
+    const qa = existsSync(qaAbs) ? readQa(qaAbs, { specialist: config?.qa?.specialist }) : { scenarios: [], evidence: [] };
+    const s = computeSpecScope({ spec, qa, planOutOfScope: planScope.outOfScope, coveredByTask: planScope.coveredByTask });
+    for (const id of s.universeCas) universeCas.add(id);
+    for (const id of s.universeScenarios) universeScenarios.add(id);
+    for (const id of s.outOfScopeCas) outOfScope.add(id);
+    for (const id of s.outOfScopeScenarios) outOfScopeScenarios.add(id);
+    for (const id of s.contradictions) contradictions.add(id);
+  }
+  return {
+    specs: planSpecs.map((s) => (s.version ? `${s.path}@${s.version}` : s.path)),
+    universeCas: [...universeCas].sort(),
+    universeScenarios: [...universeScenarios].sort(),
+    outOfScope: [...outOfScope].sort(),
+    outOfScopeScenarios: [...outOfScopeScenarios].sort(),
+    contradictions: [...contradictions].sort(),
+    coveredByTask: planScope.coveredByTask,
+    unrecognizedTasks: planScope.unrecognizedTasks,
+  };
 }
 
 export function readPlanOutOfScope(md) {
@@ -137,11 +218,13 @@ export function readPlanOutOfScope(md) {
 export function deliveryScopeOf(root, config, entId) {
   let dir;
   try { dir = deliveryDir(root, config, entId); } catch (e) {
-    if (e instanceof DeliveryError) return { outOfScope: new Set(), coveredByTask: new Set(), contradictions: [] };
+    if (e instanceof DeliveryError) return { outOfScope: new Set(), coveredByTask: new Set(), contradictions: [], unrecognizedTasks: [] };
     throw e;
   }
   const plan = join(dir, 'plano.md');
-  return existsSync(plan) ? readPlanScope(readText(plan)) : { outOfScope: new Set(), coveredByTask: new Set(), contradictions: [] };
+  return existsSync(plan)
+    ? readPlanScope(readText(plan))
+    : { outOfScope: new Set(), coveredByTask: new Set(), contradictions: [], unrecognizedTasks: [] };
 }
 
 // Out-of-scope CAs of a delivery's plano.md; an empty set when the delivery or its plan does not exist.

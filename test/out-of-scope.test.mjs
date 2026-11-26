@@ -53,7 +53,7 @@ test('readQa parses only "fora desta entrega" as out_of_scope (not legacy/Englis
   assert.equal(qa.scenarios[3].automation, 'manual');
 });
 
-test('readPlanScope reads only 1.11.0 "fora desta entrega" markers and ignores legacy wording', () => {
+test('readPlanScope accepts only T-NNN as real tasks, only "fora desta entrega" as out of scope, and warns on free text', () => {
   const plan = [
     '# Plano | ENT-002 `recorte`',
     '',
@@ -68,20 +68,24 @@ test('readPlanScope reads only 1.11.0 "fora desta entrega" markers and ignores l
     '| `CA-001` | `T-001` | `CT-001` | `regra` |',
     '| `CA-002` | `fora desta entrega` | `CT-002` | `-` |',
     '| `CA-003` | `fora do plano (próxima entrega)` | `CT-003` | `-` |',
-    '| `CA-004` | `não construída` | `CT-004` | `-` |',
-    '| `CA-005` | `out of scope` | `CT-005` | `-` |',
+    '| `CA-004` | `nenhuma` | `CT-004` | `-` |',
+    '| `CA-005` | `próxima entrega` | `CT-005` | `-` |',
+    '| `CA-006` | `-` | `CT-006` | `-` |',
   ].join('\n');
   const scope = readPlanScope(plan);
   assert.deepEqual([...scope.outOfScope].sort(), ['CA-002', 'CA-010', 'CA-011', 'CA-012', 'CA-020']);
   assert.deepEqual([...readPlanOutOfScope(plan)].sort(), ['CA-002', 'CA-010', 'CA-011', 'CA-012', 'CA-020']);
+  assert.deepEqual([...scope.coveredByTask].sort(), ['CA-001']);
+  assert.equal(scope.coveredByTask.has('CA-003'), false, 'free text is not a real task');
+  assert.equal(scope.coveredByTask.has('CA-004'), false, 'nenhuma is not a real task');
+  assert.equal(scope.coveredByTask.has('CA-005'), false, 'próxima entrega is not a real task');
   assert.equal(scope.outOfScope.has('CA-003'), false);
-  assert.equal(scope.outOfScope.has('CA-004'), false);
-  assert.equal(scope.outOfScope.has('CA-005'), false);
   assert.equal(scope.outOfScope.has('CA-099'), false);
   assert.deepEqual(scope.contradictions, []);
+  assert.deepEqual(scope.unrecognizedTasks.map((u) => u.cas), [['CA-003'], ['CA-004'], ['CA-005']]);
 });
 
-test('readPlanScope flags contradiction when a CA is both out of scope and assigned to a real task in Cobertura', () => {
+test('readPlanScope flags contradiction only when out-of-scope CA also has a T-NNN task in Cobertura', () => {
   const plan = [
     '# Plano | ENT-002 `recorte`',
     '',
@@ -96,12 +100,14 @@ test('readPlanScope flags contradiction when a CA is both out of scope and assig
     '| `CA-002` | `T-002` | `CT-002` | `regra` |',
     '| `CA-003` | `T-003` | `CT-003` | `regra` |',
     '| `CA-003` | `fora desta entrega` | `CT-003` | `-` |',
+    '| `CA-004` | `próxima entrega` | `CT-004` | `-` |',
   ].join('\n');
   const scope = readPlanScope(plan);
   assert.deepEqual(scope.contradictions, ['CA-002', 'CA-003']);
+  assert.deepEqual(scope.unrecognizedTasks.map((u) => u.cas), [['CA-004']]);
 });
 
-test('traceCoverage marks out_of_scope CAs via QA or plan cutout, never as manual_pending, and still fails on failed tests', () => {
+test('traceCoverage handles mixed scenarios on one CA (in-scope passed + out_of_scope scenario => CA proven)', () => {
   const spec = {
     definitions: [
       { id: 'CA-001', kind: 'CA' },
@@ -114,8 +120,9 @@ test('traceCoverage marks out_of_scope CAs via QA or plan cutout, never as manua
   const qa = {
     scenarios: [
       { id: 'CT-001', contracts: ['CA-001'], automation: 'automatizado', testRefs: [] },
+      { id: 'CT-003', contracts: ['CA-001'], automation: 'out_of_scope', testRefs: [] },
       { id: 'CT-002', contracts: ['CA-002'], automation: 'out_of_scope', testRefs: [] },
-      { id: 'CT-003', contracts: ['CA-003'], automation: 'manual', testRefs: [] },
+      { id: 'CT-006', contracts: ['CA-003'], automation: 'manual', testRefs: [] },
       { id: 'CT-004', contracts: ['CA-004'], automation: 'out_of_scope', testRefs: [] },
       { id: 'CT-005', contracts: ['RN-001'], automation: 'out_of_scope', testRefs: [] },
     ],
@@ -133,12 +140,20 @@ test('traceCoverage marks out_of_scope CAs via QA or plan cutout, never as manua
   assert.equal(r.cas.find((c) => c.ca === 'CA-004').status, 'failed');
   assert.equal(r.otherScenarios[0].result, 'out_of_scope');
   assert.deepEqual(r.summary, { proven: 1, failed: 1, pending: 0, uncovered: 0, out_of_scope: 2 });
+  assert.deepEqual(outOfScopeItems(r), { cas: ['CA-002', 'CA-003'], scenarios: ['CT-003', 'CT-005'] });
 });
 
 test('mergeDecision and renderAcceptance exclude out_of_scope from manual_pending and list it in its own section', () => {
   const tr = {
     cas: [
-      { ca: 'CA-001', status: 'proven', scenarios: [{ id: 'CT-001', via: 'qa', automation: 'automatizado', result: 'passed', evidence: null }] },
+      {
+        ca: 'CA-001',
+        status: 'proven',
+        scenarios: [
+          { id: 'CT-001', via: 'qa', automation: 'automatizado', result: 'passed', evidence: null },
+          { id: 'CT-010', via: 'qa', automation: 'out_of_scope', result: 'out_of_scope', evidence: null },
+        ],
+      },
       { ca: 'CA-002', status: 'out_of_scope', scenarios: [{ id: 'CT-002', via: 'qa', automation: 'out_of_scope', result: 'out_of_scope', evidence: null }] },
       { ca: 'CA-003', status: 'out_of_scope', scenarios: [] },
     ],
@@ -148,7 +163,7 @@ test('mergeDecision and renderAcceptance exclude out_of_scope from manual_pendin
     orphanTests: [],
   };
   assert.deepEqual(pendingItems(tr), { manual: [], auto: [], specialist: [] });
-  assert.deepEqual(outOfScopeItems(tr), { cas: ['CA-002', 'CA-003'], scenarios: ['CT-099'] });
+  assert.deepEqual(outOfScopeItems(tr), { cas: ['CA-002', 'CA-003'], scenarios: ['CT-010', 'CT-099'] });
 
   const verdict = { verdict: 'aprovado', findings: [] };
   const decision = mergeDecision({ trace: tr, verdict, rule: 'block' });
@@ -159,6 +174,7 @@ test('mergeDecision and renderAcceptance exclude out_of_scope from manual_pendin
   assert.match(md, /## Fora desta entrega/);
   assert.match(md, /CA-002/);
   assert.match(md, /CA-003/);
+  assert.match(md, /CT-010/);
   assert.match(md, /CT-099/);
   assert.match(md, /Nenhum teste manual pendente\./);
   const criteriaSection = md.slice(md.indexOf('## Critérios de aceite'), md.indexOf('## Testes manuais'));
@@ -177,66 +193,46 @@ test('mergeDecision still blocks with merge.no_criteria when every CA is out_of_
   assert.ok(decision.blockers.includes('merge.no_criteria'));
 });
 
-test('trace exits 1 when plano.md has a scope contradiction', async (t) => {
+test('trace exits 1 on contradiction and warns on unrecognized free-text markers in Cobertura', async (t) => {
   const dir = await makeRepo({
     '.baco/config.yaml': 'branches:\n  main: main\n  integration: develop\n',
-    'docs/specs/spec-a.md': '# Spec A\n\n| Versão | 1.0 |\n|---|---|\n\n- **CA-001:** Um.\n- **CA-002:** Dois.\n',
-    'docs/qa/cenarios-qa-spec-a.md': '# QA\n\n### CT-001 | Ok\n- **Contratos:** CA-001\n- **Automação:** automatizado\n\n### CT-002 | Dois\n- **Contratos:** CA-002\n- **Automação:** manual\n',
-    'docs/entregas/ENT-001-fatia/plano.md': '# Plano\n\n**Specs:** docs/specs/spec-a.md@1.0\n**Fora desta entrega:** CA-002\n\n## Cobertura\n\n| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |\n|---|---|---|---|\n| `CA-001` | `T-001` | `CT-001` | `regra` |\n| `CA-002` | `T-002` | `CT-002` | `regra` |\n',
+    'docs/specs/spec-a.md': '# Spec A\n\n| Versão | 1.0 |\n|---|---|\n\n- **CA-001:** Um.\n- **CA-002:** Dois.\n- **CA-003:** Três.\n',
+    'docs/qa/cenarios-qa-spec-a.md': '# QA\n\n### CT-001 | Ok\n- **Contratos:** CA-001\n- **Automação:** automatizado\n\n### CT-002 | Dois\n- **Contratos:** CA-002\n- **Automação:** manual\n\n### CT-003 | Três\n- **Contratos:** CA-003\n- **Automação:** manual\n',
+    'docs/entregas/ENT-001-fatia/plano.md': '# Plano\n\n**Specs:** docs/specs/spec-a.md@1.0\n**Fora desta entrega:** CA-002\n\n## Cobertura\n\n| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |\n|---|---|---|---|\n| `CA-001` | `T-001` | `CT-001` | `regra` |\n| `CA-002` | `T-002` | `CT-002` | `regra` |\n| `CA-003` | `próxima entrega` | `CT-003` | `-` |\n',
     '.baco/junit/a.xml': '<testsuite><testcase classname="a" name="[CT-001] ok"/></testsuite>\n',
   });
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const c = capture();
   const code = await main([
     'trace', '--spec', 'docs/specs/spec-a.md', '--qa', 'docs/qa/cenarios-qa-spec-a.md',
-    '--delivery', 'ENT-001', '--json', '--cwd', dir,
+    '--delivery', 'ENT-001', '--cwd', dir,
   ], c.io);
   assert.equal(code, 1);
-  const parsed = JSON.parse(c.out().stdout);
-  assert.deepEqual(parsed.scopeContradictions, ['CA-002']);
+  assert.match(c.out().stdout, /fora desta entrega/);
+  assert.match(c.out().stdout, /próxima entrega/);
 
-  // approve-plan also refuses a contradictory plan
   const c2 = capture();
   const code2 = await main(['approve-plan', 'ENT-001', '--by', 'Ana', '--json', '--cwd', dir], c2.io);
   assert.equal(code2, 1);
 });
 
-async function setupOutOfScopeDelivery(t, { planText, approve = false } = {}) {
-  const repo = await makeRepo({
-    '.gitignore': '.baco/junit/\n.baco/logs/\n',
-    '.baco/config.yaml': [
-      'branches:',
-      '  main: main',
-      '  integration: develop',
-      'manual_pending:',
-      '  main: block',
-      '  other: block',
-      'delivery:',
-      '  target: integration',
-      '  integration_merge: auto',
-      '',
-    ].join('\n'),
-    'docs/specs/spec-a.md': '# Spec A\n\n| Versão | 1.0 |\n|---|---|\n\n- **CA-001:** Ok.\n- **CA-002:** Futuro.\n- **CA-003:** Outro futuro.\n',
-    'docs/qa/cenarios-qa-spec-a.md': [
-      '# QA',
-      '',
-      '### CT-001 | Ok',
-      '- **Contratos:** CA-001',
-      '- **Automação:** automatizado',
-      '',
-      '### CT-002 | Futuro',
-      '- **Contratos:** CA-002',
-      '- **Automação:** manual',
-      '',
-      '### CT-003 | Outro',
-      '- **Contratos:** CA-003',
-      '- **Automação:** manual',
-    ].join('\n'),
-    'src/a.js': 'export const a = 1;\n',
-  });
-  t.after(() => rmSync(repo, { recursive: true, force: true }));
-  git(repo, 'checkout', '-q', '-b', 'develop');
-  git(repo, 'checkout', '-q', '-b', 'baco/ENT-001');
+async function setupOutOfScopeDelivery(t, { specText, qaText, planText, approve = false, approveBy = 'Ana', extraConfig = '' } = {}) {
+  const defaultSpec = '# Spec A\n\n| Versão | 1.0 |\n|---|---|\n\n- **CA-001:** Ok.\n- **CA-002:** Futuro.\n- **CA-003:** Outro futuro.\n';
+  const defaultQa = [
+    '# QA',
+    '',
+    '### CT-001 | Ok',
+    '- **Contratos:** CA-001',
+    '- **Automação:** automatizado',
+    '',
+    '### CT-002 | Futuro',
+    '- **Contratos:** CA-002',
+    '- **Automação:** manual',
+    '',
+    '### CT-003 | Outro',
+    '- **Contratos:** CA-003',
+    '- **Automação:** manual',
+  ].join('\n');
   const defaultPlan = [
     '# Plano | ENT-001 `fatia`',
     '',
@@ -251,16 +247,42 @@ async function setupOutOfScopeDelivery(t, { planText, approve = false } = {}) {
     '| `CA-002` | `fora desta entrega` | `CT-002` | `-` |',
     '| `CA-003` | `fora desta entrega` | `CT-003` | `-` |',
   ].join('\n');
+
+  const repo = await makeRepo({
+    '.gitignore': '.baco/junit/\n.baco/logs/\n',
+    '.baco/config.yaml': [
+      'branches:',
+      '  main: main',
+      '  integration: develop',
+      'manual_pending:',
+      '  main: block',
+      '  other: block',
+      'delivery:',
+      '  target: integration',
+      '  integration_merge: auto',
+      extraConfig,
+      '',
+    ].join('\n'),
+    'docs/specs/spec-a.md': specText ?? defaultSpec,
+    'docs/qa/cenarios-qa-spec-a.md': qaText ?? defaultQa,
+    'src/a.js': 'export const a = 1;\n',
+  });
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
+  git(repo, 'checkout', '-q', '-b', 'develop');
+  git(repo, 'checkout', '-q', '-b', 'baco/ENT-001');
   commit(repo, {
     'src/a.js': 'export const a = 2;\n',
     'docs/entregas/ENT-001-fatia/plano.md': planText ?? defaultPlan,
     'docs/entregas/ENT-001-fatia/progresso.md': '# Progresso\n\n## Esperando a pessoa\n\n| Item | Situação |\n|---|---|\n',
   }, 'plan and work');
 
+  let approveOutput = '';
   if (approve) {
     const ca = capture();
-    const code = await main(['approve-plan', 'ENT-001', '--by', 'Ana', '--json', '--cwd', repo], ca.io);
+    const args = ['approve-plan', 'ENT-001', '--by', approveBy, '--cwd', repo];
+    const code = await main(args, ca.io);
     assert.equal(code, 0, ca.out().stderr + ca.out().stdout);
+    approveOutput = ca.out().stdout;
     git(repo, 'add', 'docs/entregas/ENT-001-fatia/aprovacao-plano.md');
     git(repo, 'commit', '-q', '-m', 'approve plan');
   }
@@ -311,8 +333,151 @@ if (args[0] === 'pr' && args[1] === 'merge') process.exit(0);
 process.exit(1);
 `);
   chmodSync(bin, 0o755);
-  return { repo, bin, callsFile, traceOut };
+  return { repo, bin, callsFile, traceOut, approveOutput };
 }
+
+test('E: mixed scenarios on CA-001 (CT-001 passed, CT-003 fora desta entrega, T-001 in Cobertura) approves and merges cleanly', async (t) => {
+  const { repo, bin, traceOut, approveOutput } = await setupOutOfScopeDelivery(t, {
+    specText: '# Spec A\n\n| Versão | 1.0 |\n|---|---|\n\n- **CA-001:** Fluxo principal.\n',
+    qaText: [
+      '# QA',
+      '',
+      '### CT-001 | Caminho principal',
+      '- **Contratos:** CA-001',
+      '- **Automação:** automatizado',
+      '',
+      '### CT-003 | Caso futuro',
+      '- **Contratos:** CA-001',
+      '- **Automação:** fora desta entrega',
+    ].join('\n'),
+    planText: [
+      '# Plano | ENT-001 `fatia`',
+      '',
+      '**Specs:** docs/specs/spec-a.md@1.0',
+      '',
+      '## Cobertura',
+      '',
+      '| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |',
+      '|---|---|---|---|',
+      '| `CA-001` | `T-001` | `CT-001` | `regra` |',
+    ].join('\n'),
+    approve: true,
+  });
+  const prev = process.env.BACO_GH;
+  process.env.BACO_GH = bin;
+  t.after(() => { if (prev === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prev; });
+
+  // G: approve_plan.written counts both CAs and scenarios
+  assert.match(approveOutput, /0 critério\(s\) e 1 cenário\(s\)/);
+
+  const approval = readPlanApproval(join(repo, 'docs/entregas/ENT-001-fatia'));
+  assert.equal(approval.gate, 'on');
+  assert.equal('planSha256' in approval, false, 'planSha256 must be removed');
+  assert.deepEqual(approval.specs, ['docs/specs/spec-a.md@1.0']);
+  assert.deepEqual(approval.universeCas, ['CA-001']);
+  assert.deepEqual(approval.universeScenarios, ['CT-001', 'CT-003']);
+  assert.deepEqual(approval.outOfScope, []);
+  assert.deepEqual(approval.outOfScopeScenarios, ['CT-003']);
+
+  const c1 = capture();
+  assert.equal(await main(['acceptance-report', 'ENT-001', '--target', 'develop', '--trace', traceOut, '--json', '--cwd', repo], c1.io), 0, c1.out().stdout);
+  assert.equal(JSON.parse(c1.out().stdout).allowed, true);
+
+  const c2 = capture();
+  assert.equal(await main(['merge-check', 'ENT-001', '--target', 'develop', '--pr', '42', '--apply', '--json', '--cwd', repo], c2.io), 0, c2.out().stdout);
+  assert.equal(JSON.parse(c2.out().stdout).merged, true);
+});
+
+test('B: approve-plan refuses to overwrite existing portrait without --replace, and overwrites with --replace', async (t) => {
+  const { repo } = await setupOutOfScopeDelivery(t, { approve: true });
+
+  const c1 = capture();
+  const code1 = await main(['approve-plan', 'ENT-001', '--by', 'Outro', '--json', '--cwd', repo], c1.io);
+  assert.equal(code1, 2);
+
+  const c2 = capture();
+  const code2 = await main(['approve-plan', 'ENT-001', '--by', 'Bia', '--replace', '--json', '--cwd', repo], c2.io);
+  assert.equal(code2, 0, c2.out().stderr + c2.out().stdout);
+  const approval = readPlanApproval(join(repo, 'docs/entregas/ENT-001-fatia'));
+  assert.equal(approval.by, 'Bia');
+  assert.equal(approval.gate, 'on');
+});
+
+test('C: approve-plan with empty --by records gate off; blocks when out-of-scope is non-empty and passes when empty', async (t) => {
+  const { repo, bin, callsFile, traceOut } = await setupOutOfScopeDelivery(t, {
+    approve: true,
+    approveBy: '',
+    extraConfig: 'gates:\n  plan: off',
+  });
+  const prev = process.env.BACO_GH;
+  process.env.BACO_GH = bin;
+  t.after(() => { if (prev === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prev; });
+
+  const approval = readPlanApproval(join(repo, 'docs/entregas/ENT-001-fatia'));
+  assert.equal(approval.gate, 'off');
+  assert.equal(approval.by, '');
+
+  const c1 = capture();
+  assert.equal(await main(['acceptance-report', 'ENT-001', '--target', 'develop', '--trace', traceOut, '--json', '--cwd', repo], c1.io), 2);
+  assert.ok(JSON.parse(c1.out().stdout).blockers.includes('merge.out_of_scope_gate_off'));
+
+  const c2 = capture();
+  assert.equal(await main(['merge-check', 'ENT-001', '--target', 'develop', '--pr', '42', '--apply', '--json', '--cwd', repo], c2.io), 2);
+  assert.equal(JSON.parse(c2.out().stdout).merged, false);
+  const calls = readFileSync(callsFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(calls.some((a) => a[0] === 'pr' && a[1] === 'merge'), false);
+
+  // When gate is off AND nothing is out of scope, merge is allowed
+  const clean = await setupOutOfScopeDelivery(t, {
+    specText: '# Spec A\n\n| Versão | 1.0 |\n|---|---|\n\n- **CA-001:** Ok.\n',
+    qaText: '# QA\n\n### CT-001 | Ok\n- **Contratos:** CA-001\n- **Automação:** automatizado\n',
+    planText: '# Plano\n\n**Specs:** docs/specs/spec-a.md@1.0\n\n## Cobertura\n\n| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |\n|---|---|---|---|\n| `CA-001` | `T-001` | `CT-001` | `regra` |\n',
+    approve: true,
+    approveBy: '',
+    extraConfig: 'gates:\n  plan: off',
+  });
+  process.env.BACO_GH = clean.bin;
+  const c3 = capture();
+  assert.equal(await main(['merge-check', 'ENT-001', '--target', 'develop', '--pr', '42', '--apply', '--json', '--cwd', clean.repo], c3.io), 0, c3.out().stdout);
+  assert.equal(JSON.parse(c3.out().stdout).merged, true);
+});
+
+test('A: prose change in plano.md passes; spec change, shrunk universe or changed out-of-scope blocks as human gate', async (t) => {
+  const { repo, bin, traceOut } = await setupOutOfScopeDelivery(t, { approve: true });
+  const prev = process.env.BACO_GH;
+  process.env.BACO_GH = bin;
+  t.after(() => { if (prev === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prev; });
+
+  const planPath = join(repo, 'docs/entregas/ENT-001-fatia/plano.md');
+  const origPlan = readFileSync(planPath, 'utf8');
+  const specPath = join(repo, 'docs/specs/spec-a.md');
+  const origSpec = readFileSync(specPath, 'utf8');
+
+  // 1. Prose-only edit to plano.md -> still passes!
+  writeFileSync(planPath, `${origPlan}\nNota adicional sem mudar recorte.\n`);
+  let c = capture();
+  assert.equal(await main(['acceptance-report', 'ENT-001', '--target', 'develop', '--trace', traceOut, '--json', '--cwd', repo], c.io), 0, c.out().stdout);
+
+  // 2. Spec version changed in plano.md -> merge.plan_specs_changed (exit 2)
+  writeFileSync(planPath, origPlan.replace('spec-a.md@1.0', 'spec-a.md@1.1'));
+  c = capture();
+  assert.equal(await main(['acceptance-report', 'ENT-001', '--target', 'develop', '--trace', traceOut, '--json', '--cwd', repo], c.io), 2);
+  assert.ok(JSON.parse(c.out().stdout).blockers.includes('merge.plan_specs_changed'));
+  writeFileSync(planPath, origPlan);
+
+  // 3. Universe shrank (CA-003 deleted from spec) -> merge.plan_universe_shrank (exit 2)
+  writeFileSync(specPath, origSpec.replace('- **CA-003:** Outro futuro.\n', ''));
+  c = capture();
+  assert.equal(await main(['acceptance-report', 'ENT-001', '--target', 'develop', '--trace', traceOut, '--json', '--cwd', repo], c.io), 2);
+  assert.ok(JSON.parse(c.out().stdout).blockers.includes('merge.plan_universe_shrank'));
+  writeFileSync(specPath, origSpec);
+
+  // 4. Out-of-scope set changed -> merge.out_of_scope_changed (exit 2)
+  writeFileSync(planPath, origPlan.replace('**Fora desta entrega:** CA-002', '**Fora desta entrega:** CA-002, CA-004'));
+  c = capture();
+  assert.equal(await main(['acceptance-report', 'ENT-001', '--target', 'develop', '--trace', traceOut, '--json', '--cwd', repo], c.io), 2);
+  assert.ok(JSON.parse(c.out().stdout).blockers.includes('merge.out_of_scope_changed'));
+});
 
 test('unapproved out_of_scope blocks acceptance-report and merge-check --apply as human gate', async (t) => {
   const { repo, bin, callsFile, traceOut } = await setupOutOfScopeDelivery(t, { approve: false });
@@ -323,64 +488,12 @@ test('unapproved out_of_scope blocks acceptance-report and merge-check --apply a
   const c1 = capture();
   const code1 = await main(['acceptance-report', 'ENT-001', '--target', 'develop', '--trace', traceOut, '--json', '--cwd', repo], c1.io);
   assert.equal(code1, 2, c1.out().stdout);
-  const d1 = JSON.parse(c1.out().stdout);
-  assert.equal(d1.allowed, false);
-  assert.ok(d1.blockers.includes('merge.out_of_scope_unapproved'));
+  assert.ok(JSON.parse(c1.out().stdout).blockers.includes('merge.out_of_scope_unapproved'));
 
   const c2 = capture();
   const code2 = await main(['merge-check', 'ENT-001', '--target', 'develop', '--pr', '42', '--apply', '--json', '--cwd', repo], c2.io);
   assert.equal(code2, 2);
-  const d2 = JSON.parse(c2.out().stdout);
-  assert.equal(d2.merged, false);
+  assert.equal(JSON.parse(c2.out().stdout).merged, false);
   const calls = readFileSync(callsFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.equal(calls.some((a) => a[0] === 'pr' && a[1] === 'merge'), false);
-});
-
-test('approved out_of_scope passes acceptance-report and merge-check --apply, and blocks if changed later', async (t) => {
-  const { repo, bin, callsFile, traceOut } = await setupOutOfScopeDelivery(t, { approve: true });
-  const prev = process.env.BACO_GH;
-  process.env.BACO_GH = bin;
-  t.after(() => { if (prev === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prev; });
-
-  const approval = readPlanApproval(join(repo, 'docs/entregas/ENT-001-fatia'));
-  assert.ok(approval);
-  assert.equal(approval.by, 'Ana');
-  assert.deepEqual(approval.outOfScope, ['CA-002', 'CA-003']);
-  assert.match(approval.planSha256, /^[0-9a-f]{64}$/);
-
-  const c1 = capture();
-  const code1 = await main(['acceptance-report', 'ENT-001', '--target', 'develop', '--trace', traceOut, '--json', '--cwd', repo], c1.io);
-  assert.equal(code1, 0, c1.out().stdout + c1.out().stderr);
-  assert.equal(JSON.parse(c1.out().stdout).allowed, true);
-
-  const c2 = capture();
-  const code2 = await main(['merge-check', 'ENT-001', '--target', 'develop', '--pr', '42', '--apply', '--json', '--cwd', repo], c2.io);
-  assert.equal(code2, 0, c2.out().stdout + c2.out().stderr);
-  assert.equal(JSON.parse(c2.out().stdout).merged, true);
-
-  // Now sneak CA-001 into Fora desta entrega (or remove CA-003 from it) without re-approving the plan
-  writeFileSync(
-    join(repo, 'docs/entregas/ENT-001-fatia/plano.md'),
-    '# Plano\n\n**Specs:** docs/specs/spec-a.md@1.0\n**Fora desta entrega:** CA-002\n\n## Cobertura\n\n| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |\n|---|---|---|---|\n| `CA-001` | `T-001` | `CT-001` | `regra` |\n| `CA-002` | `fora desta entrega` | `CT-002` | `-` |\n',
-  );
-  // Re-run trace so CA-003 is no longer out_of_scope (or add a new CA-004 to Fora desta entrega)
-  writeFileSync(
-    join(repo, 'docs/entregas/ENT-001-fatia/plano.md'),
-    '# Plano\n\n**Specs:** docs/specs/spec-a.md@1.0\n**Fora desta entrega:** CA-002, CA-003, CA-004\n\n## Cobertura\n\n| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |\n|---|---|---|---|\n| `CA-001` | `T-001` | `CT-001` | `regra` |\n| `CA-002` | `fora desta entrega` | `CT-002` | `-` |\n| `CA-003` | `fora desta entrega` | `CT-003` | `-` |\n',
-  );
-  const c3 = capture();
-  const code3 = await main(['acceptance-report', 'ENT-001', '--target', 'develop', '--trace', traceOut, '--json', '--cwd', repo], c3.io);
-  assert.equal(code3, 2, c3.out().stdout);
-  const d3 = JSON.parse(c3.out().stdout);
-  assert.equal(d3.allowed, false);
-  assert.ok(d3.blockers.includes('merge.out_of_scope_changed'));
-
-  // And merge-check blocks as well
-  const beforeMergeCount = readFileSync(callsFile, 'utf8').trim().split('\n').filter((l) => l.includes('"merge"')).length;
-  const c4 = capture();
-  const code4 = await main(['merge-check', 'ENT-001', '--target', 'develop', '--pr', '42', '--apply', '--json', '--cwd', repo], c4.io);
-  assert.equal(code4, 2);
-  assert.equal(JSON.parse(c4.out().stdout).merged, false);
-  const afterMergeCount = readFileSync(callsFile, 'utf8').trim().split('\n').filter((l) => l.includes('"merge"')).length;
-  assert.equal(afterMergeCount, beforeMergeCount);
 });

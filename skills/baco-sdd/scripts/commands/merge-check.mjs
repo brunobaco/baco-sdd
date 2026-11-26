@@ -218,7 +218,7 @@ function manualCondition({ read, config, target, isCurrent }) {
 // What `acceptance-report` decides, with the delivery's traces, its latest verdict or waiver and its
 // plan, against the delivery tip and the rule for this target: ok only when the merge is allowed and
 // no automated test is left not run (`merge.not_run`, a warning under a `warn` rule).
-function acceptanceCondition({ read, dir, revDir, config, target, entId, tip, isCurrent, lang }) {
+function acceptanceCondition({ read, root, dir, revDir, config, target, entId, tip, isCurrent, lang }) {
   if (read.none) return { reason: 'no_trace' };
   if (read.error) return { reason: 'bad_trace', params: { path: read.path } };
   let planText = '';
@@ -229,7 +229,7 @@ function acceptanceCondition({ read, dir, revDir, config, target, entId, tip, is
   const waiver = recorded ? { ...recorded, current: isCurrent(recorded.head) } : null;
   const merged = mergeTraces(read.traces);
   const prov = provenanceBlockers({ traces: read.traces, verdict, head: tip, entId, planSpecs, isCurrent });
-  const scopeCheck = planScopeBlockers({ planText, trace: merged, approval: readPlanApproval(dir) });
+  const scopeCheck = planScopeBlockers({ root, planText, config, trace: merged, approval: readPlanApproval(dir) });
   const base = mergeDecision({ trace: merged, verdict, rule: manualPendingRule(config, target), waiver, specialist: config.qa?.specialist ?? [] });
   const decision = combineDecision(base, {
     blockers: [...prov.blockers, ...scopeCheck.blockers],
@@ -390,7 +390,7 @@ export async function run(args, ctx) {
     results.battery = batteryCondition({ root: ctx.root, config: ctx.config, tip, branch, target, read });
     results.verdict = verdictCondition({ revDir, progress, isCurrent, config: ctx.config, lang: ctx.lang });
     results.manual = manualCondition({ read: traces, config: ctx.config, target, isCurrent });
-    results.acceptance = acceptanceCondition({ read: traces, dir, revDir, config: ctx.config, target, entId, tip, isCurrent, lang: ctx.lang });
+    results.acceptance = acceptanceCondition({ read: traces, root: ctx.root, dir, revDir, config: ctx.config, target, entId, tip, isCurrent, lang: ctx.lang });
   } catch (e) {
     if (!(e instanceof ProvenanceIgnoreError)) throw e;
     return { code: 65, data: {}, messages: [{ key: 'acceptance.provenance_ignore_failed', params: { message: e.message } }] };

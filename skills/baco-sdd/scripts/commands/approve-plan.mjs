@@ -1,78 +1,97 @@
 import { existsSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { deliveryDir, readPlanHeader, readPlanScope, ENT_ID } from '../lib/delivery.mjs';
+import { join } from 'node:path';
+import { deliveryDir, computeDeliveryScope, ENT_ID } from '../lib/delivery.mjs';
 import { readText } from '../lib/markdown.mjs';
-import { readSpec } from '../lib/spec.mjs';
-import { readQa, qaPathFor } from '../lib/qa.mjs';
-import { PLAN_APPROVAL_FILE, renderPlanApproval, sha256Text } from '../lib/plan-approval.mjs';
+import { PLAN_APPROVAL_FILE, renderPlanApproval } from '../lib/plan-approval.mjs';
 import { formatZoned } from './waive-review.mjs';
 
-export const usage = 'baco approve-plan <ENT-NNN> --by <name> [--json] [--cwd <dir>]';
+export const usage = 'baco approve-plan <ENT-NNN> [--by <name>] [--replace] [--json] [--cwd <dir>]';
 
 const usageError = () => ({ code: 64, data: {}, messages: [{ key: 'cli.usage', params: { usage } }] });
-const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 
-// Records the human approval of the plan gate: the hash of plano.md and the approved out-of-scope
-// criteria and unlinked scenarios. Refuses with exit 1 when plano.md or QA has a scope contradiction
-// (a criterion marked out of scope that also has a real task in ## Cobertura).
+// Records the approved delivery cut portrait in aprovacao-plano.md:
+// specs, CA/CT universe, out-of-scope CAs/CTs, approver, and plan gate state.
+// Refuses to overwrite an existing portrait unless --replace is passed (exit 2).
+// With empty --by (or omitted --by when gates.plan is off), records gate: 'off'.
 export async function run(args, ctx) {
   const entId = args._[0];
-  const by = str(args.flags.by);
-  if (!entId || !ENT_ID.test(entId) || args._.length > 1 || !by) return usageError();
+  if (!entId || !ENT_ID.test(entId) || args._.length > 1) return usageError();
+  const replace = args.flags.replace === true;
+  const rawBy = args.flags.by;
 
-  const dir = deliveryDir(ctx.root, ctx.config, entId);
-  const planPath = join(dir, 'plano.md');
-  const planText = readText(planPath); // ENOENT -> 65 in dispatcher
-  const { specs: planSpecs } = readPlanHeader(planText);
-  const scope = readPlanScope(planText);
-
-  const outOfScope = new Set(scope.outOfScope);
-  const outOfScopeScenarios = new Set();
-  for (const { path } of planSpecs) {
-    const specAbs = resolve(ctx.root, path);
-    if (!existsSync(specAbs)) continue;
-    const spec = readSpec(specAbs);
-    const qaAbs = qaPathFor(specAbs);
-    if (!existsSync(qaAbs)) continue;
-    const qa = readQa(qaAbs, { specialist: ctx.config?.qa?.specialist });
-    const caIds = new Set(spec.definitions.filter((d) => d.kind === 'CA').map((d) => d.id));
-    for (const caId of caIds) {
-      const linked = qa.scenarios.filter((s) => s.contracts.includes(caId));
-      if (linked.length > 0 && linked.every((s) => s.automation === 'out_of_scope')) outOfScope.add(caId);
-    }
-    for (const sc of qa.scenarios.filter((s) => !s.contracts.some((id) => caIds.has(id)))) {
-      if (sc.automation === 'out_of_scope') outOfScopeScenarios.add(sc.id);
-    }
+  let by = '';
+  let gate = 'on';
+  if (rawBy === undefined) {
+    if (ctx.config?.gates?.plan === false) gate = 'off';
+    else return usageError();
+  } else if (rawBy === true || (typeof rawBy === 'string' && !rawBy.trim())) {
+    by = '';
+    gate = 'off';
+  } else if (typeof rawBy === 'string') {
+    by = rawBy.trim();
+    gate = 'on';
+  } else {
+    return usageError();
   }
 
-  const contradictions = [...new Set([
-    ...scope.contradictions,
-    ...[...outOfScope].filter((id) => scope.coveredByTask.has(id)),
-  ])].sort();
-  if (contradictions.length) {
+  const dir = deliveryDir(ctx.root, ctx.config, entId);
+  const file = join(dir, PLAN_APPROVAL_FILE);
+  if (existsSync(file) && !replace) {
+    return {
+      code: 2,
+      data: { file, alreadyExists: true },
+      messages: [{ key: 'approve_plan.already_exists', params: { file } }],
+    };
+  }
+
+  const planText = readText(join(dir, 'plano.md')); // ENOENT -> 65 in dispatcher
+  const scope = computeDeliveryScope({ root: ctx.root, planText, config: ctx.config });
+  const warnings = scope.unrecognizedTasks.map((u) => ({
+    key: 'plan.unrecognized_task_marker',
+    params: { cas: u.cas.join(', '), value: u.value, line: u.line },
+  }));
+
+  if (scope.contradictions.length) {
     return {
       code: 1,
-      data: { contradictions },
-      messages: [{ key: 'approve_plan.contradiction', params: { ids: contradictions.join(', ') } }],
+      data: { contradictions: scope.contradictions, unrecognizedTasks: scope.unrecognizedTasks },
+      messages: [...warnings, { key: 'approve_plan.contradiction', params: { ids: scope.contradictions.join(', ') } }],
     };
   }
 
   const date = formatZoned(ctx.now ? ctx.now() : new Date());
-  const planSha256 = sha256Text(planText);
-  const sortedCas = [...outOfScope].sort();
-  const sortedScenarios = [...outOfScopeScenarios].sort();
-  const file = join(dir, PLAN_APPROVAL_FILE);
   writeFileSync(file, renderPlanApproval({
     entId,
     by,
+    gate,
     date,
-    planSha256,
-    outOfScope: sortedCas,
-    outOfScopeScenarios: sortedScenarios,
+    specs: scope.specs,
+    universeCas: scope.universeCas,
+    universeScenarios: scope.universeScenarios,
+    outOfScope: scope.outOfScope,
+    outOfScopeScenarios: scope.outOfScopeScenarios,
   }));
+  const msgKey = gate === 'off' ? 'approve_plan.written_gate_off' : 'approve_plan.written';
   return {
     code: 0,
-    data: { file, by, date, planSha256, outOfScope: sortedCas, outOfScopeScenarios: sortedScenarios },
-    messages: [{ key: 'approve_plan.written', params: { file, by, date, count: sortedCas.length } }],
+    data: {
+      file,
+      by,
+      gate,
+      date,
+      specs: scope.specs,
+      universeCas: scope.universeCas,
+      universeScenarios: scope.universeScenarios,
+      outOfScope: scope.outOfScope,
+      outOfScopeScenarios: scope.outOfScopeScenarios,
+      ...(scope.unrecognizedTasks.length ? { unrecognizedTasks: scope.unrecognizedTasks } : {}),
+    },
+    messages: [
+      ...warnings,
+      {
+        key: msgKey,
+        params: { file, by, date, cas: scope.outOfScope.length, scenarios: scope.outOfScopeScenarios.length },
+      },
+    ],
   };
 }

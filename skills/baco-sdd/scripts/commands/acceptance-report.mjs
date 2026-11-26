@@ -1,6 +1,6 @@
 import { writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { deliveryDir, readPlanHeader, readPlanScope, latestVerdict, deliveryKnownIds, ENT_ID } from '../lib/delivery.mjs';
+import { deliveryDir, readPlanHeader, computeDeliveryScope, latestVerdict, deliveryKnownIds, ENT_ID } from '../lib/delivery.mjs';
 import { orphansOf } from './trace.mjs';
 import { revParse, isAncestor, diffQuiet, showFile } from '../lib/git.mjs';
 import { loadTrace } from '../lib/tracefile.mjs';
@@ -35,24 +35,37 @@ const OTHER_PASSED = ['passed', 'manual_ok', OUT_OF_SCOPE];
 const otherFailed = (s) => ![...OTHER_PASSED, MANUAL_PENDING, ...NOT_RUN].includes(s.result);
 
 export function outOfScopeItems(trace) {
-  const cas = casOf(trace).filter((c) => c.status === OUT_OF_SCOPE).map((c) => c.ca);
-  const scenarios = othersOf(trace).filter((s) => s.result === OUT_OF_SCOPE).map((s) => s.id);
-  return { cas, scenarios };
+  const cas = [];
+  const scenarios = new Set();
+  for (const c of casOf(trace)) {
+    if (c.status === OUT_OF_SCOPE) {
+      cas.push(c.ca);
+    } else {
+      for (const s of scenariosOf(c)) {
+        if (s.result === OUT_OF_SCOPE) scenarios.add(s.id);
+      }
+    }
+  }
+  for (const s of othersOf(trace)) {
+    if (s.result === OUT_OF_SCOPE) scenarios.add(s.id);
+  }
+  return { cas: [...new Set(cas)].sort(), scenarios: [...scenarios].sort() };
 }
 
 const sameList = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 
-// Checks out-of-scope consistency and human approval (aprovacao-plano.md). Contradictions (a CA
-// marked out of scope while also having a real task in ## Cobertura) are verification failures;
-// missing or changed plan approval for any out-of-scope set is a human gate blocker.
-export function planScopeBlockers({ planText, trace, approval }) {
-  const scope = readPlanScope(planText);
+// Checks out-of-scope consistency and the approved portrait (aprovacao-plano.md) using the single
+// shared computeDeliveryScope calculation. Contradictions are verification failures (exit 1);
+// missing portrait when out-of-scope exists, removed/changed spec versions, shrunk CA/CT universe,
+// changed out-of-scope set, or gate-off portrait with non-empty out-of-scope are human gates (exit 2).
+export function planScopeBlockers({ root, planText, config, trace, approval }) {
+  const current = computeDeliveryScope({ root, planText, config });
   const oos = outOfScopeItems(trace);
-  const currentCas = [...new Set([...scope.outOfScope, ...oos.cas])].sort();
-  const currentScenarios = [...new Set(oos.scenarios)].sort();
+  const currentCas = [...new Set([...current.outOfScope, ...oos.cas])].sort();
+  const currentScenarios = [...new Set([...current.outOfScopeScenarios, ...oos.scenarios])].sort();
   const contradictions = [...new Set([
-    ...scope.contradictions,
-    ...currentCas.filter((id) => scope.coveredByTask.has(id)),
+    ...current.contradictions,
+    ...currentCas.filter((id) => current.coveredByTask.has(id)),
   ])].sort();
   const blockers = [];
   const params = {};
@@ -61,19 +74,40 @@ export function planScopeBlockers({ planText, trace, approval }) {
     params['merge.out_of_scope_contradiction'] = { ids: contradictions.join(', ') };
   }
   const hasCurrent = currentCas.length > 0 || currentScenarios.length > 0;
-  const approvedCas = approval ? [...new Set(approval.outOfScope)].sort() : [];
-  const approvedScenarios = approval ? [...new Set(approval.outOfScopeScenarios ?? [])].sort() : [];
-  const hasApproved = approvedCas.length > 0 || approvedScenarios.length > 0;
-  if (hasCurrent || hasApproved) {
-    if (!approval) {
+  if (!approval) {
+    if (hasCurrent) {
       blockers.push('merge.out_of_scope_unapproved');
       params['merge.out_of_scope_unapproved'] = { ids: [...currentCas, ...currentScenarios].join(', ') };
-    } else if (!sameList(currentCas, approvedCas) || !sameList(currentScenarios, approvedScenarios)) {
+    }
+  } else {
+    const currentSpecSet = new Set(current.specs);
+    const missingSpecs = approval.specs.filter((s) => !currentSpecSet.has(s));
+    if (missingSpecs.length) {
+      blockers.push('merge.plan_specs_changed');
+      params['merge.plan_specs_changed'] = { specs: missingSpecs.join(', ') };
+    }
+    const uCasSet = new Set(current.universeCas);
+    const uScSet = new Set(current.universeScenarios);
+    const missingUniverse = [
+      ...approval.universeCas.filter((id) => !uCasSet.has(id)),
+      ...approval.universeScenarios.filter((id) => !uScSet.has(id)),
+    ];
+    if (missingUniverse.length) {
+      blockers.push('merge.plan_universe_shrank');
+      params['merge.plan_universe_shrank'] = { ids: missingUniverse.join(', ') };
+    }
+    const approvedCas = [...new Set(approval.outOfScope)].sort();
+    const approvedScenarios = [...new Set(approval.outOfScopeScenarios)].sort();
+    if (!sameList(currentCas, approvedCas) || !sameList(currentScenarios, approvedScenarios)) {
       blockers.push('merge.out_of_scope_changed');
       params['merge.out_of_scope_changed'] = {
         approved: [...approvedCas, ...approvedScenarios].join(', ') || '-',
         current: [...currentCas, ...currentScenarios].join(', ') || '-',
       };
+    }
+    if (approval.gate === 'off' && hasCurrent) {
+      blockers.push('merge.out_of_scope_gate_off');
+      params['merge.out_of_scope_gate_off'] = { ids: [...currentCas, ...currentScenarios].join(', ') };
     }
   }
   return { blockers, params, contradictions, currentCas, currentScenarios };
@@ -480,7 +514,7 @@ export async function run(args, ctx) {
     return { code: 65, data: {}, messages: [{ key: 'acceptance.provenance_ignore_failed', params: { message: e.message } }] };
   }
   const specialist = ctx.config.qa?.specialist ?? [];
-  const scopeCheck = planScopeBlockers({ planText, trace, approval: readPlanApproval(dir) });
+  const scopeCheck = planScopeBlockers({ root: ctx.root, planText, config: ctx.config, trace, approval: readPlanApproval(dir) });
   const baseDecision = mergeDecision({ trace, verdict, rule: manualPendingRule(ctx.config, target), waiver, specialist });
   const decision = combineDecision(baseDecision, {
     blockers: [...prov.blockers, ...scopeCheck.blockers],
