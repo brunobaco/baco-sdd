@@ -1054,28 +1054,38 @@ test('1.13.0 architecture lifecycle: boundaries, complexity guards, failure mode
     assert.ok(da.includes(p), `devils-advocate.md: "${p}" missing`);
   }
   const archTpl = read(join(TEMPLATES, 'arquitetura.md'));
-  for (const p of ['## Fronteiras e organização interna', '## Padrões transversais e operação', '## Modos de falha', '## O que fica de fora agora e quando revisitar']) {
+  for (const p of ['## Fronteiras e organização interna', '## Padrões transversais e operação', '**Carga esperada:**', '## Modos de falha', '## O que fica de fora agora e quando revisitar']) {
     assert.ok(archTpl.includes(p), `arquitetura.md template: "${p}" missing`);
   }
   const adrTpl = read(join(TEMPLATES, 'adr.md'));
   for (const p of ['## Quando revisitar', '## Plano de transição e lições aprendidas']) {
     assert.ok(adrTpl.includes(p), `adr.md template: "${p}" missing`);
   }
+  assert.ok(arch.includes('even without approved specs or a working branch'), 'architecture.md: Audit runs without specs/branch');
+  assert.ok(ref('dispatch.md').includes('while mode `Audit` writes only its audit report'), 'dispatch.md: Audit write exception');
   assert.ok(ref('planning.md').includes('Architectural materiality triggers'), 'planning.md: architectural materiality');
   assert.ok(read(join(SKILL_ROOT, 'references', 'roles', 'pr-reviewer.md')).includes('architectural materiality'), 'pr-reviewer.md: architectural materiality');
+  const prPrompt = read(join(TEMPLATES, 'prompt-revisor-pr.md'));
+  for (const p of ['carga esperada', 'teste cosmético ou frágil', 'shortcut: <limite>, <quando revisitar>', 'mudança cruzando 2 ou mais camadas']) {
+    assert.ok(prPrompt.includes(p), `prompt-revisor-pr.md: "${p}" missing`);
+  }
 });
 
 test('1.13.0 lean implementation, structural simplifier and concrete-case review rules', () => {
   const impl = read(join(SKILL_ROOT, 'references', 'roles', 'implementer.md'));
-  for (const p of ['Smallest complete solution', 'Never cut:', 'shortcut: <limit>, <when to revisit>', 'repeating the production formula']) {
+  for (const p of ['Smallest complete solution', 'Never cut:', 'shortcut: <limit>, <when to revisit>', 'repeating the production formula', 'existing tagged test']) {
     assert.ok(impl.includes(p), `implementer.md: "${p}" missing`);
   }
   const simp = read(join(SKILL_ROOT, 'references', 'roles', 'simplifier.md'));
-  for (const p of ['Hidden links:', 'Needless links:', 'Surplus:', 'Special cases:', 'Comments and splits', 'never by line count']) {
+  for (const p of ['Surplus:', 'Duplicated code or constants:', 'Removable special cases:', 'Comments (code):', 'never by line count']) {
     assert.ok(simp.includes(p), `simplifier.md: "${p}" missing`);
   }
+  const fin = read(join(SKILL_ROOT, 'references', 'roles', 'final-reviewer.md'));
+  for (const p of ['hidden links', 'needless links', 'pass-through surplus', 'special cases', 'never by line count']) {
+    assert.ok(fin.includes(p), `final-reviewer.md: "${p}" missing`);
+  }
   const proto = ref('review-protocol.md');
-  for (const p of ['Quality of findings, tests and shortcuts', 'Concrete case required', 'Callers outside the diff and expected load', 'Cosmetic or fragile tests', 'Deliberate shortcuts (`shortcut:`)']) {
+  for (const p of ['Quality of findings, tests and shortcuts', 'Concrete case required', 'Callers outside the diff and expected load', 'Cosmetic or fragile tests', '`importante`, never `sugestão`', 'Deliberate shortcuts (`shortcut:`)']) {
     assert.ok(proto.includes(p), `review-protocol.md: "${p}" missing`);
   }
   for (const role of ['task-reviewer.md', 'final-reviewer.md', 'pr-reviewer.md']) {

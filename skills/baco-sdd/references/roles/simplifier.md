@@ -16,12 +16,11 @@ Purpose: look at what was added and propose only cuts: defenses, complexity and 
 ## Do
 - Look first at what was added by the reviews or by the implementers, since that is where growth hides. Leave untouched what was there and approved.
 - For each candidate cut name: what it is (ID, heading, file and line), why nobody asked for it (no criterion, rule or need in the contract points to it), and what happens if it goes (the effect on behavior, on tests, on cost and on risk).
-- Look for: a defense against a case that cannot happen or that the contract does not mention; a rule, criterion or option added "just in case"; a feature nobody asked for; text that repeats another section; and, in code, four structural defects:
-  1. **Hidden links:** duplicated logic or constants that must change together, or implicit dependency on call order or global state.
-  2. **Needless links:** callers coupled to internals, or stable modules importing more volatile ones.
-  3. **Surplus:** pass-through wrappers, abstractions/config/extension points with a single use, and dead code.
-  4. **Special cases:** a one-off `if`, a global flag, a `sleep`/arbitrary wait, or a swallowed exception hiding a missing design rule.
-- **Comments and splits (code):** propose removing comments that only restate the code; keep comments explaining an external constraint and valid `shortcut: <limit>, <when to revisit>` markers whose ceiling is not crossed. Only propose splitting a function when it mixes unrelated jobs that hinder reading or testing, never by line count and never into shallow helpers that exist only to shorten it.
+- Look for: a defense against a case that cannot happen or that the contract does not mention; a rule, criterion or option added "just in case"; a feature nobody asked for; text that repeats another section; and, in code, cuts that remove structural excess without inventing new code:
+  1. **Surplus:** pass-through wrappers, abstractions, configuration or extension points with a single use, and dead code.
+  2. **Duplicated code or constants:** copies that can be collapsed by deleting the redundant copy and reusing the existing one.
+  3. **Removable special cases:** a one-off `if`, a global flag, a `sleep`/arbitrary wait, or a swallowed exception that nothing in the contract requires.
+- **Comments (code):** propose removing comments that only restate the code; keep comments explaining an external constraint and valid `shortcut: <limit>, <when to revisit>` markers whose ceiling is not crossed. Never propose adding new helper functions or splitting a function by line count (structural redesign or splitting mixed jobs belongs to [final-reviewer](final-reviewer.md) and [architecture-audit.md](../architecture-audit.md)).
 - On a spec (phase 2), mark a cut `seguro` when no criterion or test depends on it, and `precisa de decisão` when removing it changes something a person might care about (say what).
 - On code (phase 7), "nobody asked for it" is not proof that it does nothing: a guard that looks redundant may close a real defect. Mark a cut with one of three labels:
   - `seguro` only when existing tests prove the behavior stays the same: name each test (`file:line`) that runs through the code to be cut and the assertion that would fail if the cut changed what the user sees or what is saved. Without such a test, the cut is not `seguro`, however obvious it looks.

@@ -10,7 +10,8 @@ The user may not have coded in years and relies on you for the stack. Every expl
 
 - After the first set of approved specs, typically the first phase of the roadmap in `planejamento-do-produto.md`. Read only approved specs (state `Aprovada` in the catalog). Do not design from drafts.
 - Again when a new or changed spec pressures the architecture (see Revisit).
-- Before editing files, run `baco check-branch`; on exit 1 switch to a working branch first (see `gates.md`, "Branch protection").
+- In mode `Audit` (`auditar arquitetura`), on any repository that already has code, even without approved specs or a working branch (it is read-only and writes only `.baco/logs/revisoes/arquitetura-auditoria-NN.md`).
+- Before editing project files (`Suggest`, `Validate`, `Revisit`), run `baco check-branch`; on exit 1 switch to a working branch first (see `gates.md`, "Branch protection").
 
 ## Choose the mode
 
@@ -61,7 +62,7 @@ Give the factor table a `Peso` column (`alto`, `médio` or `baixo`), each weight
    - Custo mensal estimado: in reais, with what it depends on (including third-party add-ons). No number without a basis: write "a estimar" and who will estimate.
    - Quando revisitar: the concrete trigger (volume, latency, cost, team size or new requirement) that reopens this decision.
    - Status `Proposta`; leave `Aprovada por` empty.
-4. Fill `docs/arquitetura/README.md` from its template: overview, stack table, internal boundaries (and a concise Mermaid diagram when integrations, async jobs or multiple entrypoints exist), cross-cutting API/operation rules, failure modes, deferred pieces with revisit triggers, test tools, environments and ADR list. Never write a version, price or tool name nobody confirmed. When code exists, anchor every diagram block to its real folder or entrypoint.
+4. Fill `docs/arquitetura/README.md` from its template: overview, stack table, expected load, internal boundaries (and a concise Mermaid diagram when integrations, async jobs or multiple entrypoints exist), cross-cutting API/operation rules, failure modes, deferred pieces with revisit triggers, test tools, environments and ADR list. Never write a version, price or tool name nobody confirmed. When code exists, anchor every diagram block to its real folder or entrypoint.
 5. Proof of installation. Any claim about installing, building or running on the target machine (a dependency that needs no compiler, a version that runs, a port that opens) that was not proven by running it is written in the ADR as "a provar na tarefa do esqueleto", and the planner lists it among that task's done criteria ([planning.md](planning.md)). An unproven claim never reads as a fact.
 
 Number ADRs in sequence. A decision already accepted is never edited away: a new ADR replaces it and the old one becomes `Substituída`. A `Substituída` ADR is history only: read it to understand why things changed, never apply it as a current decision.

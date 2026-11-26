@@ -30,6 +30,7 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o documento real)
 
 ## Padrões transversais e operação
 
+- **Carga esperada:** `<usuários, registros, requisições médias/pico e crescimento anual de dados; usado como referência em revisões e limites de shortcut:>`
 - **Contratos de API e segurança:** `<formato único de erro, paginação obrigatória em listagens, idempotência em ações críticas, checagem de dono do recurso (IDOR) e limite de requisições em rotas sensíveis>`
 - **Saúde e logs:** `<como a saúde real das dependências é verificada e o que entra nos logs estruturados, sem credenciais nem dados pessoais>`
 - **Recuperação (RTO e RPO):** `<tempo máximo aceito fora do ar, perda máxima de dados aceita, rotina de cópia de segurança e teste de restauração>`
