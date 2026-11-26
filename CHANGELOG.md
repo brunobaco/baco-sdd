@@ -1,6 +1,6 @@
 # Histórico de mudanças
 
-## 1.11.0 (2026-11-25)
+## 1.11.0 (2026-11-26)
 
 Correções e automações levantadas no uso real da 1.10.0: motor e ganchos funcionando por caminho com link simbólico, junção automática na integração e quadro do GitHub aplicados pelo próprio motor, critério fora desta entrega sem bloquear o aceite, detecção de entrega parada sem gastar IA e limpeza automática de pastas e registros.
 
