@@ -2,10 +2,12 @@
 // PostToolUse hook on Edit/Write (Antigravity: file-writing tools): when a delivery's progresso.md
 // is edited in a BACO project with `github.project` configured, triggers `baco board <ENT-NNN> --apply`
 // in a detached worker. Uses a short-lived lock file per delivery plus a dirty mark so concurrent
-// edits never spawn parallel syncs and never lose the last edit; the worker removes the lock when
-// finished, derives the project root from the edited file path, and caps quadro-sync.log size.
+// edits never spawn parallel syncs and never lose the last edit; the lock names one owner (pid and
+// random nonce), the worker renews its timestamp each round and removes it when finished only while
+// it is still its own; the project root comes from the edited file path; quadro-sync.log is capped.
 // Failures are logged and never block or fail the edit. Zero dependencies.
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -44,26 +46,65 @@ function bacoRootFromDir(startDir) {
   }
 }
 
-function acquireSyncLock(lockPath, now, ttlMs) {
-  const payload = JSON.stringify({ pid: process.pid, at: now });
+const newNonce = () => randomBytes(8).toString('hex');
+const lockBody = (nonce, at) => JSON.stringify({ pid: process.pid, nonce, at });
+
+// The lock names one owner: the pid that wrote it and a random nonce. The nonce travels to the worker,
+// so only the process that holds it may renew or remove the lock (a lock that expired and went to
+// another process is never touched by the previous owner).
+function readLock(lockPath) {
+  try {
+    const raw = readFileSync(lockPath, 'utf8');
+    let lock = null;
+    try { lock = JSON.parse(raw); } catch { /* corrupt */ }
+    return { raw, lock };
+  } catch {
+    return null;
+  }
+}
+
+function acquireSyncLock(lockPath, now, ttlMs, nonce = newNonce()) {
+  const payload = lockBody(nonce, now);
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       writeFileSync(lockPath, payload, { flag: 'wx' });
       return true;
     } catch (e) {
       if (e?.code !== 'EEXIST') return false;
+      const prev = readLock(lockPath);
       let expired = true;
-      try {
-        const prev = JSON.parse(readFileSync(lockPath, 'utf8'));
-        if (typeof prev?.at === 'number' && now - prev.at < ttlMs) expired = false;
-      } catch {
-        // Corrupt or unreadable lock: treat as expired.
-      }
+      if (typeof prev?.lock?.at === 'number' && now - prev.lock.at < ttlMs) expired = false;
       if (!expired) return false;
+      // Corrupt or expired: remove it only if it is still the very lock we judged (not a fresh one).
+      if (readLock(lockPath)?.raw !== prev?.raw) continue;
       try { unlinkSync(lockPath); } catch { /* raced with another cleaner */ }
     }
   }
   return false;
+}
+
+// Removes the lock only when it still belongs to `nonce`.
+function releaseSyncLock(lockPath, nonce) {
+  if (readLock(lockPath)?.lock?.nonce !== nonce) return false;
+  try { unlinkSync(lockPath); return true; } catch { return false; }
+}
+
+// Renews the timestamp of the lock that belongs to `nonce` (atomic rename); a lock that vanished is
+// taken back. False when the lock now belongs to someone else (or is corrupt): the caller must stop.
+function renewSyncLock(lockPath, nonce, now) {
+  const cur = readLock(lockPath);
+  if (cur === null) {
+    try { writeFileSync(lockPath, lockBody(nonce, now), { flag: 'wx' }); return true; } catch { return false; }
+  }
+  if (cur.lock?.nonce !== nonce) return false;
+  const tmp = `${lockPath}.${process.pid}.tmp`;
+  try {
+    writeFileSync(tmp, lockBody(nonce, now));
+    renameSync(tmp, lockPath);
+  } catch {
+    try { unlinkSync(tmp); } catch { /* nothing to clean */ }
+  }
+  return true;
 }
 
 function trimLogIfNeeded(logPath, maxBytes = MAX_LOG_BYTES, keepBytes = KEEP_LOG_BYTES) {
@@ -80,11 +121,14 @@ function trimLogIfNeeded(logPath, maxBytes = MAX_LOG_BYTES, keepBytes = KEEP_LOG
 
 // Worker loop run by the detached child process: runs `baco board <ENT-NNN> --apply`, checks if a
 // concurrent edit recorded a dirty mark while it ran, re-runs until clean (capped at maxRounds),
-// and always removes the lock file on exit.
-export function runBoardSyncWorker({ entId, root, execFn = spawnSync, maxRounds = 5 } = {}) {
+// and removes the lock file on exit, but only while the lock is still its own. Each round renews the
+// lock timestamp; when the lock went to another process (it expired during a long round) the worker
+// stops and leaves the dirty mark for the new owner. `owner` is the nonce the hook wrote in the lock.
+export function runBoardSyncWorker({ entId, root, execFn = spawnSync, maxRounds = 5, owner, nowFn = () => Date.now() } = {}) {
   const logDir = join(root, '.baco', 'logs');
   const lockPath = join(logDir, `quadro-sync-${entId}.lock`);
   const dirtyPath = join(logDir, `quadro-sync-${entId}.dirty`);
+  const nonce = owner ?? readLock(lockPath)?.lock?.nonce ?? newNonce();
   let rounds = 0;
   const runOnce = () => {
     try { unlinkSync(dirtyPath); } catch { /* not dirty */ }
@@ -96,18 +140,20 @@ export function runBoardSyncWorker({ entId, root, execFn = spawnSync, maxRounds 
   };
   try {
     while (rounds < maxRounds) {
+      if (!renewSyncLock(lockPath, nonce, nowFn())) break;
       runOnce();
       if (!existsSync(dirtyPath)) break;
     }
   } finally {
-    try { unlinkSync(lockPath); } catch { /* already gone */ }
+    releaseSyncLock(lockPath, nonce);
   }
   // Catch a dirty mark written in the narrow window right before removing the lock.
-  if (rounds < maxRounds && existsSync(dirtyPath) && acquireSyncLock(lockPath, Date.now(), DEFAULT_LOCK_TTL_MS)) {
+  const tailNonce = newNonce();
+  if (rounds < maxRounds && existsSync(dirtyPath) && acquireSyncLock(lockPath, nowFn(), DEFAULT_LOCK_TTL_MS, tailNonce)) {
     try {
       runOnce();
     } finally {
-      try { unlinkSync(lockPath); } catch { /* already gone */ }
+      releaseSyncLock(lockPath, tailNonce);
     }
   }
   return rounds;
@@ -132,7 +178,8 @@ export function maybeSyncBoard(hook, { spawnFn = spawn, nowFn = () => Date.now()
   const now = nowFn();
   const lockPath = join(logDir, `quadro-sync-${entId}.lock`);
   const dirtyPath = join(logDir, `quadro-sync-${entId}.dirty`);
-  if (!acquireSyncLock(lockPath, now, ttlMs)) {
+  const nonce = newNonce();
+  if (!acquireSyncLock(lockPath, now, ttlMs, nonce)) {
     // Another sync is active: record a dirty mark so the worker re-runs after finishing.
     try { writeFileSync(dirtyPath, String(now)); } catch { /* best effort */ }
     return false;
@@ -143,7 +190,7 @@ export function maybeSyncBoard(hook, { spawnFn = spawn, nowFn = () => Date.now()
   let fd;
   try {
     fd = openSync(logPath, 'a');
-    const child = spawnFn(process.execPath, [SELF_FILE, '--worker', entId, root], {
+    const child = spawnFn(process.execPath, [SELF_FILE, '--worker', entId, root, nonce], {
       cwd: root,
       detached: true,
       stdio: ['ignore', fd, fd],
@@ -151,7 +198,7 @@ export function maybeSyncBoard(hook, { spawnFn = spawn, nowFn = () => Date.now()
     if (child && typeof child.unref === 'function') child.unref();
     return true;
   } catch (e) {
-    try { unlinkSync(lockPath); } catch { /* ignore */ }
+    releaseSyncLock(lockPath, nonce);
     throw e;
   } finally {
     if (fd !== undefined) { try { closeSync(fd); } catch { /* ignore */ } }
@@ -160,10 +207,10 @@ export function maybeSyncBoard(hook, { spawnFn = spawn, nowFn = () => Date.now()
 
 if (isMainModule(import.meta.url)) {
   if (process.argv[2] === '--worker') {
-    const [, , , entId, root] = process.argv;
+    const [, , , entId, root, owner] = process.argv;
     if (entId && root) {
       try {
-        runBoardSyncWorker({ entId, root });
+        runBoardSyncWorker({ entId, root, owner });
       } catch (e) {
         process.stderr.write(`baco board-sync worker: ${e?.message ?? e}\n`);
       }

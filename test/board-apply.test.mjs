@@ -238,6 +238,128 @@ test('board --apply paginates gh project item-list beyond 200 items using totalC
   assert.equal(listCalls[listCalls.length - 1][listCalls[listCalls.length - 1].indexOf('--limit') + 1], '250');
 });
 
+async function syncRepo(t) {
+  const conf = await makeRepo({
+    '.baco/config.yaml': CONFIG,
+    'docs/entregas/ENT-001-app/progresso.md': PROG(),
+  });
+  t.after(() => rmSync(conf, { recursive: true, force: true }));
+  const logDir = join(conf, '.baco/logs');
+  return {
+    conf,
+    lockPath: join(logDir, 'quadro-sync-ENT-001.lock'),
+    dirtyPath: join(logDir, 'quadro-sync-ENT-001.dirty'),
+    hook: ({ now, spawnFn = () => ({ unref() {} }) }) => maybeSyncBoard({
+      subagent: () => false,
+      cwd: conf,
+      filePath: join(conf, 'docs/entregas/ENT-001-app/progresso.md'),
+    }, { nowFn: () => now(), ttlMs: 30_000, spawnFn }),
+  };
+}
+const readLock = (p) => JSON.parse(readFileSync(p, 'utf8'));
+
+test('board-sync lock names a single owner (pid and random nonce) and the worker receives the nonce', async (t) => {
+  const { lockPath, hook } = await syncRepo(t);
+  let args = null;
+  assert.equal(hook({ now: () => 1_000_000, spawnFn: (_c, a) => { args = a; return { unref() {} }; } }), true);
+  const lock = readLock(lockPath);
+  assert.equal(typeof lock.pid, 'number');
+  assert.match(lock.nonce, /^[0-9a-f]{16,}$/);
+  assert.equal(lock.at, 1_000_000);
+  assert.ok(args.includes(lock.nonce), 'the nonce reaches the worker');
+  // a second owner gets another nonce
+  const { lockPath: lock2, hook: hook2 } = await syncRepo(t);
+  hook2({ now: () => 1_000_000 });
+  assert.notEqual(readLock(lock2).nonce, lock.nonce);
+});
+
+test('board-sync worker renews the lock timestamp on every round and then removes its own lock', async (t) => {
+  const { conf, lockPath, dirtyPath, hook } = await syncRepo(t);
+  let now = 1_000_000;
+  let args = null;
+  hook({ now: () => now, spawnFn: (_c, a) => { args = a; return { unref() {} }; } });
+  const owner = readLock(lockPath).nonce;
+  assert.equal(args.at(-1), owner);
+  const seen = [];
+  now = 1_010_000;
+  const rounds = runBoardSyncWorker({
+    entId: 'ENT-001',
+    root: conf,
+    owner,
+    nowFn: () => now,
+    execFn: () => {
+      seen.push(readLock(lockPath));
+      if (seen.length === 1) { writeFileSync(dirtyPath, 'x'); now += 20_000; }
+      return { status: 0 };
+    },
+  });
+  assert.equal(rounds, 2);
+  assert.deepEqual(seen.map((l) => l.at), [1_010_000, 1_030_000], 'timestamp renewed at the start of each round');
+  assert.ok(seen.every((l) => l.nonce === owner), 'renewing keeps the same owner');
+  assert.equal(existsSync(lockPath), false, 'its own lock is removed at the end');
+});
+
+test('board-sync worker never removes a lock that expired and now belongs to another process', async (t) => {
+  const { conf, lockPath, dirtyPath, hook } = await syncRepo(t);
+  let now = 1_000_000;
+  const spawned = [];
+  hook({ now: () => now, spawnFn: (_c, a) => { spawned.push(a); return { unref() {} }; } });
+  const ownerA = readLock(lockPath).nonce;
+  const calls = [];
+  const rounds = runBoardSyncWorker({
+    entId: 'ENT-001',
+    root: conf,
+    owner: ownerA,
+    nowFn: () => now,
+    execFn: () => {
+      calls.push(1);
+      // A runs for longer than the TTL: the lock expires and a new edit hands the lock to B.
+      now += 60_000;
+      assert.equal(hook({ now: () => now, spawnFn: (_c, a) => { spawned.push(a); return { unref() {} }; } }), true, 'B takes the expired lock');
+      writeFileSync(dirtyPath, 'x'); // an edit that A would otherwise re-run for
+      return { status: 0 };
+    },
+  });
+  const lockB = readLock(lockPath);
+  const ownerB = lockB.nonce;
+  assert.notEqual(ownerB, ownerA);
+  assert.equal(lockB.at, 1_060_000, 'B lock untouched by A');
+  assert.equal(calls.length, 1, 'A stops once it lost the lock instead of running beside B');
+  assert.equal(rounds, 1);
+  assert.equal(existsSync(dirtyPath), true, 'the dirty mark is left for B');
+
+  // B finishes normally and removes its own lock.
+  runBoardSyncWorker({ entId: 'ENT-001', root: conf, owner: ownerB, nowFn: () => now, execFn: () => ({ status: 0 }) });
+  assert.equal(existsSync(lockPath), false);
+});
+
+test('board-sync worker whose lock vanished takes it back, and a corrupt lock is not its own', async (t) => {
+  const { conf, lockPath, hook } = await syncRepo(t);
+  hook({ now: () => 1_000_000 });
+  const owner = readLock(lockPath).nonce;
+  let calls = 0;
+  let during = null;
+  runBoardSyncWorker({
+    entId: 'ENT-001', root: conf, owner, nowFn: () => 1_005_000,
+    execFn: () => {
+      calls++;
+      if (calls === 1) { rmSync(lockPath); writeFileSync(join(conf, '.baco/logs/quadro-sync-ENT-001.dirty'), 'x'); } else during = readLock(lockPath);
+      return { status: 0 };
+    },
+  });
+  assert.equal(calls, 2);
+  assert.equal(during.nonce, owner, 'the missing lock is taken back by the same owner');
+  assert.equal(existsSync(lockPath), false);
+  // corrupt content: not the owner's, so it is left alone
+  hook({ now: () => 5_000_000 });
+  const owner2 = readLock(lockPath).nonce;
+  runBoardSyncWorker({
+    entId: 'ENT-001', root: conf, owner: owner2, nowFn: () => 5_001_000,
+    execFn: () => { writeFileSync(lockPath, '{broken'); return { status: 0 }; },
+  });
+  assert.equal(readFileSync(lockPath, 'utf8'), '{broken');
+});
+
 test('board-sync hook derives root from edited filePath (not cwd), enforces short lock, caps log size, and runs via symlink', async (t) => {
   assert.equal(extractDeliveryFromPath('/proj/docs/entregas/ENT-007-teste/progresso.md'), 'ENT-007');
   assert.equal(extractDeliveryFromPath('/proj/docs/entregas/ENT-007-teste/plano.md'), null);
