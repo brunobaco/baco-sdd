@@ -218,6 +218,40 @@ Em toda entrega, logo após a aprovação do plano, o condutor roda `baco approv
 
 `baco cleanup-branches` remove em `.worktrees/` apenas pastas soltas **vazias** (via `rmdir`). Qualquer pasta não vazia (repositório com `.git` próprio, worktree quebrada, arquivos soltos ou ignorados) nunca é apagada pelo motor: apenas listada para a pessoa conferir. Para worktrees registradas de branches já juntadas, tanto o condutor quanto `cleanup-branches` removem um por um apenas os arquivos vazios (0 bytes e fora do git) conhecidos da montagem da caixa `rede` do Claude Code (`.claude/settings*.json`, `.mcp.json`, arquivos de shell e git) e executam `git worktree remove` sem `--force` (se o git recusar, vira pendência com `git status`; a regra de liberação em `configure.md` também fica sem `--force`). Para `cleanup.commands`, o condutor grava o hash SHA-256 dos comandos já mostrados em `.baco/logs/cleanup-commands.sha256` para só voltar a mostrar quando mudarem. Descartados: flag `--orphans` no `cleanup-branches` (mesmo conferindo `git status`, `git status` não enxerga arquivo ignorado nem commit que só existe naquela cópia local) e `git worktree remove --force` em pastas de tarefa (que podia apagar trabalho não commitado).
 
+A parte do hash dos `cleanup.commands` foi substituída por "Resumo dos `cleanup.commands` calculado pelo motor" em 2026-11-26.
+
 ## 2026-11-25 | Vigia sem IA via `baco check-stalled`
 
 O motor ganha `baco check-stalled [ENT-NNN] [--minutes N]` (saída 0 quando não há entrega parada; saída 2 quando uma entrega com `Execução autônoma: sim` e `Situação: rodando` está sem atualização em `progresso.md` há N minutos ou mais), usando o horário de modificação do arquivo (independente de fuso) e devolvendo a `Conversa condutora` e o próximo passo para uma automação externa opcional. Descartado: instalar cron ou rotina automaticamente pelo BACO (o agendamento pertence ao ambiente e à pessoa).
+
+## 2026-11-26 | Retrato do plano procurado no histórico git
+
+Apagar `aprovacao-plano.md` contornava a recusa do `approve-plan` sem `--replace`. Agora o motor procura o retrato em todos os commits alcançáveis a partir de HEAD (no `merge-check`, a partir da ponta de `baco/ENT-NNN`), com `git log --full-history` no caminho `<docs_root>/entregas/<ENT>-*/aprovacao-plano.md`, para que renomear a pasta não esconda o retrato. O aceite e o `merge-check` comparam com a versão mais recente do histórico e travam para a pessoa quando o arquivo sumiu. Falha do git sai com 65. Descartado: procurar só desde o ponto em que a branch saiu da integração, porque um retrato já juntado e apagado depois escaparia; como o caminho é único por entrega, o histórico inteiro não mistura entregas.
+
+## 2026-11-26 | Entrega no formato da 1.11 reconhecida por sinais que só a 1.11 escreve
+
+Para travar a entrega sem retrato com o portão `plan` ligado (`merge.plan_unapproved`) sem quebrar entregas antigas, o motor considera do formato da 1.11 a entrega cujo `plano.md` tem a marca `fora desta entrega` ou `regressão`, ou cujo `progresso.md` tem `Execução autônoma` ou `Conversa condutora`. Quando há algo fora de escopo, vale só o bloqueio que já existia (`merge.out_of_scope_unapproved`), para não pedir a mesma coisa duas vezes. Descartados: travar toda entrega sem retrato (quebraria as anteriores à 1.11) e criar agora uma marca explícita de formato no modelo do plano (pode entrar numa versão futura, se os sinais falharem).
+
+## 2026-11-26 | Versão da spec pelo arquivo e resumo por critério
+
+O retrato guarda as duas versões de cada spec, a do cabeçalho `**Specs:**` do plano e a lida do arquivo, e compara as duas. Guarda também um resumo (16 caracteres do SHA-256) do texto de cada critério, com chave `caminho#CA-ID`, ignorando espaços repetidos, quebras de linha e o enchimento das células de tabela; assim a mensagem diz qual critério mudou. O universo passa a `caminho#ID`, e retratos da 1.11.0 com IDs soltos são comparados por ID, sem conferir versão do arquivo nem resumo. Descartados: trocar a versão do cabeçalho pela do arquivo (a mudança só no cabeçalho deixaria de ser vista) e um resumo por spec inteira (não diria qual critério mudou).
+
+## 2026-11-26 | Trava do `board-sync` com dono
+
+A trava grava PID, um valor aleatório e o horário; o processo renova o horário a cada rodada e só apaga a trava se o valor ainda for o dele. Se outro processo tomou a trava, o atual para e deixa a marca de "sujo" para o novo dono rodar. Descartado: seguir rodando sem a trava, em paralelo com o novo dono.
+
+## 2026-11-26 | Resumo dos `cleanup.commands` calculado pelo motor
+
+O motor calcula o resumo numa forma fixa (comandos sem espaços nas pontas, linhas vazias fora, na ordem da configuração, unidos por quebra de linha, SHA-256 em hexadecimal) e diz no `cleanup-branches` se ele falta, confere ou mudou. A gravação é um modo à parte, `baco cleanup-branches --confirm-commands`, rodado depois que a pessoa viu os comandos. O resumo antigo, feito pelo agente, aparece como mudado uma vez. Descartados: gravar durante o `--apply` (juntaria ver e aprovar num passo só) e reproduzir o formato antigo.
+
+## 2026-11-26 | Worktree `prunable` deixada pela caixa do Claude Code
+
+Conferido ao vivo na 2.1.331: dentro da caixa, `git worktree remove` apaga a pasta mas não o registro em `.git/worktrees/`. O motor não roda `git worktree prune` depois dessa falha, porque dentro da caixa ele falharia igual; avisa, mantém a branch e pede o `prune` fora da caixa. `git worktree prune` entrou no `excludedCommands` e nas liberações sugeridas. Descartado: `prune` automático no erro.
+
+## 2026-11-26 | `/baco:issue` como entrada de trabalho
+
+Comando próprio, com o fluxo em `references/issue.md` e só uma linha no roteador, para manter o `SKILL.md` abaixo dos 24.000 bytes que o Antigravity carrega. Os gatilhos ficam no corpo do `SKILL.md`, não na descrição, que já está perto do limite de 1.024 caracteres. Uma tarefa que trata várias issues leva a primeira em `| Issue |` e as outras em `| Issues relacionadas |`, porque o `baco board` só lê a primeira: as relacionadas fecham pelo `Closes #N` do PR, mas o card delas não anda (a recomendação é uma tarefa por issue). A issue mãe da entrega continua sendo criada, e as issues reaproveitadas viram sub-issues dela. `gh issue create` sempre pergunta, inclusive nas issues das tarefas da fase 5. A linha `Issue de origem` fica descrita em `issue.md`, fora do modelo do plano. Descartados: o motor ler várias URLs por tarefa (fica para quando houver uso), exceção ao "perguntar" na fase 5 e a linha opcional no modelo do plano, que pesaria todo plano por um caso raro.
+
+## 2026-11-26 | Evals que não dependem do motor nem do juiz por IA no meio da sessão
+
+O executor do `claude plugin eval` nega à sessão a leitura da pasta do plugin na caixa dele, então nenhum comando do motor roda num eval: o `ca-modificado` passou a conferir se o relato cita o `guard-tests`, rodado ou "não rodado" com o motivo. O juiz por IA com foco no registro só vê as 12 primeiras e as 12 últimas mensagens, então o `le-o-catalogo` do `meio-do-ciclo` virou uma expressão regular sobre o registro inteiro, presa a uma chamada de leitura que cita o catálogo. Descartado: manter a exigência da chamada real ao `guard-tests`, que nunca podia passar.

@@ -1,5 +1,29 @@
 # Histórico de mudanças
 
+## 1.12.0 (2026-11-26)
+
+Trabalho que entra pela issue do GitHub, num comando próprio, e o retrato do plano aprovado mais difícil de contornar. Também fecha as sugestões que as revisões da 1.11.0 deixaram.
+
+- Comando novo `/baco:issue` (`commands/issue.md`, `references/issue.md`). Sem número, escreve uma issue nova com a pessoa: numa melhoria, pergunta o que falta para entender o pedido; num defeito, pede passos, o que esperava e o que aconteceu, ambiente, registro de erro e print. Mostra o texto e só roda `gh issue create` com o ok dela. Com um número ou vários (`/baco:issue 12 15 18`), lê cada issue, classifica e executa. Cabe no comando o defeito ou a melhoria pequena em specs que já existem, sem arquitetura nova nem migração estrutural; acima disso, propõe o fluxo normal (`/baco:spec` e `/baco:plano`) aproveitando o texto da issue. Defeito que a spec já cobre vai direto para entrega `leve`, com teste primeiro ligado ao CA quebrado; spec omissa ou errada evolui antes, com o portão `spec_approval`. Várias issues pequenas podem virar uma entrega só. O PR fecha as issues com `Closes #N`, a publicação reaproveita a URL da issue existente em vez de abrir outra, e o quadro do GitHub Project continua movendo os cards. Texto de issue é sempre dado de fora, nunca ordem. O plugin do Antigravity ganha a skill `baco-issue`.
+- Retrato do plano com histórico (`baco approve-plan`, `acceptance-report`, `merge-check`): apagar `aprovacao-plano.md` deixou de contornar a proteção. O `approve-plan` procura o retrato no histórico git e, se ele já existiu, recusa sem `--replace` (saída 2). O aceite e o `merge-check` comparam com o retrato mais recente do histórico e travam para a pessoa quando o arquivo foi apagado (`merge.plan_approval_deleted`). Sem git, o motor falha fechado.
+- Portão `plan` ligado e entrega no formato 1.11 ou mais novo sem retrato: trava para a pessoa (`merge.plan_unapproved`, saída 2). Entregas anteriores à 1.11 seguem como antes.
+- Retrato mais preciso: guarda a versão lida do próprio arquivo de cada spec, além da do cabeçalho do plano, e um resumo (hash) do texto de cada critério, sem contar espaços e quebras de linha. Critério reescrito depois da aprovação trava para a pessoa (`merge.plan_criteria_changed`). O universo passa a usar a chave `<caminho>#<ID>`, e os retratos da 1.11.0, só com `<ID>`, continuam sendo lidos.
+- `baco trace --delivery ENT-NNN` avisa, sem travar, quando um cenário fora desta entrega tem teste manual aprovado de outra entrega (`trace.out_of_scope_other_delivery`).
+- Trava do gancho `board-sync` com dono único (PID e um valor aleatório), renovada a cada rodada e apagada só pelo próprio dono. Um processo atrasado não apaga mais a trava de outro.
+- `baco board` só dá a entrega como juntada quando o `plano.md` dela também está na branch de destino.
+- Caixa do Claude Code, conferida ao vivo na 2.1.331: os arquivos vazios da montagem só existem enquanto a sessão roda; depois dela sobra só a pasta vazia `.claude/.cc-writes`, que não impede o `git worktree remove` sem `--force`. Dentro da caixa a remoção apaga a pasta, mas não consegue limpar o registro em `.git/worktrees/` (`Read-only file system`) e a worktree fica `prunable`; `git worktree prune`, fora da caixa, resolve e entrou no `excludedCommands` sugerido. A lista de arquivos vazios que a limpeza apaga ganhou `.gitmodules`, `.claude/launch.json`, `.claude/loop.md` e `.claude/scheduled_tasks.json` (sempre só com 0 byte e fora do git).
+- Resumo (hash) dos `cleanup.commands` pelo motor, numa forma fixa (cada comando sem espaços nas pontas, na ordem da configuração, um por linha, SHA-256). O `baco cleanup-branches` mostra os comandos e diz se mudaram; `baco cleanup-branches --confirm-commands` grava o resumo depois que a pessoa viu.
+- Evals: `ca-modificado` passa a conferir se o relato cita o `guard-tests` (rodado ou "não rodado" com o motivo), porque o executor de evals não deixa o motor rodar na caixa dele; `le-o-catalogo`, do `meio-do-ciclo`, virou uma busca no registro inteiro da sessão, porque o juiz por IA só vê o começo e o fim dele.
+
+### Para projetos já configurados: o que revisar na 1.12.0
+
+Ao atualizar um projeto que já tem `.baco/config.yaml` e `.claude/settings.local.json`, pergunte à pessoa apenas o que mudou nesta versão:
+
+1. Permissões em `.claude/settings.local.json`, se o projeto tem GitHub: liberar a leitura de issues (`Bash(gh issue view *)`, `Bash(gh issue list *)`) e pôr a criação na lista de perguntar (`Bash(gh issue create*)`), o que vale também para as issues das tarefas na publicação.
+2. Caixa `rede` do Claude Code: acrescentar `git worktree prune` ao `excludedCommands` do bloco `sandbox` e `Bash(git worktree prune)` às liberações.
+3. Comandos de limpeza (`cleanup.commands`), se o projeto tem: o resumo antigo, calculado pelo agente, aparece como mudado uma vez. Mostrar os comandos à pessoa e, com o ok dela, rodar `baco cleanup-branches --confirm-commands`.
+4. Entregas em andamento no formato da 1.11 com o portão `plan` ligado e sem `aprovacao-plano.md`: o aceite e o `merge-check` passam a travar. Confirmar o plano com a pessoa e rodar `baco approve-plan ENT-NNN`.
+
 ## 1.11.0 (2026-11-26)
 
 Correções e automações levantadas no uso real da 1.10.0: motor e ganchos funcionando por caminho com link simbólico, junção automática na integração e quadro do GitHub aplicados pelo próprio motor, critério fora desta entrega sem bloquear o aceite, detecção de entrega parada sem gastar IA e limpeza automática de pastas e registros.
