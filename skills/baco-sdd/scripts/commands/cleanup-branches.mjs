@@ -5,7 +5,7 @@ import { t } from '../lib/messages.mjs';
 import { protectedBranches } from '../lib/config.mjs';
 import { git, GitError, localBranches, worktrees, isAncestor, currentBranch, refExists, revParse, tagTarget } from '../lib/git.mjs';
 
-export const usage = 'baco cleanup-branches [--apply] [--remote] [--remote-name <name>] [--confirm-commands] [--json] [--cwd <dir>]';
+export const usage = 'baco cleanup-branches [--apply] [--remote] [--remote-name <name>] [--json] [--cwd <dir>] | baco cleanup-branches --confirm-commands <hash> [--json] [--cwd <dir>]';
 export const needsRepo = true;
 
 const DELIVERY = /^baco\/(ENT-\d{3})$/;
@@ -325,10 +325,22 @@ function commandsMessages(info) {
   return [{ key: info.status === 'changed' ? 'cleanup.commands_changed' : 'cleanup.commands_unconfirmed', params: { hash: info.hash, recorded: info.recorded ?? '-' } }, ...items];
 }
 
-// Records the hash of the commands the person has just seen and approved.
-function confirmCommands(root, commands) {
+// Records the hash of the commands the person has just seen and approved. `seen` is the hash the
+// dry run showed with them: when the commands changed since (another hash), nothing is recorded.
+function confirmCommands(root, commands, seen) {
   const info = cleanupCommandsStatus(root, commands);
   if (info.hash === null) return { code: 0, data: { confirmed: false, commands: [], hash: null }, messages: [{ key: 'cleanup.commands_none' }] };
+  const given = seen.trim().toLowerCase();
+  if (given !== info.hash) {
+    return {
+      code: 2,
+      data: { confirmed: false, commands: info.commands, hash: info.hash, given },
+      messages: [
+        { key: 'cleanup.commands_hash_mismatch', params: { given, hash: info.hash } },
+        ...info.commands.map((command) => ({ key: 'cleanup.command_item', params: { command } })),
+      ],
+    };
+  }
   const file = join(root, COMMANDS_HASH_FILE);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, `${info.hash}\n`);
@@ -341,7 +353,14 @@ function confirmCommands(root, commands) {
 
 export async function run(args, ctx) {
   const { root, config } = ctx;
-  if (args.flags['confirm-commands']) return confirmCommands(root, config.cleanup?.commands ?? []);
+  const confirm = args.flags['confirm-commands'];
+  if (confirm !== undefined) {
+    // The hash the person saw is required, and confirming is never mixed with removing branches.
+    if (typeof confirm !== 'string' || confirm.trim() === '' || args.flags.apply) {
+      return { code: 64, data: {}, messages: [{ key: 'cli.usage', params: { usage } }] };
+    }
+    return confirmCommands(root, config.cleanup?.commands ?? [], confirm);
+  }
   const commandsInfo = cleanupCommandsStatus(root, config.cleanup?.commands ?? []);
   const { integration, main: mainBranch } = config.branches;
   const protectedList = protectedBranches(config);

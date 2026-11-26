@@ -33,18 +33,18 @@ test('cleanupCommandsStatus: none, unconfirmed, confirmed, changed', async () =>
   assert.equal(cleanupCommandsStatus(none, []).status, 'none');
   const dir = await repoWith(['npm run db:clean']);
   assert.equal(cleanupCommandsStatus(dir, ['npm run db:clean']).status, 'unconfirmed');
-  const { code } = await run(['cleanup-branches', '--confirm-commands', '--cwd', dir]);
+  const { code } = await run(['cleanup-branches', '--confirm-commands', sha('npm run db:clean'), '--cwd', dir]);
   assert.equal(code, 0);
   assert.equal(cleanupCommandsStatus(dir, ['npm run db:clean']).status, 'confirmed');
   assert.equal(cleanupCommandsStatus(dir, [' npm run db:clean ']).status, 'confirmed', 'same canonical form');
   assert.equal(cleanupCommandsStatus(dir, ['npm run db:clean', 'rm -rf data']).status, 'changed');
 });
 
-test('--confirm-commands writes the canonical hash and does nothing else', async () => {
+test('--confirm-commands <hash> writes the canonical hash and does nothing else', async () => {
   const dir = await repoWith(['npm run db:clean', 'docker image prune -f']);
-  const r = await run(['cleanup-branches', '--confirm-commands', '--json', '--cwd', dir]);
-  assert.equal(r.code, 0, r.out.stdout + r.out.stderr);
   const expected = sha('npm run db:clean\ndocker image prune -f');
+  const r = await run(['cleanup-branches', '--confirm-commands', expected.toUpperCase(), '--json', '--cwd', dir]);
+  assert.equal(r.code, 0, r.out.stdout + r.out.stderr);
   assert.equal(readFileSync(HASH_FILE(dir), 'utf8'), `${expected}\n`);
   const data = JSON.parse(r.out.stdout);
   assert.equal(data.confirmed, true);
@@ -55,10 +55,39 @@ test('--confirm-commands writes the canonical hash and does nothing else', async
 
 test('--confirm-commands with no cleanup.commands writes nothing', async () => {
   const dir = await repoWith([]);
-  const r = await run(['cleanup-branches', '--confirm-commands', '--json', '--cwd', dir]);
+  const r = await run(['cleanup-branches', '--confirm-commands', sha('x'), '--json', '--cwd', dir]);
   assert.equal(r.code, 0, r.out.stdout + r.out.stderr);
   assert.equal(existsSync(HASH_FILE(dir)), false);
   assert.equal(JSON.parse(r.out.stdout).confirmed, false);
+});
+
+test('--confirm-commands without the hash is a usage error and writes nothing', async () => {
+  const dir = await repoWith(['npm run db:clean']);
+  const r = await run(['cleanup-branches', '--confirm-commands', '--cwd', dir]);
+  assert.equal(r.code, 64, r.out.stdout + r.out.stderr);
+  assert.equal(existsSync(HASH_FILE(dir)), false);
+});
+
+test('--confirm-commands with a hash that is not the current one is refused (exit 2) and writes nothing', async () => {
+  const dir = await repoWith(['npm run db:clean', 'rm -rf tmp-data']);
+  const seen = sha('npm run db:clean'); // the person saw an older list
+  const r = await run(['cleanup-branches', '--confirm-commands', seen, '--cwd', dir]);
+  assert.equal(r.code, 2, r.out.stdout + r.out.stderr);
+  assert.equal(existsSync(HASH_FILE(dir)), false);
+  const text = r.out.stdout + r.out.stderr;
+  assert.match(text, new RegExp(seen));
+  assert.match(text, new RegExp(sha('npm run db:clean\nrm -rf tmp-data')), 'names the current hash');
+  assert.match(text, /rm -rf tmp-data/, 'lists the current commands again');
+  const j = await run(['cleanup-branches', '--confirm-commands', seen, '--json', '--cwd', dir]);
+  assert.equal(j.code, 2);
+  assert.equal(JSON.parse(j.out.stdout).confirmed, false);
+});
+
+test('--apply together with --confirm-commands is a usage error', async () => {
+  const dir = await repoWith(['npm run db:clean']);
+  const r = await run(['cleanup-branches', '--apply', '--confirm-commands', sha('npm run db:clean'), '--cwd', dir]);
+  assert.equal(r.code, 64, r.out.stdout + r.out.stderr);
+  assert.equal(existsSync(HASH_FILE(dir)), false);
 });
 
 test('dry run reports the commands as unconfirmed, then confirmed, then changed after a config edit', async () => {
@@ -69,9 +98,9 @@ test('dry run reports the commands as unconfirmed, then confirmed, then changed 
   assert.equal(first.cleanupCommands.recorded, null);
   const text = (await run(['cleanup-branches', '--cwd', dir])).out.stdout;
   assert.match(text, /npm run db:clean/);
-  assert.match(text, /--confirm-commands/);
+  assert.ok(text.includes(`baco cleanup-branches --confirm-commands ${sha('npm run db:clean')}`), 'the exact command, with the hash');
 
-  await run(['cleanup-branches', '--confirm-commands', '--cwd', dir]);
+  await run(['cleanup-branches', '--confirm-commands', sha('npm run db:clean'), '--cwd', dir]);
   const second = JSON.parse((await run(['cleanup-branches', '--json', '--cwd', dir])).out.stdout);
   assert.equal(second.cleanupCommands.status, 'confirmed');
 
@@ -84,7 +113,7 @@ test('dry run reports the commands as unconfirmed, then confirmed, then changed 
 
 test('--apply also carries the commands status and keeps the hash file', async () => {
   const dir = await repoWith(['npm run db:clean']);
-  await run(['cleanup-branches', '--confirm-commands', '--cwd', dir]);
+  await run(['cleanup-branches', '--confirm-commands', sha('npm run db:clean'), '--cwd', dir]);
   const r = await run(['cleanup-branches', '--apply', '--json', '--cwd', dir]);
   assert.equal(r.code, 0, r.out.stdout + r.out.stderr);
   assert.equal(JSON.parse(r.out.stdout).cleanupCommands.status, 'confirmed');

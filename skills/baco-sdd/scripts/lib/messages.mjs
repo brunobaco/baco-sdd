@@ -283,8 +283,9 @@ Object.assign(messages.en, {
 
 // 1.12.0: canonical hash of cleanup.commands, computed and recorded by the engine.
 Object.assign(messages['pt-BR'], {
-  'cleanup.commands_unconfirmed': 'Os comandos de cleanup.commands ainda não foram confirmados (não há hash gravado). Mostre-os à pessoa e, só com o ok dela, rode "baco cleanup-branches --confirm-commands" antes de executá-los:',
-  'cleanup.commands_changed': 'Os comandos de cleanup.commands mudaram desde a última confirmação (hash gravado {recorded}, atual {hash}). Mostre-os à pessoa e, só com o ok dela, rode "baco cleanup-branches --confirm-commands" antes de executá-los:',
+  'cleanup.commands_unconfirmed': 'Os comandos de cleanup.commands ainda não foram confirmados (não há hash gravado). Mostre-os à pessoa e, só com o ok dela, rode "baco cleanup-branches --confirm-commands {hash}" antes de executá-los:',
+  'cleanup.commands_changed': 'Os comandos de cleanup.commands mudaram desde a última confirmação (hash gravado {recorded}, atual {hash}). Mostre-os à pessoa e, só com o ok dela, rode "baco cleanup-branches --confirm-commands {hash}" antes de executá-los:',
+  'cleanup.commands_hash_mismatch': 'Nada gravado: o hash informado ({given}) não é o dos comandos atuais de cleanup.commands ({hash}). Os comandos mudaram depois que a pessoa os viu. Mostre a lista atual abaixo e, só com o ok dela, rode "baco cleanup-branches --confirm-commands {hash}":',
   'cleanup.commands_confirmed': 'Os comandos de cleanup.commands já foram confirmados (hash {hash}); rodam no fechamento sem perguntar de novo:',
   'cleanup.command_item': '  - {command}',
   'cleanup.commands_recorded': 'Hash dos comandos de cleanup.commands gravado em {path} ({hash}).',
@@ -292,8 +293,9 @@ Object.assign(messages['pt-BR'], {
 });
 
 Object.assign(messages.en, {
-  'cleanup.commands_unconfirmed': 'The cleanup.commands commands are not confirmed yet (no recorded hash). Show them to the person and, only with their ok, run "baco cleanup-branches --confirm-commands" before running them:',
-  'cleanup.commands_changed': 'The cleanup.commands commands changed since the last confirmation (recorded hash {recorded}, current {hash}). Show them to the person and, only with their ok, run "baco cleanup-branches --confirm-commands" before running them:',
+  'cleanup.commands_unconfirmed': 'The cleanup.commands commands are not confirmed yet (no recorded hash). Show them to the person and, only with their ok, run "baco cleanup-branches --confirm-commands {hash}" before running them:',
+  'cleanup.commands_changed': 'The cleanup.commands commands changed since the last confirmation (recorded hash {recorded}, current {hash}). Show them to the person and, only with their ok, run "baco cleanup-branches --confirm-commands {hash}" before running them:',
+  'cleanup.commands_hash_mismatch': 'Nothing recorded: the given hash ({given}) is not the one of the current cleanup.commands commands ({hash}). The commands changed after the person saw them. Show the current list below and, only with their ok, run "baco cleanup-branches --confirm-commands {hash}":',
   'cleanup.commands_confirmed': 'The cleanup.commands commands were already confirmed (hash {hash}); they run at closeout without asking again:',
   'cleanup.command_item': '  - {command}',
   'cleanup.commands_recorded': 'Hash of the cleanup.commands commands recorded in {path} ({hash}).',
