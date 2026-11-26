@@ -1077,7 +1077,7 @@ test('1.13.0 lean implementation, structural simplifier and concrete-case review
     assert.ok(impl.includes(p), `implementer.md: "${p}" missing`);
   }
   const simp = read(join(SKILL_ROOT, 'references', 'roles', 'simplifier.md'));
-  for (const p of ['Surplus:', 'Duplicated code or constants:', 'Removable special cases:', 'Comments (code):', 'never by line count']) {
+  for (const p of ['Surplus:', 'Duplicated code or constants:', 'Removable special cases:', 'Comments (code):', 'splitting a function by line count']) {
     assert.ok(simp.includes(p), `simplifier.md: "${p}" missing`);
   }
   const fin = read(join(SKILL_ROOT, 'references', 'roles', 'final-reviewer.md'));
