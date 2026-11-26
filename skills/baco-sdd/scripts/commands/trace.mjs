@@ -1,7 +1,7 @@
 import { relative, resolve, sep } from 'node:path';
 import { existsSync, readdirSync, realpathSync, writeFileSync, mkdirSync } from 'node:fs';
 import { revParse } from '../lib/git.mjs';
-import { ENT_ID, computeSpecScope, deliveryKnownIdsOf, deliveryScopeOf } from '../lib/delivery.mjs';
+import { ENT_ID, computeSpecScope, deliveryKnownIdsOf, deliveryScopeOf, builtOutOfScopeDetail, describeBuilt } from '../lib/delivery.mjs';
 import { t } from '../lib/messages.mjs';
 import { dirname } from 'node:path';
 import { readText } from '../lib/markdown.mjs';
@@ -145,15 +145,8 @@ export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown
 
   // A criterion or scenario marked out of this delivery that already has proof (a test that passed or
   // an approved manual run) is a function that exists: the mark would hide it, so it is a contradiction.
-  const proof = (r) => r === 'passed' || r === 'manual_ok';
-  const built = [];
-  for (const c of cas) {
-    const marked = outOfScope.has(c.ca)
-      ? c.scenarios
-      : c.scenarios.filter((s) => s.via === 'qa' && s.automation === 'out_of_scope');
-    if (marked.some((s) => proof(s.result))) built.push(c.ca);
-  }
-  for (const s of otherScenarios) if (s.automation === 'out_of_scope' && proof(s.result)) built.push(s.id);
+  const builtDetail = builtOutOfScopeDetail(cas, otherScenarios, outOfScope);
+  const built = builtDetail.map((d) => d.id);
 
   const known = new Set([...spec.definitions.map((d) => d.id), ...qa.scenarios.map((s) => s.id), ...alsoKnown]);
   const orphanTests = orphansOf(cases.map((c) => c.name), known);
@@ -165,7 +158,7 @@ export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown
     else summary[c.status]++;
   }
   if (oos > 0) summary.out_of_scope = oos;
-  return { cas, otherScenarios, orphanTests, summary, ...(built.length ? { builtOutOfScope: built } : {}) };
+  return { cas, otherScenarios, orphanTests, summary, ...(built.length ? { builtOutOfScope: built, builtProofs: builtDetail } : {}) };
 }
 
 // `layer_mismatch`: the tests that passed are not of the layer the scenario declares; never proof.
@@ -240,9 +233,10 @@ export async function run(args, ctx) {
       else coverage.summary[c.status]++;
     }
     if (oos > 0) coverage.summary.out_of_scope = oos;
-    const builtKept = (coverage.builtOutOfScope ?? []).filter((id) => filter.includes(id));
-    if (builtKept.length) coverage.builtOutOfScope = builtKept;
-    else delete coverage.builtOutOfScope;
+    const builtKept = (coverage.builtProofs ?? []).filter((d) => filter.includes(d.id));
+    delete coverage.builtOutOfScope;
+    delete coverage.builtProofs;
+    if (builtKept.length) Object.assign(coverage, { builtOutOfScope: builtKept.map((d) => d.id), builtProofs: builtKept });
   }
   const specCaSet = new Set(coverage.cas.map((c) => c.ca));
   const scopeContradictions = [...new Set([
@@ -272,7 +266,7 @@ export async function run(args, ctx) {
   }
   if (scopeContradictions.length) messages.push({ key: 'trace.scope_contradiction', params: { ids: scopeContradictions.join(', ') } });
   const built = data.builtOutOfScope ?? [];
-  if (built.length) messages.push({ key: 'trace.built_out_of_scope', params: { ids: built.join(', ') } });
+  if (built.length) messages.push({ key: 'trace.built_out_of_scope', params: { ids: describeBuilt(data.builtProofs ?? []) } });
   for (const c of data.cas) {
     messages.push({
       key: 'trace.ca',

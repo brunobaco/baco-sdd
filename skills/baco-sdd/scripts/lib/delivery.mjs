@@ -86,6 +86,8 @@ export function deliveryKnownIdsOf(root, config, entId) {
 
 const PLAN_OUT_OF_SCOPE = /^fora\s+desta\s+entrega(?:\s*$|\s*[;(.:,-])/;
 const REAL_TASK_ID = /\bT-\d+\b/i;
+// A function built in an earlier delivery: no task now, its existing tests count as regression.
+const PLAN_REGRESSION = /^regressao(?:\s*$|\s*[;(.:,-])/;
 const EMPTY_TASK = /^(?:[-—–]+|<[^>]*>)$/;
 
 // Scope cutout declared in plano.md:
@@ -97,6 +99,7 @@ const EMPTY_TASK = /^(?:[-—–]+|<[^>]*>)$/;
 export function readPlanScope(md) {
   const outOfScope = new Set();
   const coveredByTask = new Set();
+  const regression = new Set();
   const unrecognizedTasks = [];
   const text = String(md ?? '').replace(/\r\n?/g, '\n');
   for (const line of text.split('\n')) {
@@ -124,6 +127,8 @@ export function readPlanScope(md) {
         if (!cas.length) continue;
         if (PLAN_OUT_OF_SCOPE.test(task)) {
           for (const id of cas) outOfScope.add(id);
+        } else if (PLAN_REGRESSION.test(task)) {
+          for (const id of cas) regression.add(id);
         } else if (REAL_TASK_ID.test(rawTask)) {
           for (const id of cas) coveredByTask.add(id);
         } else if (rawTask && !EMPTY_TASK.test(rawTask)) {
@@ -133,7 +138,7 @@ export function readPlanScope(md) {
     }
   }
   const contradictions = [...outOfScope].filter((id) => coveredByTask.has(id)).sort();
-  return { outOfScope, coveredByTask, contradictions, unrecognizedTasks };
+  return { outOfScope, coveredByTask, regression, contradictions, unrecognizedTasks };
 }
 
 // Single unified out-of-scope calculation for one spec + its QA file against the plan cutout:
@@ -206,15 +211,39 @@ export function computeDeliveryScope({ root, planText, config }) {
     outOfScopeScenarios: [...outOfScopeScenarios].sort(),
     contradictions: [...contradictions].sort(),
     coveredByTask: planScope.coveredByTask,
+    regression: planScope.regression,
     unrecognizedTasks: planScope.unrecognizedTasks,
   };
 }
+
+// Criteria (or scenarios without a criterion) marked out of this delivery that already have proof
+// (a passing test or an approved manual run): the function exists. A whole criterion is marked when
+// the plan puts it out or when every QA scenario of it is marked; otherwise only its marked scenarios
+// count. Shared by trace and acceptance-report/merge-check (which pass merged or older trace files).
+// Returns [{ id, proofs }], proofs being the scenario IDs (or `[CA-ID]` for a test named after it).
+export function builtOutOfScopeDetail(cas = [], others = [], planOutOfScope = new Set()) {
+  const proof = (s) => s?.result === 'passed' || s?.result === 'manual_ok';
+  const out = [];
+  for (const c of cas) {
+    const scs = Array.isArray(c.scenarios) ? c.scenarios : [];
+    const qaScs = scs.filter((s) => s.via !== 'direct');
+    const whole = planOutOfScope.has(c.ca) || (qaScs.length > 0 && qaScs.every((s) => s.automation === 'out_of_scope'));
+    const marked = whole ? scs : qaScs.filter((s) => s.automation === 'out_of_scope');
+    const proofs = marked.filter(proof).map((s) => (s.via === 'direct' ? `[${s.id}]` : s.id));
+    if (proofs.length) out.push({ id: c.ca, proofs });
+  }
+  for (const s of others) if (s?.automation === 'out_of_scope' && proof(s)) out.push({ id: s.id, proofs: [s.id] });
+  return out.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+export const describeBuilt = (detail) => detail.map((d) => (d.proofs.length === 1 && d.proofs[0] === d.id ? d.id : `${d.id} (${d.proofs.join(', ')})`)).join(', ');
 
 // Criteria of the plan specs with neither a T-NNN task nor the out-of-scope mark. In a slice
 // delivery an unbuilt one would surface at the end as a manual test nobody had to do.
 export function unmarkedCriteria(scope) {
   const out = new Set(scope.outOfScope);
-  return scope.universeCas.filter((id) => !scope.coveredByTask.has(id) && !out.has(id));
+  const regression = scope.regression ?? new Set();
+  return scope.universeCas.filter((id) => !scope.coveredByTask.has(id) && !out.has(id) && !regression.has(id));
 }
 
 export function readPlanOutOfScope(md) {

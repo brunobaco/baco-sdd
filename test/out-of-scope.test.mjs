@@ -218,7 +218,8 @@ test('trace exits 1 on contradiction and warns on unrecognized free-text markers
 
 // A criterion marked out of this delivery whose function already exists (a passing test or an
 // approved manual run) is a contradiction: the mark would hide a built function from the person.
-async function builtRepo(t, { junit = '', evidence = '' } = {}) {
+const BUILT_PLAN = '# Plano\n\n**Specs:** docs/specs/spec-a.md@1.0\n\n## Cobertura\n\n| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |\n|---|---|---|---|\n| `CA-001` | `T-001` | `CT-001` | `regra` |\n| `CA-002` | `fora desta entrega` | `CT-002` | `-` |\n';
+async function builtRepo(t, { junit = '', evidence = '', plan = BUILT_PLAN } = {}) {
   const dir = await makeRepo({
     '.baco/config.yaml': 'branches:\n  main: main\n  integration: develop\n',
     'docs/specs/spec-a.md': '# Spec A\n\n| Versão | 1.0 |\n|---|---|\n\n- **CA-001:** Ok.\n- **CA-002:** Já existe.\n',
@@ -228,7 +229,7 @@ async function builtRepo(t, { junit = '', evidence = '' } = {}) {
       '### CT-002 | Já existe', '- **Contratos:** CA-002', '- **Automação:** fora desta entrega', '',
       evidence,
     ].join('\n'),
-    'docs/entregas/ENT-001-fatia/plano.md': '# Plano\n\n**Specs:** docs/specs/spec-a.md@1.0\n\n## Cobertura\n\n| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |\n|---|---|---|---|\n| `CA-001` | `T-001` | `CT-001` | `regra` |\n| `CA-002` | `fora desta entrega` | `CT-002` | `-` |\n',
+    'docs/entregas/ENT-001-fatia/plano.md': plan,
     '.baco/junit/a.xml': `<testsuite><testcase classname="a" name="[CT-001] ok"/>${junit}</testsuite>\n`,
   });
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -248,6 +249,42 @@ test('built function marked out of scope: a passing test makes trace fail and bl
   const check = planScopeBlockers({ root: dir, planText, config: {}, trace: data, approval: null });
   assert.ok(check.blockers.includes('merge.out_of_scope_built'), check.blockers.join(', '));
   assert.deepEqual(check.built, ['CA-002']);
+  // the message names the proof, so the person sees why
+  assert.equal(check.params['merge.out_of_scope_built'].ids, 'CA-002 (CT-002)');
+});
+
+test('built function marked only in QA (every scenario out of scope) with a direct test: trace and acceptance agree', async (t) => {
+  const plan = BUILT_PLAN.replace('| `CA-002` | `fora desta entrega` | `CT-002` | `-` |\n', '');
+  const { dir, code, data } = await builtRepo(t, { plan, junit: '<testcase classname="a" name="[CA-002] existe"/>' });
+  assert.equal(code, 1);
+  assert.deepEqual(data.builtOutOfScope, ['CA-002']);
+  const check = planScopeBlockers({ root: dir, planText: plan, config: {}, trace: data, approval: null });
+  assert.deepEqual(check.built, ['CA-002']);
+});
+
+test('regressão in the Tarefa column: a function built earlier is neither unmarked nor an unrecognized marker', async (t) => {
+  const dir = await makeRepo({
+    '.baco/config.yaml': 'branches:\n  main: main\n  integration: develop\n',
+    'docs/specs/spec-a.md': '# Spec A\n\n- **Versão:** 1.0\n\n- **CA-001:** Ok.\n- **CA-002:** Antiga.\n',
+    'docs/qa/cenarios-qa-spec-a.md': '# QA\n\n### CT-001 | Ok\n- **Contratos:** CA-001\n- **Automação:** automatizado\n',
+    'docs/entregas/ENT-001-fatia/plano.md': '# Plano\n\n**Specs:** docs/specs/spec-a.md@1.0\n\n## Cobertura\n\n| Critério de aceite | Tarefa | Cenário de QA | Camada do teste |\n|---|---|---|---|\n| `CA-001` | `T-001` | `CT-001` | `regra` |\n| `CA-002` | `regressão` | `-` | `-` |\n',
+  });
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const f = capture();
+  assert.equal(await main(['plan-freshness', 'ENT-001', '--json', '--cwd', dir], f.io), 0, f.out().stderr);
+  assert.equal(JSON.parse(f.out().stdout).unmarked, undefined);
+  const scope = readPlanScope(readFileSync(join(dir, 'docs/entregas/ENT-001-fatia/plano.md'), 'utf8'));
+  assert.deepEqual(scope.unrecognizedTasks, []);
+});
+
+test('acceptance summary leaves out the not-yet-built part when there is none', () => {
+  const spec = { definitions: [{ kind: 'CA', id: 'CA-001' }] };
+  const qa = { evidence: [], scenarios: [{ id: 'CT-001', contracts: ['CA-001'], testRefs: [], automation: 'automatizado' }] };
+  const trace = traceCoverage({ spec, qa, cases: [{ name: '[CT-001] ok', status: 'passed' }] });
+  const decision = mergeDecision({ trace, verdict: { verdict: 'aprovado' }, rule: 'block' });
+  const md = renderAcceptance({ entId: 'ENT-001', target: 'develop', trace, verdict: { verdict: 'aprovado' }, decision });
+  assert.ok(md.includes('1 critério provado, 0 testes manuais por fazer.'), md.slice(0, 600));
+  assert.ok(!md.includes('ainda não construída'));
 });
 
 test('built function marked out of scope: an approved manual run of this delivery is a contradiction too', async (t) => {
@@ -301,7 +338,7 @@ test('acceptance summary in plain words: proven, not yet built and manual tests 
   const decision = mergeDecision({ trace, verdict: { verdict: 'aprovado' }, rule: 'block', specialist: kinds });
   assert.deepEqual(decision.blockers, ['merge.manual_pending']);
   const md = renderAcceptance({ entId: 'ENT-003', target: 'main', trace, verdict: { verdict: 'aprovado' }, decision, specialist: kinds });
-  assert.ok(md.includes('0 critérios provados, 57 de funções ainda não construídas, 5 testes manuais por fazer.'), md.slice(0, 800));
+  assert.ok(md.includes('0 critérios provados, 57 critérios de funções ainda não construídas, 5 testes manuais por fazer.'), md.slice(0, 800));
 });
 
 async function setupOutOfScopeDelivery(t, { specText, qaText, planText, approve = false, approveBy = 'Ana', extraConfig = '' } = {}) {

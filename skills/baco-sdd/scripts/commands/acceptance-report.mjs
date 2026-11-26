@@ -1,6 +1,6 @@
 import { writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { deliveryDir, readPlanHeader, computeDeliveryScope, latestVerdict, deliveryKnownIds, ENT_ID } from '../lib/delivery.mjs';
+import { deliveryDir, readPlanHeader, computeDeliveryScope, latestVerdict, deliveryKnownIds, builtOutOfScopeDetail, describeBuilt, ENT_ID } from '../lib/delivery.mjs';
 import { orphansOf } from './trace.mjs';
 import { revParse, isAncestor, diffQuiet, showFile } from '../lib/git.mjs';
 import { loadTrace } from '../lib/tracefile.mjs';
@@ -73,10 +73,11 @@ export function planScopeBlockers({ root, planText, config, trace, approval }) {
     blockers.push('merge.out_of_scope_contradiction');
     params['merge.out_of_scope_contradiction'] = { ids: contradictions.join(', ') };
   }
-  const built = builtOutOfScope(trace, new Set(current.outOfScope));
+  const builtDetail = builtOutOfScopeDetail(casOf(trace), othersOf(trace), new Set(current.outOfScope));
+  const built = builtDetail.map((d) => d.id);
   if (built.length) {
     blockers.push('merge.out_of_scope_built');
-    params['merge.out_of_scope_built'] = { ids: built.join(', ') };
+    params['merge.out_of_scope_built'] = { ids: describeBuilt(builtDetail) };
   }
   const hasCurrent = currentCas.length > 0 || currentScenarios.length > 0;
   if (!approval) {
@@ -116,22 +117,6 @@ export function planScopeBlockers({ root, planText, config, trace, approval }) {
     }
   }
   return { blockers, params, contradictions, built, currentCas, currentScenarios };
-}
-
-// Criteria (or scenarios without a criterion) marked out of this delivery that already have proof:
-// a passing test or an approved manual run. `planOutOfScope`: CAs the plan puts out of the delivery.
-// Works on one trace or on merged traces, and on trace files written before this check existed.
-export function builtOutOfScope(trace, planOutOfScope = new Set()) {
-  const proof = (s) => s.result === 'passed' || s.result === 'manual_ok';
-  const built = new Set();
-  for (const c of casOf(trace)) {
-    const marked = planOutOfScope.has(c.ca)
-      ? scenariosOf(c)
-      : scenariosOf(c).filter((s) => s.via !== 'direct' && s.automation === OUT_OF_SCOPE);
-    if (marked.some(proof)) built.add(c.ca);
-  }
-  for (const s of othersOf(trace)) if (s.automation === OUT_OF_SCOPE && proof(s)) built.add(s.id);
-  return [...built].sort();
 }
 
 // Pending scenarios across all criteria and the scenarios without a CA, deduplicated by id. A
@@ -350,9 +335,11 @@ export function renderAcceptance({ entId, target, trace, verdict, decision, lang
   const summary = [
     T(decision.allowed ? 'acceptance.summary.allowed' : 'acceptance.summary.blocked'),
     T('acceptance.summary.plain', {
-      proven: plural('proven', proven),
-      future: plural('future', outScope.cas.length),
-      manual: plural('manual', pending.manual.length),
+      parts: [
+        plural('proven', proven),
+        ...(outScope.cas.length ? [plural('future', outScope.cas.length)] : []),
+        plural('manual', pending.manual.length),
+      ].join(', '),
     }),
     T('acceptance.summary.counts', { total: inScopeCas.length, proven, failed, pending: count('pending'), uncovered: count('uncovered') }),
     verdict ? T('acceptance.summary.review', { verdict: gloss(verdict.verdict) })
