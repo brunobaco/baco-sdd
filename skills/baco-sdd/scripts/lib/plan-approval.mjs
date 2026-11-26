@@ -143,11 +143,22 @@ export function portraitInHistory({ root, config, entId, ref = 'HEAD' }) {
   return { commit, path: path ?? null, approval: text === null ? null : parsePlanApproval(text) };
 }
 
-// The portrait to compare against: the one on disk when it is readable; otherwise the latest one of
-// the history of `ref`, flagged `deleted` (the file was deleted or broken after it existed).
-export function loadPlanApproval({ root, config, dir, entId, ref = 'HEAD' }) {
-  const onDisk = readPlanApproval(dir);
-  if (onDisk) return { approval: onDisk, deleted: null };
+// The portrait of the delivery folder as committed at `ref`, or null when that commit has no
+// readable one there.
+export function readPlanApprovalAt({ root, dir, ref }) {
+  const path = relative(root, join(dir, PLAN_APPROVAL_FILE)).split('\\').join('/');
+  const text = showFile(ref, path, root);
+  return text === null ? null : parsePlanApproval(text);
+}
+
+// The portrait to compare against: the current one when it is readable; otherwise the latest one of
+// the history of `ref`, flagged `deleted` (the file was deleted or broken after it existed). The
+// current one is read from the disk (`fromRef` false: the acceptance report, which runs on the
+// working copy where approve-plan has just written it) or from the commit `ref` itself (`fromRef`
+// true: merge-check, which merges that commit, so a copy on the disk never hides a deletion there).
+export function loadPlanApproval({ root, config, dir, entId, ref = 'HEAD', fromRef = false }) {
+  const current = fromRef ? readPlanApprovalAt({ root, dir, ref }) : readPlanApproval(dir);
+  if (current) return { approval: current, deleted: null };
   const past = portraitInHistory({ root, config, entId, ref });
   if (!past) return { approval: null, deleted: null };
   return { approval: past.approval, deleted: { commit: past.commit, path: past.path } };

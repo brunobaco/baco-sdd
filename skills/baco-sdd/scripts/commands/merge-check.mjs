@@ -230,7 +230,7 @@ function acceptanceCondition({ read, root, dir, revDir, config, target, entId, t
   const prov = provenanceBlockers({ traces: read.traces, verdict, head: tip, entId, planSpecs, isCurrent });
   const scopeCheck = planScopeBlockers({
     root, planText, config, trace: merged,
-    ...planApprovalInputs({ root, config, dir, entId, ref: tip, planText }),
+    ...planApprovalInputs({ root, config, dir, entId, ref: tip, fromRef: true, planText }),
   });
   const base = mergeDecision({ trace: merged, verdict, rule: manualPendingRule(config, target), waiver, specialist: config.qa?.specialist ?? [] });
   const decision = combineDecision(base, {

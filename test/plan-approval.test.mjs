@@ -66,10 +66,17 @@ test('acceptance-report and merge-check block as a human gate when the portrait 
   assert.ok(r.data.blockers.includes('merge.plan_approval_deleted'), r.data.blockers.join());
   assert.equal(r.data.blockers.includes('merge.plan_unapproved'), false);
 
-  const m = await mergeCheck(repo);
+  // merge-check reads the portrait of the tip it merges: a deletion only on the disk is not one there.
+  const deletedText = tr('pt-BR', 'merge.plan_approval_deleted', { commit: '' }).slice(0, 30);
+  let m = await mergeCheck(repo);
+  assert.equal(m.acceptanceCondition.ok, true, m.acceptanceCondition.detail);
+
+  git(repo, 'add', '-A', DELIVERY);
+  git(repo, 'commit', '-q', '-m', 'drop portrait');
+  m = await mergeCheck(repo);
   assert.equal(m.code, 2);
   assert.equal(m.acceptanceCondition.ok, false);
-  assert.ok(m.acceptanceCondition.detail.includes(tr('pt-BR', 'merge.plan_approval_deleted', { commit: '' }).slice(0, 30)), m.acceptanceCondition.detail);
+  assert.ok(m.acceptanceCondition.detail.includes(deletedText), m.acceptanceCondition.detail);
 
   // The comparison uses the deleted portrait: a spec change since the approval shows too.
   const specPath = join(repo, 'docs/specs/spec-a.md');
@@ -77,6 +84,23 @@ test('acceptance-report and merge-check block as a human gate when the portrait 
   r = await acceptance(repo, traces);
   assert.ok(r.data.blockers.includes('merge.plan_approval_deleted'));
   assert.ok(r.data.blockers.includes('merge.plan_specs_changed'), r.data.blockers.join());
+});
+
+test('merge-check: an uncommitted portrait on the disk does not hide its deletion at the tip', async (t) => {
+  const { repo, traces } = await setupDelivery(t, { approve: true });
+  const saved = readFileSync(join(repo, PORTRAIT), 'utf8');
+  git(repo, 'rm', '-q', PORTRAIT);
+  git(repo, 'commit', '-q', '-m', 'drop portrait');
+  writeFileSync(join(repo, PORTRAIT), saved); // back on the disk, never committed
+
+  const m = await mergeCheck(repo);
+  assert.equal(m.code, 2);
+  assert.equal(m.acceptanceCondition.ok, false);
+  assert.ok(m.acceptanceCondition.detail.includes(tr('pt-BR', 'merge.plan_approval_deleted', { commit: '' }).slice(0, 30)), m.acceptanceCondition.detail);
+
+  // The acceptance report reads the working copy (approve-plan writes it there before the commit).
+  const r = await acceptance(repo, traces);
+  assert.equal(r.data.blockers.includes('merge.plan_approval_deleted'), false, r.data.blockers.join());
 });
 
 test('acceptance-report with a committed deletion of the portrait still blocks', async (t) => {

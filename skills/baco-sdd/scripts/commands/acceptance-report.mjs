@@ -148,9 +148,10 @@ export function planScopeBlockers({ root, planText, config, trace, approval, del
 }
 
 // The portrait inputs of planScopeBlockers for a delivery folder, with the history read at `ref`
-// (HEAD for the acceptance report, the delivery branch tip for merge-check).
-export function planApprovalInputs({ root, config, dir, entId, ref = 'HEAD', planText }) {
-  const { approval, deleted } = loadPlanApproval({ root, config, dir, entId, ref });
+// (HEAD for the acceptance report, the delivery branch tip for merge-check). `fromRef`: the current
+// portrait is the one committed at `ref` (merge-check), not the one on the disk (acceptance report).
+export function planApprovalInputs({ root, config, dir, entId, ref = 'HEAD', fromRef = false, planText }) {
+  const { approval, deleted } = loadPlanApproval({ root, config, dir, entId, ref, fromRef });
   const progressFile = join(dir, 'progresso.md');
   const progressText = existsSync(progressFile) ? readText(progressFile) : '';
   const requireApproval = config?.gates?.plan !== false && isPortraitEra({ planText, progressText });
