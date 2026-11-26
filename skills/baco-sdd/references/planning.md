@@ -180,7 +180,7 @@ With `planning.freeze_specs` on (default), a spec change after the plan is appro
 2. Find the commit that holds that version of the spec: list the history with `git log --format=%h -- <spec path>` and, from the newest down, read the version of each with `git show <sha>:<spec path>` (metadata version line). Take the **newest commit whose version equals the planned one**. Do not use the plan's `**Base:**` blindly: the spec may have been approved after it. `--base auto` is for "what changed since the implemented version" (the incremental case above), not for this.
 3. Run `baco spec-diff <spec> --base <sha>`. The list is the replan.
 4. Keep tasks the diff does not touch. Change or add only the tasks the listed IDs need, with new IDs; never renumber. Update `**Specs:**` to the current versions. Keep `**Base:**` while the delivery branch still starts there; if the branch is recreated from a newer integration commit, set the new `git rev-parse` sha.
-5. Re-run steps 6 and 8, and pass the `plan` gate again. Mid-execution changes follow the choice recorded in [spec-change.md](spec-change.md); tasks already done keep their IDs and files.
+5. Re-run steps 6 and 8, and pass the `plan` gate again; when the cut, the specs or the universe changed, record the new approval with `baco approve-plan ENT-NNN --by "<quem aprovou>" --replace` (which asks). Mid-execution changes follow the choice recorded in [spec-change.md](spec-change.md); tasks already done keep their IDs and files.
 
 ## Talking to the user
 

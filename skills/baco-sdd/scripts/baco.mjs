@@ -15,6 +15,9 @@ export const COMMANDS = [
   'harness-answer', 'antigravity-task', 'merge-check', 'check-stalled',
 ];
 
+// Commands that only a person may run; the execution rules ask before each one.
+const HUMAN_GATED = ['approve-plan', 'waive-review', 'import-verdict'];
+
 export function parseArgs(argv) {
   const result = { _: [], flags: {} };
   const set = (key, value) => {
@@ -83,6 +86,12 @@ export async function main(argv, io = { stdout: process.stdout, stderr: process.
 
   if (!COMMANDS.includes(name)) {
     io.stderr.write(t(lang, 'cli.unknown_command', { name }) + '\n');
+    return 64;
+  }
+  // The ask rules for these commands are written as `node *baco.mjs <name>*`;
+  // an option before the name would slip past them.
+  if (HUMAN_GATED.includes(name) && argv[0] !== name) {
+    io.stderr.write(t(lang, 'cli.command_first', { name }) + '\n');
     return 64;
   }
   if (!existsSync(commandFile(name))) {

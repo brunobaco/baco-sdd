@@ -13,6 +13,7 @@ const usageError = () => ({ code: 64, data: {}, messages: [{ key: 'cli.usage', p
 // specs, CA/CT universe, out-of-scope CAs/CTs, approver, and plan gate state.
 // Refuses to overwrite an existing portrait unless --replace is passed (exit 2).
 // With empty --by (or omitted --by when gates.plan is off), records gate: 'off'.
+// With gates.plan off, a first recording is always gate: 'off' (--by ignored).
 export async function run(args, ctx) {
   const entId = args._[0];
   if (!entId || !ENT_ID.test(entId) || args._.length > 1) return usageError();
@@ -32,6 +33,13 @@ export async function run(args, ctx) {
     gate = 'on';
   } else {
     return usageError();
+  }
+  // With the plan gate off nobody approved the plan: a first recording never
+  // names an approver, whatever --by says. The person confirms the cut only
+  // through --replace, which the execution rules always ask for.
+  if (ctx.config?.gates?.plan === false && !replace) {
+    by = '';
+    gate = 'off';
   }
 
   const dir = deliveryDir(ctx.root, ctx.config, entId);

@@ -32,6 +32,7 @@ for (const [name, [pt, en]] of Object.entries(summaries)) {
 
 Object.assign(messages['pt-BR'], {
   'cli.unknown_command': 'Comando desconhecido: {name}',
+  'cli.command_first': 'O comando {name} precisa vir logo depois de baco.mjs, sem opções antes dele, para que a confirmação da pessoa sempre valha.',
   'cli.not_implemented': 'Comando ainda não implementado: {name}',
   'cli.help_header': 'Uso: baco <comando> [opções]\n\nComandos:',
   'cli.help_footer': 'Opções globais: --json, --cwd <dir>, --help',
@@ -126,6 +127,7 @@ Object.assign(messages['pt-BR'], {
 });
 Object.assign(messages.en, {
   'cli.unknown_command': 'Unknown command: {name}',
+  'cli.command_first': 'The {name} command must come right after baco.mjs, with no options before it, so the person\'s confirmation always applies.',
   'cli.not_implemented': 'Command not implemented yet: {name}',
   'cli.help_header': 'Usage: baco <command> [options]\n\nCommands:',
   'cli.help_footer': 'Global options: --json, --cwd <dir>, --help',

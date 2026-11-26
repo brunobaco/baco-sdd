@@ -442,6 +442,30 @@ test('C: approve-plan with empty --by records gate off; blocks when out-of-scope
   assert.equal(JSON.parse(c3.out().stdout).merged, true);
 });
 
+test('C: with gates.plan off, a first approve-plan ignores --by and records gate off; only --replace with a name records the person', async (t) => {
+  const { repo, bin, traceOut } = await setupOutOfScopeDelivery(t, { extraConfig: 'gates:\n  plan: off' });
+  const prev = process.env.BACO_GH;
+  process.env.BACO_GH = bin;
+  t.after(() => { if (prev === undefined) delete process.env.BACO_GH; else process.env.BACO_GH = prev; });
+  const dir = join(repo, 'docs/entregas/ENT-001-fatia');
+
+  const c1 = capture();
+  assert.equal(await main(['approve-plan', 'ENT-001', '--by', 'Pessoa', '--json', '--cwd', repo], c1.io), 0, c1.out().stderr + c1.out().stdout);
+  let approval = readPlanApproval(dir);
+  assert.equal(approval.gate, 'off');
+  assert.equal(approval.by, '');
+
+  const c2 = capture();
+  assert.equal(await main(['acceptance-report', 'ENT-001', '--target', 'develop', '--trace', traceOut, '--json', '--cwd', repo], c2.io), 2);
+  assert.ok(JSON.parse(c2.out().stdout).blockers.includes('merge.out_of_scope_gate_off'));
+
+  const c3 = capture();
+  assert.equal(await main(['approve-plan', 'ENT-001', '--by', 'Pessoa', '--replace', '--json', '--cwd', repo], c3.io), 0, c3.out().stderr + c3.out().stdout);
+  approval = readPlanApproval(dir);
+  assert.equal(approval.gate, 'on');
+  assert.equal(approval.by, 'Pessoa');
+});
+
 test('A: prose change in plano.md passes; spec change, shrunk universe or changed out-of-scope blocks as human gate', async (t) => {
   const { repo, bin, traceOut } = await setupOutOfScopeDelivery(t, { approve: true });
   const prev = process.env.BACO_GH;
