@@ -281,6 +281,25 @@ Object.assign(messages.en, {
   'cleanup.log_removed': 'Removed log: {path}',
 });
 
+// 1.12.0: canonical hash of cleanup.commands, computed and recorded by the engine.
+Object.assign(messages['pt-BR'], {
+  'cleanup.commands_unconfirmed': 'Os comandos de cleanup.commands ainda não foram confirmados (não há hash gravado). Mostre-os à pessoa e, só com o ok dela, rode "baco cleanup-branches --confirm-commands" antes de executá-los:',
+  'cleanup.commands_changed': 'Os comandos de cleanup.commands mudaram desde a última confirmação (hash gravado {recorded}, atual {hash}). Mostre-os à pessoa e, só com o ok dela, rode "baco cleanup-branches --confirm-commands" antes de executá-los:',
+  'cleanup.commands_confirmed': 'Os comandos de cleanup.commands já foram confirmados (hash {hash}); rodam no fechamento sem perguntar de novo:',
+  'cleanup.command_item': '  - {command}',
+  'cleanup.commands_recorded': 'Hash dos comandos de cleanup.commands gravado em {path} ({hash}).',
+  'cleanup.commands_none': 'Não há comandos em cleanup.commands; nada a confirmar.',
+});
+
+Object.assign(messages.en, {
+  'cleanup.commands_unconfirmed': 'The cleanup.commands commands are not confirmed yet (no recorded hash). Show them to the person and, only with their ok, run "baco cleanup-branches --confirm-commands" before running them:',
+  'cleanup.commands_changed': 'The cleanup.commands commands changed since the last confirmation (recorded hash {recorded}, current {hash}). Show them to the person and, only with their ok, run "baco cleanup-branches --confirm-commands" before running them:',
+  'cleanup.commands_confirmed': 'The cleanup.commands commands were already confirmed (hash {hash}); they run at closeout without asking again:',
+  'cleanup.command_item': '  - {command}',
+  'cleanup.commands_recorded': 'Hash of the cleanup.commands commands recorded in {path} ({hash}).',
+  'cleanup.commands_none': 'There are no commands in cleanup.commands; nothing to confirm.',
+});
+
 Object.assign(messages['pt-BR'], {
   'handoff.no_base': 'O plano não informa **Base:**; não há ponto de partida para o diff do handoff.',
   'handoff.written': 'Handoff {round} gravado em {file}.',

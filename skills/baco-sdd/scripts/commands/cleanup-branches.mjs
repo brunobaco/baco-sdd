@@ -1,10 +1,11 @@
-import { existsSync, lstatSync, readdirSync, realpathSync, rmdirSync, rmSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { t } from '../lib/messages.mjs';
 import { protectedBranches } from '../lib/config.mjs';
 import { git, GitError, localBranches, worktrees, isAncestor, currentBranch, refExists, revParse, tagTarget } from '../lib/git.mjs';
 
-export const usage = 'baco cleanup-branches [--apply] [--remote] [--remote-name <name>] [--json] [--cwd <dir>]';
+export const usage = 'baco cleanup-branches [--apply] [--remote] [--remote-name <name>] [--confirm-commands] [--json] [--cwd <dir>]';
 export const needsRepo = true;
 
 const DELIVERY = /^baco\/(ENT-\d{3})$/;
@@ -294,8 +295,54 @@ export function findDeliveryLogs(root, entIds) {
   return planDeliveryLogs(root, entIds).map((e) => e.path);
 }
 
+const COMMANDS_HASH_PATH = '.baco/logs/cleanup-commands.sha256';
+const COMMANDS_HASH_FILE = join('.baco', 'logs', 'cleanup-commands.sha256');
+
+// Canonical form of `cleanup.commands`: each command with the whitespace at its ends removed
+// (blank entries dropped), in the order of the configuration, joined by "\n", SHA-256 in lowercase
+// hex of the UTF-8 text. null when no command is declared.
+export function cleanupCommandsHash(commands = []) {
+  const list = commands.map((c) => String(c).trim()).filter(Boolean);
+  if (!list.length) return null;
+  return createHash('sha256').update(list.join('\n'), 'utf8').digest('hex');
+}
+
+// Compares the hash of the configured commands with the one recorded in `.baco/logs/`:
+// 'none' (no commands), 'unconfirmed' (nothing recorded), 'confirmed' (same hash), 'changed'.
+export function cleanupCommandsStatus(root, commands = []) {
+  const list = commands.map((c) => String(c).trim()).filter(Boolean);
+  const hash = cleanupCommandsHash(list);
+  let recorded = null;
+  try { recorded = readFileSync(join(root, COMMANDS_HASH_FILE), 'utf8').trim().toLowerCase() || null; } catch { /* not recorded yet */ }
+  const status = hash === null ? 'none' : recorded === null ? 'unconfirmed' : recorded === hash ? 'confirmed' : 'changed';
+  return { commands: list, hash, recorded, status };
+}
+
+function commandsMessages(info) {
+  if (info.status === 'none') return [];
+  const items = info.commands.map((command) => ({ key: 'cleanup.command_item', params: { command } }));
+  if (info.status === 'confirmed') return [{ key: 'cleanup.commands_confirmed', params: { hash: info.hash } }, ...items];
+  return [{ key: info.status === 'changed' ? 'cleanup.commands_changed' : 'cleanup.commands_unconfirmed', params: { hash: info.hash, recorded: info.recorded ?? '-' } }, ...items];
+}
+
+// Records the hash of the commands the person has just seen and approved.
+function confirmCommands(root, commands) {
+  const info = cleanupCommandsStatus(root, commands);
+  if (info.hash === null) return { code: 0, data: { confirmed: false, commands: [], hash: null }, messages: [{ key: 'cleanup.commands_none' }] };
+  const file = join(root, COMMANDS_HASH_FILE);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${info.hash}\n`);
+  return {
+    code: 0,
+    data: { confirmed: true, commands: info.commands, hash: info.hash, path: COMMANDS_HASH_PATH },
+    messages: [{ key: 'cleanup.commands_recorded', params: { path: COMMANDS_HASH_PATH, hash: info.hash } }],
+  };
+}
+
 export async function run(args, ctx) {
   const { root, config } = ctx;
+  if (args.flags['confirm-commands']) return confirmCommands(root, config.cleanup?.commands ?? []);
+  const commandsInfo = cleanupCommandsStatus(root, config.cleanup?.commands ?? []);
   const { integration, main: mainBranch } = config.branches;
   const protectedList = protectedBranches(config);
   const apply = Boolean(args.flags.apply);
@@ -342,7 +389,8 @@ export async function run(args, ctx) {
     messages.push(...skippedMessages);
     if (!hasAnything) messages.push({ key: 'cleanup.nothing' });
     else messages.push({ key: 'cleanup.dry_run_hint' });
-    return { code: 0, data: { apply: false, candidates, skipped, orphanWorktrees, skippedOrphans, deliveryLogs }, messages };
+    messages.push(...commandsMessages(commandsInfo));
+    return { code: 0, data: { apply: false, candidates, skipped, orphanWorktrees, skippedOrphans, deliveryLogs, cleanupCommands: commandsInfo }, messages };
   }
 
   const { done, failed, warnings, messages } = applyCleanup(candidates, { root, remote, protectedList });
@@ -376,9 +424,10 @@ export async function run(args, ctx) {
   }
   messages.push(...skippedMessages);
   if (!hasAnything) messages.push({ key: 'cleanup.nothing' });
+  messages.push(...commandsMessages(commandsInfo));
   return {
     code: failed.length ? 1 : 0,
-    data: { apply: true, candidates, skipped, done, failed, warnings, orphanWorktrees, skippedOrphans, removedWorktrees, deliveryLogs, removedLogs },
+    data: { apply: true, candidates, skipped, done, failed, warnings, orphanWorktrees, skippedOrphans, removedWorktrees, deliveryLogs, removedLogs, cleanupCommands: commandsInfo },
     messages,
   };
 }
