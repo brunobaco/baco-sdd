@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { deliveryDir, ENT_ID } from '../lib/delivery.mjs';
 import { githubProject } from '../lib/config.mjs';
 import { fold, headings, readText, tables } from '../lib/markdown.mjs';
-import { isAncestor, refExists } from '../lib/git.mjs';
+import { isAncestor, refExists, showFile } from '../lib/git.mjs';
 
 export const usage = 'baco board <ENT-NNN> [--apply] [--applied "<issue-url>=<status>"]... [--all] [--json] [--cwd <dir>]';
 
@@ -107,14 +107,17 @@ export function boardItems({ parentUrl, tasks, started, merged, andamento, regis
 }
 
 // The delivery is merged when its branch, or the tag `entrega/ENT-NNN` that cleanup-branches leaves,
-// is contained in the integration branch (local or origin/<integration>) or in the main branch.
-function deliveryMerged(root, config, entId) {
+// is contained in the integration branch (local or origin/<integration>) or in the main branch, and
+// that same target holds the delivery's plano.md in its tree. A delivery branch with no commit of its
+// own (never built, plan not committed) is contained in the integration just by being cut from it, so
+// containment alone is not proof of a merge.
+function deliveryMerged(root, config, entId, planPath) {
   const heads = [`refs/heads/baco/${entId}`, `refs/tags/entrega/${entId}`].filter((r) => refExists(r, root));
   const branchNames = [config.branches?.integration, config.branches?.main].filter((b) => typeof b === 'string' && b);
   const targets = branchNames
     .flatMap((b) => [`refs/heads/${b}`, `refs/remotes/origin/${b}`])
     .filter((r) => refExists(r, root));
-  return heads.some((h) => targets.some((t) => isAncestor(h, t, root)));
+  return heads.some((h) => targets.some((t) => isAncestor(h, t, root) && showFile(t, planPath, root) !== null));
 }
 
 function ghRun(args, root) {
@@ -241,7 +244,8 @@ export async function run(args, ctx) {
   const progressMd = existsSync(progressPath) ? readText(progressPath) : '';
   const parentUrl = parentIssue(progressMd);
   const { andamento, registro, started } = readProgress(progressMd);
-  const merged = deliveryMerged(ctx.root, ctx.config, entId);
+  const planPath = relative(ctx.root, join(dir, 'plano.md')).split(sep).join('/');
+  const merged = deliveryMerged(ctx.root, ctx.config, entId, planPath);
   const items = boardItems({ parentUrl, tasks, started, merged, andamento, registro, status: project.status });
 
   // --applied <url>=<status>: the conductor set that column and read it back.

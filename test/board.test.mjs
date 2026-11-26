@@ -144,6 +144,44 @@ test('board: the parent is Done only when the delivery branch is merged into the
   assert.equal(statusOf(r.data)['mãe'], 'Done');
 });
 
+test('board: a delivery branch with no commit of its own is not merged until the plan is in the target branch', async () => {
+  const dir = await repo({ prog: progress({ situacao: '`fim`', registro: [['T-001', 'FEITO'], ['T-002', 'FEITO'], ['T-003', 'FEITO']] }) });
+  // the plan lives only in the working tree: no branch has it yet
+  git(dir, 'rm', '-q', '--cached', `${DIR}/plano.md`);
+  git(dir, 'commit', '-q', '-m', 'chore: plan not committed yet');
+  git(dir, 'branch', 'develop');
+  git(dir, 'branch', 'baco/ENT-001'); // same commit as develop: contained, but nothing was delivered
+  let r = await run(dir, 'ENT-001', '--json');
+  assert.equal(statusOf(r.data)['mãe'], 'In progress', 'contained by develop but plano.md is not in its tree');
+  // the plan reaches develop: now the branch is contained and the plan is there
+  git(dir, 'switch', '-q', 'develop');
+  git(dir, 'add', `${DIR}/plano.md`);
+  git(dir, 'commit', '-q', '-m', 'docs: plan');
+  git(dir, 'switch', '-q', 'baco/ENT-001');
+  git(dir, 'merge', '-q', 'develop');
+  r = await run(dir, 'ENT-001', '--json');
+  assert.equal(statusOf(r.data)['mãe'], 'Done');
+});
+
+test('board: the plan must be in the tree of origin/<integration> too when that is the target that contains the branch', async () => {
+  const dir = await repo({ prog: progress({ situacao: '`fim`', registro: [['T-001', 'FEITO'], ['T-002', 'FEITO'], ['T-003', 'FEITO']] }) });
+  const withPlan = git(dir, 'rev-parse', 'HEAD');
+  git(dir, 'rm', '-q', '--cached', `${DIR}/plano.md`);
+  git(dir, 'commit', '-q', '-m', 'chore: plan not committed yet');
+  const noPlan = git(dir, 'rev-parse', 'HEAD');
+  git(dir, 'branch', 'develop');
+  git(dir, 'branch', 'baco/ENT-001');
+  git(dir, 'update-ref', 'refs/remotes/origin/develop', noPlan);
+  let r = await run(dir, 'ENT-001', '--json');
+  assert.equal(statusOf(r.data)['mãe'], 'In progress');
+  // origin/develop moved to a commit that has the plan and contains the branch tip
+  git(dir, 'update-ref', 'refs/heads/baco/ENT-001', withPlan);
+  git(dir, 'update-ref', 'refs/remotes/origin/develop', withPlan);
+  git(dir, 'update-ref', 'refs/heads/develop', withPlan);
+  r = await run(dir, 'ENT-001', '--json');
+  assert.equal(statusOf(r.data)['mãe'], 'Done');
+});
+
 test('board: after cleanup the delivery tag still proves the merge, and every task is Done', async () => {
   const dir = await repo({ prog: progress({ situacao: '`fim`', andamento: [['T-003', 'revisão']] }) });
   git(dir, 'branch', 'develop');
