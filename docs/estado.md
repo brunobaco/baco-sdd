@@ -54,11 +54,12 @@ Atualizado em 2026-11-25.
 
 ## Em andamento
 
-A 1.11.0 está pronta na branch `feat/1.11.0` e espera o ok para juntar na `main`, marcar `v1.11.0` e publicar o release. Conferido:
+A 1.11.0 foi juntada na `main`, marcada `v1.11.0` e publicada. Conferido antes:
 
 - Ganchos ao vivo no Claude Code pelo caminho com link simbólico: na 1.10.0 o `branch-guard` saía calado; na 1.11.0 ele nega a edição na `main`.
 - Evals: seis passaram de primeira. `ca-modificado` falha também na 1.10.0 (defeito anterior); `gate-obrigatorio` oscilou uma vez e passou 2 de 2; `meio-do-ciclo` teve um falso negativo do juiz.
 - Três rodadas de revisão independente. A última deixou um item obrigatório (com o portão `plan` desligado, o `--by` gravava um aprovador), corrigido junto com a exigência de `approve-plan`, `waive-review` e `import-verdict` virem logo depois de `baco.mjs`.
+- Função de entrega futura separada de teste manual pendente (marca `regressão`, contradição quando o item marcado já tem prova, aviso de critério sem marca no `plan-freshness`, resumo do aceite em frase simples), com revisão independente própria.
 
 Dependem do ambiente (pedidos fora do repositório): troca automática de conta nas chamadas de terminal (item 11), conclusão ou ocultação das conversas criadas por chamadas de terminal (item 23) e o modo de permissão das conversas abertas por outra conversa, que vem fixo na linha de comando e por isso não segue o `defaultMode` do projeto (item 14).
 
@@ -67,7 +68,7 @@ Sugestões das revisões que ficaram para uma 1.11.x:
 1. `approve-plan`: recusar gravar sem `--replace` quando o histórico da branch já tem um retrato (hoje apagar o arquivo antes contorna), e o `merge-check` exigir o retrato mais recente do histórico.
 2. Entrega no formato da 1.11 com portão `plan` ligado e sem retrato vira portão humano (`merge.plan_unapproved`).
 3. Retrato com a versão lida do arquivo da spec (ou hash das linhas de CA), e universo com chave `caminho#ID`.
-4. Cenário marcado fora desta entrega mas com teste que passou: `trace` e `computeSpecScope` discordam no aceite.
+4. Item marcado fora desta entrega com evidência manual aprovada de outra entrega: hoje passa sem alerta (o `trace` filtra a evidência pela entrega); um aviso que não trava ajudaria.
 5. Trava do `board-sync`: renovar a validade a cada rodada e apagar só se for do próprio processo.
 6. Caixa `rede`: conferir ao vivo se os arquivos vazios da montagem saem de dentro da caixa antes do `git worktree remove`; se não saírem, toda tarefa vira pendência.
 7. Hash dos `cleanup.commands` por um comando do motor, com forma canônica.
@@ -96,4 +97,4 @@ Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versã
 
 ## Próximo passo
 
-Com o ok da pessoa: juntar `feat/1.11.0` na `main`, marcar `v1.11.0` e publicar o release com o pacote da skill. Depois, a 1.11.x com as sugestões acima e a 1.12.0 (`/baco:issue`).
+A 1.11.x com as sugestões acima e a 1.12.0 (`/baco:issue`).
