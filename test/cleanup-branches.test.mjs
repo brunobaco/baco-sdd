@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import { execFileSync } from 'node:child_process';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
-import { planCleanup } from '../skills/baco-sdd/scripts/commands/cleanup-branches.mjs';
+import { planCleanup, removeSandboxEmptyStubs, SANDBOX_EMPTY_STUBS } from '../skills/baco-sdd/scripts/commands/cleanup-branches.mjs';
 import { makeRepo, commit } from './helpers/tmprepo.mjs';
 
 const g = (dir, ...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' }).trim();
@@ -444,4 +444,80 @@ test('cleanup-branches removes known 0-byte untracked sandbox stubs before git w
   assert.equal(r3.code, 1);
   assert.equal(JSON.parse(r3.out.stdout).failed[0].step, 'worktree');
   assert.equal(existsSync(join(f3.wt, 'empty-note.txt')), true);
+});
+
+test('cleanup-branches also removes the newer 0-byte sandbox stubs (.gitmodules, launch.json, loop.md, scheduled_tasks.json)', async () => {
+  const { mkdirSync } = await import('node:fs');
+  const f = await fixture();
+  mkdirSync(join(f.wt, '.claude'), { recursive: true });
+  for (const rel of ['.gitmodules', '.claude/launch.json', '.claude/loop.md', '.claude/scheduled_tasks.json']) writeFileSync(join(f.wt, rel), '');
+  const r = await run(['cleanup-branches', '--apply', '--json', '--cwd', f.dir]);
+  assert.equal(r.code, 0, r.out.stdout + r.out.stderr);
+  assert.equal(existsSync(f.wt), false);
+});
+
+test('removeSandboxEmptyStubs keeps a 0-byte stub name that git tracks, and never touches folders', async () => {
+  const { mkdirSync } = await import('node:fs');
+  const f = await fixture();
+  g(f.wt, 'config', 'user.email', 'baco@example.com');
+  g(f.wt, 'config', 'user.name', 'Baco Test');
+  writeFileSync(join(f.wt, '.gitmodules'), '');
+  g(f.wt, 'add', '.gitmodules');
+  g(f.wt, 'commit', '-q', '-m', 'tracked empty');
+  mkdirSync(join(f.wt, '.vscode'), { recursive: true });
+  removeSandboxEmptyStubs(f.wt);
+  assert.equal(existsSync(join(f.wt, '.gitmodules')), true, 'tracked stub name must stay');
+  assert.equal(existsSync(join(f.wt, '.vscode')), true, 'folders are never removed');
+});
+
+test('git worktree remove without --force accepts the empty untracked .claude/.cc-writes folder, so cleanup leaves it alone', async () => {
+  const { mkdirSync } = await import('node:fs');
+  const f = await fixture();
+  mkdirSync(join(f.wt, '.claude', '.cc-writes'), { recursive: true });
+  const r = await run(['cleanup-branches', '--apply', '--json', '--cwd', f.dir]);
+  assert.equal(r.code, 0, r.out.stdout + r.out.stderr);
+  assert.equal(existsSync(f.wt), false);
+  assert.ok(!branchesOf(f.dir).includes('baco/ENT-001-T01'));
+});
+
+test('cleanup-branches --apply prunes a worktree whose folder is already gone (prunable) and still deletes the merged branch', async () => {
+  const { rmSync } = await import('node:fs');
+  const f = await fixture();
+  rmSync(f.wt, { recursive: true, force: true });
+  assert.match(g(f.dir, 'worktree', 'list', '--porcelain'), /prunable/);
+  const r = await run(['cleanup-branches', '--apply', '--json', '--cwd', f.dir]);
+  assert.equal(r.code, 0, r.out.stdout + r.out.stderr);
+  assert.doesNotMatch(g(f.dir, 'worktree', 'list', '--porcelain'), /wt1/);
+  assert.ok(!branchesOf(f.dir).includes('baco/ENT-001-T01'));
+});
+
+test('cleanup-branches reports the prunable leftover when git removes the folder but cannot remove its data under .git/worktrees', async (t) => {
+  const { chmodSync } = await import('node:fs');
+  if (process.getuid && process.getuid() === 0) return t.skip('root ignores directory permissions');
+  const f = await fixture();
+  const admin = join(f.dir, '.git', 'worktrees');
+  chmodSync(admin, 0o555);
+  t.after(() => chmodSync(admin, 0o755));
+  const r = await run(['cleanup-branches', '--apply', '--cwd', f.dir]);
+  assert.equal(r.code, 1, r.out.stdout + r.out.stderr);
+  assert.match(r.out.stdout + r.out.stderr, /git worktree prune/, 'hint about git worktree prune expected');
+  assert.match(r.out.stdout + r.out.stderr, /etapa worktree/);
+  assert.ok(branchesOf(f.dir).includes('baco/ENT-001-T01'), 'the branch is kept while the worktree is not cleaned');
+  chmodSync(admin, 0o755);
+  const r2 = await run(['cleanup-branches', '--apply', '--json', '--cwd', f.dir]);
+  assert.equal(r2.code, 0, r2.out.stdout + r2.out.stderr);
+  assert.ok(!branchesOf(f.dir).includes('baco/ENT-001-T01'));
+  assert.doesNotMatch(g(f.dir, 'worktree', 'list', '--porcelain'), /wt1/);
+});
+
+test('the sandbox stub list is the same in the engine, ambientes.md, implementation.md and the engine README', async () => {
+  const { readFileSync } = await import('node:fs');
+  const root = join(import.meta.dirname, '..', 'skills', 'baco-sdd');
+  const files = [join(root, 'references', 'ambientes.md'), join(root, 'references', 'implementation.md'), join(root, 'scripts', 'README.md')];
+  for (const file of files) {
+    const text = readFileSync(file, 'utf8');
+    const line = text.split('\n').find((l) => l.includes('.ripgreprc'));
+    assert.ok(line, `${file}: line with the stub list not found`);
+    for (const stub of SANDBOX_EMPTY_STUBS) assert.ok(line.includes('`' + stub + '`'), `${file}: "${stub}" missing`);
+  }
 });

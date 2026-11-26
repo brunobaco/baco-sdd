@@ -100,13 +100,20 @@ function deleteLocal(branch, sha, cwd) {
   try { git(['config', '--remove-section', `branch.${branch}`], cwd); } catch { /* no config section */ }
 }
 
-// Known 0-byte mount stubs left by Claude Code's sandbox (`rede`) inside worktrees.
-// Removed one by one before `git worktree remove` ONLY when regular, 0 bytes, and untracked by git.
+// Known 0-byte mount stubs that Claude Code's sandbox (`rede`) may leave inside worktrees (older
+// versions left them on disk; checked with 2.1.331, which leaves none after the session, only the
+// empty folder `.claude/.cc-writes`, and `git worktree remove` without `--force` accepts that).
+// Files only, never folders. Removed one by one before `git worktree remove` ONLY when regular,
+// 0 bytes, and untracked by git.
 export const SANDBOX_EMPTY_STUBS = [
   '.claude/settings.json',
   '.claude/settings.local.json',
+  '.claude/launch.json',
+  '.claude/loop.md',
+  '.claude/scheduled_tasks.json',
   '.mcp.json',
   '.gitconfig',
+  '.gitmodules',
   '.bashrc',
   '.bash_profile',
   '.profile',
@@ -201,6 +208,12 @@ export function applyCleanup(candidates, { root, remote = null, protectedList = 
       deleteLocal(c.branch, c.sha, root);
     } catch (e) {
       fail({ branch: c.branch, step, error: e.message });
+      // The folder is gone but git could not remove its data under `.git/worktrees/<name>` (inside
+      // Claude Code's sandbox that folder is read-only): the worktree is left `prunable`. Pruning
+      // here would fail the same way, so the person runs `git worktree prune` outside the sandbox.
+      if (step === 'worktree' && c.worktree && !existsSync(c.worktree)) {
+        messages.push({ key: 'cleanup.worktree_prunable', params: { branch: c.branch, path: c.worktree } });
+      }
       continue;
     }
     if (remote) {

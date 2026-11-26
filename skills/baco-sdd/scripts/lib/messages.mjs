@@ -252,6 +252,7 @@ Object.assign(messages['pt-BR'], {
   'cleanup.orphan_skipped.not_empty': 'Mantida pasta solta em .worktrees ({path}): não está vazia; confira o conteúdo antes de apagar à mão.',
   'cleanup.delivery_log': 'Remover registro da entrega encerrada: {path}',
   'cleanup.log_removed': 'Registro removido: {path}',
+  'cleanup.worktree_prunable': 'A pasta {path} foi apagada, mas o git não conseguiu limpar o registro dela em .git/worktrees (dentro da caixa do Claude Code essa pasta é somente leitura), e a branch {branch} foi mantida. Rode "git worktree prune" fora da caixa e repita a limpeza.',
 });
 
 Object.assign(messages.en, {
@@ -275,6 +276,7 @@ Object.assign(messages.en, {
   'cleanup.orphan_worktree': 'Remove empty orphan folder in .worktrees: {path}',
   'cleanup.orphan_removed': 'Removed empty orphan folder: {path}',
   'cleanup.orphan_skipped.not_empty': 'Kept non-empty orphan folder in .worktrees ({path}): inspect its contents before deleting manually.',
+  'cleanup.worktree_prunable': 'The folder {path} was deleted, but git could not clean its record under .git/worktrees (inside Claude Code\'s sandbox that folder is read-only), and branch {branch} was kept. Run "git worktree prune" outside the sandbox and repeat the cleanup.',
   'cleanup.delivery_log': 'Remove closed delivery log: {path}',
   'cleanup.log_removed': 'Removed log: {path}',
 });
