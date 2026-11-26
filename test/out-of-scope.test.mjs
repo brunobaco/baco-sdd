@@ -11,6 +11,7 @@ import { readPlanApproval } from '../skills/baco-sdd/scripts/lib/plan-approval.m
 import { traceCoverage } from '../skills/baco-sdd/scripts/commands/trace.mjs';
 import { mergeDecision, pendingItems, outOfScopeItems, renderAcceptance, planScopeBlockers } from '../skills/baco-sdd/scripts/commands/acceptance-report.mjs';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
+import { t as tr } from '../skills/baco-sdd/scripts/lib/messages.mjs';
 
 const capture = () => {
   let stdout = '';
@@ -313,6 +314,17 @@ test('trace warns, without failing, when an out-of-scope scenario has an approve
   assert.match(stdout, /CT-002/);
   assert.match(stdout, /ENT-002/);
   assert.match(stdout, /outra entrega/);
+});
+
+test('other-delivery warning reads right with one item or several, in pt-BR and en', () => {
+  for (const items of ['CT-002 (ENT-002)', 'CT-002 (ENT-002), CT-003 (ENT-003)']) {
+    const pt = tr('pt-BR', 'trace.out_of_scope_other_delivery', { items });
+    const en = tr('en', 'trace.out_of_scope_other_delivery', { items });
+    assert.ok(pt.includes(items) && en.includes(items));
+    // No verb or noun forced into the plural around the list.
+    assert.doesNotMatch(pt, /\b(estão|marcados|têm)\b/);
+    assert.doesNotMatch(en, /\b(are|have)\b/);
+  }
 });
 
 test('trace gives no other-delivery warning when the evidence is rejected, or without --delivery', async (t) => {
