@@ -87,6 +87,17 @@ test('antigravity plugin: each command becomes a skill the person calls by name,
   }
 });
 
+test('antigravity plugin: the issue command becomes the skill baco-issue, pointing at the issue flow', () => {
+  const dest = build();
+  const text = readFileSync(join(dest, 'skills', 'baco-issue', 'SKILL.md'), 'utf8');
+  const meta = fm(text);
+  assert.equal(meta.name, 'baco-issue');
+  assert.match(meta.description, /\/baco-issue/);
+  assert.ok(text.includes('[references/issue.md](../baco-sdd/references/issue.md)'), 'link to the issue flow');
+  assert.ok(existsSync(join(dest, 'skills', 'baco-sdd', 'references', 'issue.md')));
+  for (const p of ['gh issue view', 'gh issue create', 'external data']) assert.ok(text.includes(p), p);
+});
+
 test('antigravity plugin: the main skill is copied whole, its commands named the Antigravity way, and fits the 24 KB Antigravity loads', () => {
   const dest = build();
   const src = join(REPO, 'skills', 'baco-sdd');

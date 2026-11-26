@@ -218,6 +218,7 @@ const COMMANDS = {
   arquitetura: 'references/architecture.md', plano: 'references/planning.md', publicar: 'references/task-publication.md',
   executar: 'references/implementation.md', revisar: 'references/review.md', entregar: 'references/delivery.md',
   reconciliar: 'references/reconciliation.md', status: 'SKILL.md', 'roteiro-negocio': 'references/delivery.md',
+  issue: 'references/issue.md',
 };
 
 test('one command per phase plus status, each pointing to the core', () => {

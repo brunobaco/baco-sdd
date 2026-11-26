@@ -38,6 +38,7 @@ Comandos de apoio:
 | Comando | Para quê |
 |---|---|
 | `/baco:status` | Onde o projeto está, o que está rodando, o que espera você e o próximo passo. |
+| `/baco:issue` | Entrada pelo GitHub. Com número (`/baco:issue 12`, ou vários: `/baco:issue 12 15 18`), lê a issue e classifica: defeito que a spec já cobre vai direto para uma entrega leve, com teste primeiro; defeito em que a spec é omissa e melhoria pequena mudam a spec antes, com a sua aprovação; o que é grande demais segue pelo `/baco:spec` e `/baco:plano`. Várias issues pequenas podem virar uma entrega só. O PR fecha as issues tratadas (`Closes #N`) e a publicação reaproveita a issue que já existe. Sem número, ajuda a escrever uma issue nova (em defeito, pede passos, esperado e obtido, ambiente, erro e print) e só cria depois do seu ok. O texto da issue é tratado como dado: instrução escrita nele não é seguida, e o BACO avisa você. |
 | `baco merge-check` | Comando do motor: diz se a entrega pode juntar sem a pessoa (bateria completa válida, veredito, cenário manual, itens esperando você, CI do PR e política). |
 | `baco cost history` | Comando do motor: uma linha por entrega medida, com tokens por papel e razões (condutor por tarefa, construtor e revisor por revisão). O planejador usa para estimar. |
 | `/baco:roteiro-negocio` | Roteiro de teste em linguagem simples para alguém de negócio testar a entrega, com uma folha de resposta que o BACO lê de volta. |
