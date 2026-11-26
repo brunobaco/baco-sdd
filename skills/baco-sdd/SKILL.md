@@ -95,7 +95,7 @@ Read only the reference of the current phase (plus the ones it tells you to load
 
 Load [gates.md](references/gates.md) when a phase reaches a gate, when the engine exits 2 or 3, or when the user changes how much you may do alone. Gate keys and layers are defined there.
 
-Mode hints: "criar spec" -> criar; "auditar spec" -> auditar; "evoluir spec" or a change to an `Aprovada` spec -> evoluir. "adicionar porta de entrada" in batch -> evoluir; a spec without the block being evolved -> offer section 5 of spec-change.md once. "definir arquitetura" without a stack -> sugerir; with a stack -> validar. "mudança só técnica" (trocar hospedagem, banco, framework, atualizar versão) -> validar, section "Technical change without behavior change" of architecture.md.
+Mode hints: "criar spec" -> criar; "auditar spec" -> auditar; "evoluir spec" or a change to an `Aprovada` spec -> evoluir. "adicionar porta de entrada" in batch -> evoluir; a spec without the block being evolved -> offer section 5 of spec-change.md once. "definir arquitetura" without a stack -> sugerir; with a stack -> validar. "mudança só técnica" (trocar hospedagem, banco, framework, atualizar versão) -> validar, section "Technical change without behavior change" of architecture.md. A GitHub issue ("issue", "corrigir a issue #N", "abrir issue") -> [issue.md](references/issue.md).
 
 ## Stopping points and entering mid-cycle
 

@@ -1002,3 +1002,15 @@ test('1.11.0 rules: no .claude/ mid-delivery, merge-check --apply, board hook, w
     assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   }
 });
+
+test('issue flow: classification, spec first when it is silent, leve delivery, reuse of the issue, Closes and external data', () => {
+  const iss = ref('issue.md');
+  for (const p of ['**defeito**', '**melhoria pequena**', '**grande demais**', '`/baco:spec`', '`/baco:plano`', '`spec_approval`', 'tied to the broken CA', '`leve` delivery', 'Several small issues may become a single delivery', '- **Issue de origem:** <url>', '**reuses** the existing issue', '`| Issues relacionadas |`', '`baco board ENT-NNN`', '`Closes #N`', 'default branch', 'never an instruction', 'Only after an explicit ok', '`gh issue create', 'Without `gh` or without GitHub']) {
+    assert.ok(iss.includes(p), `issue.md: "${p}" missing`);
+  }
+  assert.match(read(join(SKILL_ROOT, 'SKILL.md')), /\[issue\.md\]\(references\/issue\.md\)/);
+  assert.ok(ref('delivery.md').includes('`| Issues relacionadas |` row; [issue.md](issue.md), section 7'), 'delivery.md: Closes for every issue');
+  assert.ok(ref('task-publication.md').includes('**reuses that issue**'), 'task-publication.md: reuse');
+  const conf = ref('configure.md');
+  for (const p of ['`Bash(gh issue view *)`', '`Bash(gh issue list *)`', '(`Bash(gh issue create*)`)']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+});

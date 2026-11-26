@@ -118,7 +118,7 @@ New evidence is a QA-file commit, so it makes traces and verdict stale: handle i
 ## 5. Pull request and CI (project on GitHub)
 
 1. Gate `before_pr` (on by default): show the user the report in plain words (what works, what is pending, risks, what changes for them) and ask for the approval sentence of [gates.md](gates.md). Wait for an explicit "sim". Not asked when `delivery.integration_merge` is `auto`, the destination is the integration branch and `baco merge-check` exited 0 ("Ready to test" above).
-2. Check `gh auth status`. Push `baco/ENT-NNN`. The draft PR **from `baco/ENT-NNN` to the destination** normally exists already ([review.md](review.md), section 3): replace its body with the `aceite.md` text, adding a `Closes #N` line for each issue recorded in the task files, and mark it ready. When it does not exist (the review ran in another mode, or GitHub came later), open it with that body:
+2. Check `gh auth status`. Push `baco/ENT-NNN`. The draft PR **from `baco/ENT-NNN` to the destination** normally exists already ([review.md](review.md), section 3): replace its body with the `aceite.md` text, adding a `Closes #N` line for each issue recorded in the task files (the `| Issue |` row and, for a task born from several issues, the `| Issues relacionadas |` row; [issue.md](issue.md), section 7), and mark it ready. When it does not exist (the review ran in another mode, or GitHub came later), open it with that body:
 
 ```
 gh pr edit <number> --body-file .baco/logs/pr-body-ENT-NNN.md
