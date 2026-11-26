@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs';
 import { parseId } from './ids.mjs';
 
 export function readText(path) {
-  return readFileSync(path, 'utf8').replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  return normalizeText(readFileSync(path, 'utf8'));
+}
+
+// What readText does to a file's content, for text read some other way (for example from git).
+export function normalizeText(text) {
+  return String(text).replace(/^﻿/, '').replace(/\r\n?/g, '\n');
 }
 
 export function fold(s) {

@@ -267,6 +267,66 @@ test('a 1.11.0 portrait (IDs only, no spec file versions nor CA hashes) is still
   assert.ok(r.data.blockers.includes('merge.plan_universe_shrank'), r.data.blockers.join());
 });
 
+// Promotion (delivery.md, 6b): the portrait is compared with the spec as the delivery was merged,
+// not with what the integration branch did to the spec afterwards (another delivery, reconciliation).
+const SPEC_LATER = SPEC.replace('| Versão | 1.0 |', '| Versão | 1.1 |').replace('- **CA-001:** Ok.', '- **CA-001:** Ok, com a regra nova da outra entrega.');
+async function promote(repo, { afterMerge = () => {} } = {}) {
+  git(repo, 'checkout', '-q', 'develop');
+  git(repo, 'merge', '-q', '--no-ff', '-m', 'merge ENT-001', 'baco/ENT-001');
+  const merge = git(repo, 'rev-parse', 'HEAD');
+  afterMerge(merge);
+  writeFileSync(join(repo, 'docs/specs/spec-a.md'), SPEC_LATER);
+  git(repo, 'add', 'docs/specs/spec-a.md');
+  git(repo, 'commit', '-q', '-m', 'spec evolves on develop after ENT-001');
+  git(repo, 'checkout', '-q', '-b', 'baco/ENT-001-PROMO');
+  const out = join(repo, DELIVERY, 'revisao', 'trace-spec-a.json');
+  const ct = capture();
+  assert.equal(await main(['trace', '--spec', 'docs/specs/spec-a.md', '--qa', 'docs/qa/cenarios-qa-spec-a.md', '--delivery', 'ENT-001', '--out', out, '--json', '--cwd', repo], ct.io), 0, ct.out().stdout);
+  const c = capture();
+  await main(['acceptance-report', 'ENT-001', '--target', 'main', '--trace', out, '--json', '--cwd', repo], c.io);
+  return { data: JSON.parse(c.out().stdout), merge };
+}
+const SPEC_BLOCKERS = ['merge.plan_specs_changed', 'merge.plan_criteria_changed', 'merge.plan_universe_shrank', 'merge.plan_approval_deleted'];
+
+test('promotion: a spec evolved on the integration branch after the delivery was merged does not block the acceptance', async (t) => {
+  const { repo } = await setupDelivery(t, { approve: true });
+  const { data } = await promote(repo);
+  const hit = (data.blockers ?? []).filter((k) => SPEC_BLOCKERS.includes(k));
+  assert.deepEqual(hit, [], (data.blockers ?? []).join());
+  assert.match(data.planScopeRef ?? '', /^[0-9a-f]{40}$/, 'the reference used is reported');
+  assert.equal(data.planScopeRef, git(repo, 'rev-parse', 'baco/ENT-001'), 'the delivery tip as merged');
+});
+
+test('promotion after cleanup (branch gone, tag entrega/ENT-NNN on the merge commit) still compares with the merged delivery', async (t) => {
+  const { repo } = await setupDelivery(t, { approve: true });
+  const tip = git(repo, 'rev-parse', 'baco/ENT-001');
+  const { data } = await promote(repo, {
+    afterMerge: (merge) => { git(repo, 'tag', 'entrega/ENT-001', merge); git(repo, 'branch', '-q', '-D', 'baco/ENT-001'); },
+  });
+  const hit = (data.blockers ?? []).filter((k) => SPEC_BLOCKERS.includes(k));
+  assert.deepEqual(hit, [], (data.blockers ?? []).join());
+  assert.equal(data.planScopeRef, tip, 'second parent of the tagged merge commit');
+});
+
+test('promotion: a spec changed inside the delivery after the approval still blocks', async (t) => {
+  const { repo } = await setupDelivery(t, { approve: true });
+  git(repo, 'checkout', '-q', 'baco/ENT-001');
+  writeFileSync(join(repo, 'docs/specs/spec-a.md'), SPEC.replace('| Versão | 1.0 |', '| Versão | 1.0.1 |').replace('- **CA-001:** Ok.', '- **CA-001:** Ok, mudado dentro da entrega.'));
+  git(repo, 'add', 'docs/specs/spec-a.md');
+  git(repo, 'commit', '-q', '-m', 'spec changed inside the delivery');
+  const { data } = await promote(repo);
+  assert.ok(data.blockers.includes('merge.plan_specs_changed'), data.blockers.join());
+  assert.ok(data.blockers.includes('merge.plan_criteria_changed'), data.blockers.join());
+});
+
+test('on the delivery branch itself the comparison stays with the working copy', async (t) => {
+  const { repo, traces } = await setupDelivery(t, { approve: true });
+  writeFileSync(join(repo, 'docs/specs/spec-a.md'), SPEC_LATER); // not committed
+  const r = await acceptance(repo, traces);
+  assert.ok(r.data.blockers.includes('merge.plan_specs_changed'), r.data.blockers.join());
+  assert.equal(r.data.planScopeRef ?? null, null);
+});
+
 test('the new messages exist in pt-BR and en', () => {
   for (const key of ['approve_plan.deleted_in_history', 'merge.plan_approval_deleted', 'merge.plan_unapproved', 'merge.plan_criteria_changed']) {
     assert.ok(messages['pt-BR'][key], key);

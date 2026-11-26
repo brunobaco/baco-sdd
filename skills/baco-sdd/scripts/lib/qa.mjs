@@ -85,8 +85,12 @@ function specialistOf(word, value, kinds) {
 }
 
 // `specialist`: the config's `qa.specialist` kinds (default none: no scenario is a specialist one).
-export function readQa(path, { specialist: kinds = [] } = {}) {
-  const md = readText(path);
+export function readQa(path, opts = {}) {
+  return parseQaText(readText(path), opts);
+}
+
+// Same as readQa, from the text (BOM and CRLF already normalized, as readText does).
+export function parseQaText(md, { specialist: kinds = [] } = {}) {
   const lines = md.split('\n');
   const heads = headings(md);
 

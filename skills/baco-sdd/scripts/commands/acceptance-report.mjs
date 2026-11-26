@@ -1,12 +1,12 @@
 import { writeFileSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { deliveryDir, readPlanHeader, computeDeliveryScope, latestVerdict, deliveryKnownIds, builtOutOfScopeDetail, describeBuilt, isPortraitEra, ENT_ID } from '../lib/delivery.mjs';
 import { orphansOf } from './trace.mjs';
-import { revParse, isAncestor, diffQuiet, showFile } from '../lib/git.mjs';
+import { revParse, isAncestor, diffQuiet, showFile, refExists, tagTarget } from '../lib/git.mjs';
 import { loadTrace } from '../lib/tracefile.mjs';
 import { manualPendingRule, provenancePathspecs, parseYamlSubset, resolveConfig } from '../lib/config.mjs';
 import { readQa, resolveSpecialistKind } from '../lib/qa.mjs';
-import { readText, headings, tables, fold } from '../lib/markdown.mjs';
+import { readText, normalizeText, headings, tables, fold } from '../lib/markdown.mjs';
 import { readWaiver } from '../lib/waiver.mjs';
 import { loadPlanApproval } from '../lib/plan-approval.mjs';
 import { agentRuns } from './cost.mjs';
@@ -67,8 +67,25 @@ const sameList = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]
 // portrait is a human gate even with nothing out of scope.
 // Universe entries `path#ID` are compared per spec; bare IDs (1.11.0 portraits) by ID only. Spec
 // file versions and CA hashes are compared only when the portrait recorded them.
-export function planScopeBlockers({ root, planText, config, trace, approval, deleted = null, requireApproval = false }) {
+// `scopeRef` (a commit, from mergedDeliveryRef): the delivery is already merged into what is checked
+// out (promotion, delivery.md 6b), so the specs, versions, universe and CA texts are compared with
+// the plan, specs and QA as committed at that commit (the delivery as merged), not with the working
+// copy, where another delivery or the reconciliation may have evolved the spec since. `planRel` is
+// the plan's path from the root.
+export function planScopeBlockers({ root, planText, config, trace, approval, deleted = null, requireApproval = false, scopeRef = null, planRel = null }) {
   const current = computeDeliveryScope({ root, planText, config });
+  const atRef = (rel) => {
+    const text = showFile(scopeRef, rel.split('\\').join('/'), root);
+    return text === null ? null : normalizeText(text);
+  };
+  const portraitScope = scopeRef
+    ? computeDeliveryScope({
+      root,
+      planText: (planRel && atRef(planRel)) ?? planText,
+      config,
+      readFile: (abs) => atRef(relative(root, abs)),
+    })
+    : current;
   const oos = outOfScopeItems(trace);
   const currentCas = [...new Set([...current.outOfScope, ...oos.cas])].sort();
   const currentScenarios = [...new Set([...current.outOfScopeScenarios, ...oos.scenarios])].sort();
@@ -102,8 +119,8 @@ export function planScopeBlockers({ root, planText, config, trace, approval, del
     }
   } else {
     // Declared in the plan header and read from the spec file are compared each on its own side.
-    const currentSpecSet = new Set(current.specs);
-    const currentFileSet = new Set(current.specVersions);
+    const currentSpecSet = new Set(portraitScope.specs);
+    const currentFileSet = new Set(portraitScope.specVersions);
     const missingSpecs = [...new Set([
       ...approval.specs.filter((s) => !currentSpecSet.has(s)),
       ...(approval.specVersions ?? []).filter((s) => !currentFileSet.has(s)),
@@ -112,8 +129,8 @@ export function planScopeBlockers({ root, planText, config, trace, approval, del
       blockers.push('merge.plan_specs_changed');
       params['merge.plan_specs_changed'] = { specs: missingSpecs.join(', ') };
     }
-    const uCasSet = new Set([...current.universeCas, ...current.universeCaKeys]);
-    const uScSet = new Set([...current.universeScenarios, ...current.universeScenarioKeys]);
+    const uCasSet = new Set([...portraitScope.universeCas, ...portraitScope.universeCaKeys]);
+    const uScSet = new Set([...portraitScope.universeScenarios, ...portraitScope.universeScenarioKeys]);
     const missingUniverse = [
       ...approval.universeCas.filter((id) => !uCasSet.has(id)),
       ...approval.universeScenarios.filter((id) => !uScSet.has(id)),
@@ -123,7 +140,7 @@ export function planScopeBlockers({ root, planText, config, trace, approval, del
       params['merge.plan_universe_shrank'] = { ids: missingUniverse.join(', ') };
     }
     const changedCriteria = Object.entries(approval.criteria ?? {})
-      .filter(([key, hash]) => current.criteria[key] !== undefined && current.criteria[key] !== hash)
+      .filter(([key, hash]) => portraitScope.criteria[key] !== undefined && portraitScope.criteria[key] !== hash)
       .map(([key]) => key)
       .sort();
     if (changedCriteria.length) {
@@ -145,6 +162,24 @@ export function planScopeBlockers({ root, planText, config, trace, approval, del
     }
   }
   return { blockers, params, contradictions, built, currentCas, currentScenarios };
+}
+
+// The delivery as it was merged, when it is already merged into HEAD (promotion, delivery.md 6b):
+// the tip of `baco/ENT-NNN` while the branch exists; after the cleanup deleted it, the tag
+// `entrega/ENT-NNN` (on the merge commit into the integration branch: its second parent, the merged
+// side; the tag itself when it is not a merge, the cleanup's fallback at the tip). null when HEAD is
+// that commit or does not contain it (on the delivery branch, before the merge): then the working
+// copy is the delivery.
+export function mergedDeliveryRef({ root, entId }) {
+  const head = refExists('HEAD', root) ? revParse('HEAD', root) : null;
+  if (!head) return null;
+  const merged = (sha) => (sha && sha !== head && isAncestor(sha, head, root) ? sha : null);
+  const branch = `refs/heads/baco/${entId}`;
+  if (refExists(branch, root)) return merged(revParse(branch, root));
+  const tag = tagTarget(`entrega/${entId}`, root);
+  if (!tag) return null;
+  const side = refExists(`${tag}^2`, root) ? revParse(`${tag}^2`, root) : tag;
+  return merged(side);
 }
 
 // The portrait inputs of planScopeBlockers for a delivery folder, with the history read at `ref`
@@ -566,8 +601,10 @@ export async function run(args, ctx) {
     return { code: 65, data: {}, messages: [{ key: 'acceptance.provenance_ignore_failed', params: { message: e.message } }] };
   }
   const specialist = ctx.config.qa?.specialist ?? [];
+  const scopeRef = mergedDeliveryRef({ root: ctx.root, entId });
   const scopeCheck = planScopeBlockers({
     root: ctx.root, planText, config: ctx.config, trace,
+    scopeRef, planRel: relative(ctx.root, join(dir, 'plano.md')),
     ...planApprovalInputs({ root: ctx.root, config: ctx.config, dir, entId, ref: 'HEAD', planText }),
   });
   const baseDecision = mergeDecision({ trace, verdict, rule: manualPendingRule(ctx.config, target), waiver, specialist });
@@ -595,6 +632,7 @@ export async function run(args, ctx) {
   const writerText = existsSync(out) ? extractWriterText(readText(out)) : null;
   writeFileSync(out, renderAcceptance({ entId, target, trace, verdict, decision, lang: ctx.lang, titles, blockerParams, waiver, openItems: items, agents, writerText, specialist }));
   if (writerText) decision.writerKept = true;
+  if (scopeRef) decision.planScopeRef = scopeRef;
 
   const messages = [
     { key: 'acceptance.written', params: { file: out } },

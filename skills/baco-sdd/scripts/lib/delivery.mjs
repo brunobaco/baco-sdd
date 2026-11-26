@@ -2,8 +2,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { fold, headings, readText, tables } from './markdown.mjs';
 import { expandRefs } from './ids.mjs';
-import { readSpec } from './spec.mjs';
-import { readQa, qaPathFor } from './qa.mjs';
+import { readSpec, parseSpecText } from './spec.mjs';
+import { readQa, parseQaText, qaPathFor } from './qa.mjs';
 import { criteriaHash } from './plan-approval.mjs';
 
 export class DeliveryError extends Error {
@@ -189,7 +189,12 @@ export const specKey = (root, path) => relative(root, resolve(root, path)).split
 // Besides the bare IDs, it returns the universe as `<spec path>#<ID>` keys (scenarios keyed by the
 // spec their QA file belongs to), the version read from each spec file (`specVersions`, `path@version`,
 // or just `path` when the file has none) and a normalized hash of each CA definition (`criteria`).
-export function computeDeliveryScope({ root, planText, config }) {
+//
+// `readFile(absPath)` returns a file's text (BOM and CRLF normalized) or null when it does not exist;
+// the default reads the disk. Given, the specs and QA files are read through it (for example as
+// committed at some commit).
+const readFromDisk = (abs) => (existsSync(abs) ? readText(abs) : null);
+export function computeDeliveryScope({ root, planText, config, readFile = readFromDisk }) {
   const { specs: planSpecs } = readPlanHeader(planText);
   const planScope = readPlanScope(planText);
   const universeCas = new Set();
@@ -204,11 +209,12 @@ export function computeDeliveryScope({ root, planText, config }) {
 
   for (const { path } of planSpecs) {
     const specAbs = resolve(root, path);
-    if (!existsSync(specAbs)) continue;
+    const specText = readFile(specAbs);
+    if (specText === null) continue;
     const key = specKey(root, path);
-    const spec = readSpec(specAbs);
-    const qaAbs = qaPathFor(specAbs);
-    const qa = existsSync(qaAbs) ? readQa(qaAbs, { specialist: config?.qa?.specialist }) : { scenarios: [], evidence: [] };
+    const spec = parseSpecText(specText);
+    const qaText = readFile(qaPathFor(specAbs));
+    const qa = qaText !== null ? parseQaText(qaText, { specialist: config?.qa?.specialist }) : { scenarios: [], evidence: [] };
     const s = computeSpecScope({ spec, qa, planOutOfScope: planScope.outOfScope, coveredByTask: planScope.coveredByTask });
     specVersions.push(spec.version ? `${key}@${spec.version}` : key);
     for (const id of s.universeCas) {
