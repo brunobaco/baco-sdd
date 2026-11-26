@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
 import { makeRepo } from './helpers/tmprepo.mjs';
-import { extractDeliveryFromPath, maybeSyncBoard } from '../hooks/board-sync.mjs';
+import { extractDeliveryFromPath, maybeSyncBoard, runBoardSyncWorker } from '../hooks/board-sync.mjs';
 
 const REPO_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -291,25 +291,58 @@ test('board-sync hook derives root from edited filePath (not cwd), enforces shor
     spawnFn: (cmd, args) => { spawnCount++; capturedArgs = { cmd, args }; return { unref() {} }; },
   });
 
-  // First call: finds root from filePath (NOT otherCwd), trims log, acquires lock, spawns
+  // First call: finds root from filePath (NOT otherCwd), trims log, acquires lock, spawns worker
   assert.equal(runHook(), true);
   assert.equal(spawnCount, 1);
   assert.ok(capturedArgs);
-  assert.ok(capturedArgs.args.includes('board'));
+  assert.ok(capturedArgs.args.includes('--worker'));
   assert.ok(capturedArgs.args.includes('ENT-001'));
-  assert.ok(capturedArgs.args.includes('--apply'));
-  assert.equal(capturedArgs.args[capturedArgs.args.indexOf('--cwd') + 1], conf);
+  assert.ok(capturedArgs.args.includes(conf));
   assert.ok(statSync(logPath).size <= 128 * 1024, 'quadro-sync.log must be capped');
+  const lockPath = join(logDir, 'quadro-sync-ENT-001.lock');
+  const dirtyPath = join(logDir, 'quadro-sync-ENT-001.dirty');
+  assert.equal(existsSync(lockPath), true, 'lock must exist while worker runs');
+  assert.equal(existsSync(dirtyPath), false);
 
-  // Second call within lock TTL: skipped (no parallel spawn for same delivery)
+  // Second call within lock TTL: skipped (no parallel spawn), writes dirty mark so latest edit is not lost
   now += 5_000;
   assert.equal(runHook(), false);
   assert.equal(spawnCount, 1);
+  assert.equal(existsSync(dirtyPath), true, 'concurrent edit while locked must write dirty mark');
 
-  // Third call after lock TTL expires: replaces stale lock and spawns again
-  now += 35_000;
+  // Worker consumes dirty mark and runs a second round, deleting both lock and dirty mark when done
+  const workerCalls = [];
+  const rounds = runBoardSyncWorker({
+    entId: 'ENT-001',
+    root: conf,
+    execFn: (_cmd, args) => {
+      workerCalls.push(args);
+      if (workerCalls.length === 1) {
+        // Simulate another edit arriving mid-run while lock is still held
+        assert.equal(runHook(), false);
+        assert.equal(existsSync(dirtyPath), true);
+      }
+      return { status: 0 };
+    },
+  });
+  assert.equal(rounds, 2);
+  assert.equal(workerCalls.length, 2);
+  assert.ok(workerCalls[0].includes('board') && workerCalls[0].includes('ENT-001') && workerCalls[0].includes('--apply'));
+  assert.equal(existsSync(lockPath), false, 'worker must remove lock when finished');
+  assert.equal(existsSync(dirtyPath), false, 'worker must clear dirty mark when finished');
+
+  // After worker removes lock, a new edit immediately acquires lock and spawns again
+  now += 1_000;
   assert.equal(runHook(), true);
   assert.equal(spawnCount, 2);
+
+  // Worker removes lock even if execFn throws
+  assert.throws(() => runBoardSyncWorker({
+    entId: 'ENT-001',
+    root: conf,
+    execFn: () => { throw new Error('boom'); },
+  }), /boom/);
+  assert.equal(existsSync(lockPath), false, 'worker must remove lock even on error');
 
   // Symlink invocation fails open with exit 0 and writes diagnostic to stderr
   const base = mkdtempSync(join(tmpdir(), 'baco-board-hook-'));
