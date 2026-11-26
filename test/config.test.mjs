@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import {
   parseYamlSubset, loadConfig, manualPendingRule, DEFAULTS, MANDATORY_GATES, ConfigError,
   testLayers, layerCommand, queuedLayers, smokeCommand,
@@ -39,7 +39,7 @@ review:
 `;
 
 function rootWith(yaml) {
-  const root = mkdtempSync(join(tmpdir(), 'baco-cfg-'));
+  const root = makeTempDirSync('baco-cfg-');
   if (yaml !== undefined) {
     mkdirSync(join(root, '.baco'));
     writeFileSync(join(root, '.baco', 'config.yaml'), yaml);
@@ -701,6 +701,81 @@ test('roles: an entry that is not text or has an empty model is dropped with a w
   ]);
 });
 
+test('roles: optional @effort override uses Object.hasOwn, preserves model IDs with @suffix, and warns with config.role_effort_invalid', async () => {
+  const { roleChain } = await import('../skills/baco-sdd/scripts/lib/config.mjs');
+  const cfg = loadConfig(rootWith([
+    'harnesses:',
+    '  claude-code:',
+    '    models: { forte: opus, medio: sonnet }',
+    '  codex:',
+    '    models: { forte: gpt-x }',
+    'models:',
+    '  standard:',
+    '    effort: constructor',
+    'roles:',
+    '  task_reviewer:',
+    '    - codex',
+    '    - claude-code/opus@baixo',
+    '    - claude-code@low',
+    '    - claude-code/claude-sonnet-4@20250514',
+    '    - claude-code/claude-sonnet-4@20250514@medio',
+    '    - claude-code@constructor',
+    '    - claude-code@invalido',
+    '    - claude-code/sonnet@',
+    '    - claude-code/@medio',
+    '  pr_reviewer:',
+    '    - codex/gpt-x@high',
+    '',
+  ].join('\n')));
+  assert.equal(cfg.models.standard.effort, DEFAULTS.models.standard.effort);
+  assert.deepEqual(cfg.roles, {
+    task_reviewer: [
+      'codex',
+      'claude-code/opus@baixo',
+      'claude-code@baixo',
+      'claude-code/claude-sonnet-4@20250514',
+      'claude-code/claude-sonnet-4@20250514@medio',
+    ],
+    pr_reviewer: ['codex/gpt-x@alto'],
+  });
+  assert.deepEqual(roleChain(cfg, 'task_reviewer'), [
+    { harness: 'codex', tool: 'codex', model: null },
+    { harness: 'claude-code', tool: 'claude-code', model: 'opus', effort: 'baixo' },
+    { harness: 'claude-code', tool: 'claude-code', model: null, effort: 'baixo' },
+    { harness: 'claude-code', tool: 'claude-code', model: 'claude-sonnet-4@20250514' },
+    { harness: 'claude-code', tool: 'claude-code', model: 'claude-sonnet-4@20250514', effort: 'medio' },
+  ]);
+  assert.deepEqual(roleChain(cfg, 'pr_reviewer'), [
+    { harness: 'codex', tool: 'codex', model: 'gpt-x', effort: 'alto' },
+  ]);
+  assert.deepEqual(cfg.warnings, [
+    { key: 'config.invalid_section', params: { section: 'models.standard.effort' } },
+    { key: 'config.role_effort_invalid', params: { role: 'task_reviewer', value: 'constructor', entry: 'claude-code@constructor' } },
+    { key: 'config.role_effort_invalid', params: { role: 'task_reviewer', value: 'invalido', entry: 'claude-code@invalido' } },
+    { key: 'config.role_effort_invalid', params: { role: 'task_reviewer', value: '', entry: 'claude-code/sonnet@' } },
+    { key: 'config.invalid_section', params: { section: 'roles.task_reviewer' } },
+  ]);
+  for (const lang of ['pt-BR', 'en']) {
+    const msg = t(lang, 'config.role_effort_invalid', { role: 'task_reviewer', value: 'constructor', entry: 'claude-code@constructor' });
+    assert.notEqual(msg, 'config.role_effort_invalid');
+    assert.match(msg, /constructor/);
+  }
+});
+
+test('branches: warns when branches.main is empty or branches.integration equals branches.main', () => {
+  const emptyMain = loadConfig(rootWith('branches:\n  main: ""\n  integration: develop\n'));
+  assert.equal(emptyMain.branches.main, 'main');
+  assert.ok(emptyMain.warnings.some((w) => w.key === 'config.branches_main_empty'));
+
+  const same = loadConfig(rootWith('branches:\n  main: develop\n  integration: develop\n'));
+  assert.ok(same.warnings.some((w) => w.key === 'config.branches_same'));
+
+  for (const lang of ['pt-BR', 'en']) {
+    assert.notEqual(t(lang, 'config.branches_main_empty'), 'config.branches_main_empty');
+    assert.notEqual(t(lang, 'config.branches_same', { branch: 'develop' }), 'config.branches_same');
+  }
+});
+
 // 1.10.0: risk criterion, delivery size, spec freeze, review focus, final rounds, test runs, CI
 // minutes, delivery destination and specialist QA.
 const invalid = (section) => ({ key: 'config.invalid_section', params: { section } });
@@ -822,4 +897,16 @@ test('product.uses_ai: default false, a boolean loads, a bad value is dropped wi
     assert.deepEqual(cfg.warnings, [invalid(section)], yaml);
     assert.equal(cfg.product.uses_ai, false, yaml);
   }
+});
+
+test('cleanup.commands: default empty list, scalar or list accepted, bad section warns', () => {
+  assert.deepEqual(DEFAULTS.cleanup, { commands: [] });
+  assert.deepEqual(loadConfig(rootWith()).cleanup, { commands: [] });
+  const single = loadConfig(rootWith('cleanup:\n  commands: docker compose down -v\n'));
+  assert.deepEqual(single.cleanup.commands, ['docker compose down -v']);
+  const many = loadConfig(rootWith('cleanup:\n  commands:\n    - npm run db:clean\n    - docker image prune -f\n'));
+  assert.deepEqual(many.cleanup.commands, ['npm run db:clean', 'docker image prune -f']);
+  const bad = loadConfig(rootWith('cleanup: true\n'));
+  assert.deepEqual(bad.cleanup, { commands: [] });
+  assert.deepEqual(bad.warnings, [invalid('cleanup')]);
 });

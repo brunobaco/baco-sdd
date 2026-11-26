@@ -4,9 +4,9 @@
 // Fails open: on any error it allows the edit and writes one line to stderr.
 import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, isAbsolute, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { repoRoot, currentBranch, git } from '../skills/baco-sdd/scripts/lib/git.mjs';
 import { loadConfig, resolveConfig, protectedBranches, ConfigError } from '../skills/baco-sdd/scripts/lib/config.mjs';
+import { isMainModule } from '../skills/baco-sdd/scripts/lib/entrypoint.mjs';
 import { readHookInput, preToolAnswer } from './host.mjs';
 
 const ALLOW = { deny: false };
@@ -55,6 +55,8 @@ function branchName(root) {
   }
 }
 
+const ENGINE_ONLY_RE = /(?:^|\/)entregas\/[^/]+\/(?:aprovacao-plano\.md|revisao\/dispensa-revisao-externa\.md)$/;
+
 // `hook` is the normalized input of host.mjs.
 export function decide(hook) {
   const path = hook.filePath;
@@ -69,6 +71,13 @@ export function decide(hook) {
   const target = existsSync(end) ? realpathSync(end) : join(realpathSync(endDir), relative(endDir, end));
   const rel = relative(realpathSync(root), target);
   if (rel === '.baco' || rel.startsWith(`.baco${sep}`)) return ALLOW;
+  const relPosix = rel.split(sep).join('/');
+  if (ENGINE_ONLY_RE.test(relPosix)) {
+    return {
+      deny: true,
+      reason: 'Edição bloqueada: aprovações do plano (aprovacao-plano.md) e dispensas de revisão externa (dispensa-revisao-externa.md) só podem ser gravadas pelo motor do BACO (baco approve-plan / baco waive-review).',
+    };
+  }
   const branch = branchName(root);
   if (!protectedBranches(projectConfig(root)).includes(branch)) return ALLOW;
   return {
@@ -77,7 +86,7 @@ export function decide(hook) {
   };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isMainModule(import.meta.url)) {
   let hook = readHookInput(null);
   let result = ALLOW;
   try {

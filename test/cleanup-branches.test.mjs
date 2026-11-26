@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import { execFileSync } from 'node:child_process';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
 import { planCleanup } from '../skills/baco-sdd/scripts/commands/cleanup-branches.mjs';
@@ -113,7 +113,7 @@ async function fixture() {
   g(dir, 'checkout', '-q', '-b', 'baco/ENT-001-T02');
   commit(dir, { 't2.md': '2' }, 't2');
   g(dir, 'checkout', '-q', 'develop');
-  const wt = join(mkdtempSync(join(tmpdir(), 'baco-wt-')), 'wt1');
+  const wt = join(makeTempDirSync('baco-wt-'), 'wt1');
   g(dir, 'worktree', 'add', '-q', wt, 'baco/ENT-001-T01');
   return { dir, wt };
 }
@@ -234,7 +234,7 @@ test('branch checked out in the main worktree is skipped as checked_out', async 
 
 test('--remote deletes the remote branch on a local bare origin; failures go to data.failed', async () => {
   const { dir } = await fixture();
-  const bare = mkdtempSync(join(tmpdir(), 'baco-bare-'));
+  const bare = makeTempDirSync('baco-bare-');
   execFileSync('git', ['init', '-q', '--bare', bare]);
   g(dir, 'remote', 'add', 'origin', bare);
   g(dir, 'push', '-q', 'origin', 'baco/ENT-001-T01');
@@ -313,11 +313,11 @@ test('remote failure is reported in failed only, not in done', async () => {
 // C1: a remote branch that holds commits the local tip does not have must never be deleted.
 async function remoteAheadFixture() {
   const { dir } = await fixture();
-  const bare = mkdtempSync(join(tmpdir(), 'baco-bare-'));
+  const bare = makeTempDirSync('baco-bare-');
   execFileSync('git', ['init', '-q', '--bare', bare]);
   g(dir, 'remote', 'add', 'origin', bare);
   g(dir, 'push', '-q', 'origin', 'baco/ENT-001-T01');
-  const other = join(mkdtempSync(join(tmpdir(), 'baco-clone-')), 'c');
+  const other = join(makeTempDirSync('baco-clone-'), 'c');
   execFileSync('git', ['clone', '-q', '-b', 'baco/ENT-001-T01', bare, other]);
   g(other, 'config', 'user.name', 'Other');
   g(other, 'config', 'user.email', 'o@example.com');
@@ -339,7 +339,7 @@ test('C1: --apply --remote keeps a remote branch that is ahead (remote_ahead), e
 
 test('C1: dry run with --remote says when a remote deletion would happen', async () => {
   const { dir } = await fixture();
-  const bare = mkdtempSync(join(tmpdir(), 'baco-bare-'));
+  const bare = makeTempDirSync('baco-bare-');
   execFileSync('git', ['init', '-q', '--bare', bare]);
   g(dir, 'remote', 'add', 'origin', bare);
   g(dir, 'push', '-q', 'origin', 'baco/ENT-001-T01');
@@ -362,4 +362,86 @@ test('M5: cleanup reason tokens are localized', async () => {
   const txt = await run(['cleanup-branches', '--cwd', dir]);
   assert.doesNotMatch(txt.out.stdout, /task_merged/);
   assert.match(txt.out.stdout, /tarefa/i);
+});
+
+test('cleanup-branches removes only empty .worktrees/ folders and never deletes non-empty folders (including clean git repos with ignored files or local commits)', async () => {
+  const { mkdirSync } = await import('node:fs');
+  const dir = await makeRepo({ '.baco/config.yaml': 'branches:\n  main: main\n  integration: develop\n' });
+  g(dir, 'checkout', '-q', '-b', 'develop');
+  g(dir, 'checkout', '-q', '-b', 'baco/ENT-001');
+  commit(dir, { 'a.txt': 'ok\n' }, 'ent work');
+  g(dir, 'checkout', '-q', 'develop');
+  g(dir, 'merge', '-q', '--no-ff', 'baco/ENT-001', '-m', 'merge ENT-001');
+
+  // 1. Empty loose folder (removed via rmdir)
+  mkdirSync(join(dir, '.worktrees', 'T-empty'), { recursive: true });
+  // 2. Non-git folder with loose file
+  mkdirSync(join(dir, '.worktrees', 'meu-clone'), { recursive: true });
+  writeFileSync(join(dir, '.worktrees', 'meu-clone', 'rascunho.txt'), 'nao apagar\n');
+  // 3. Exact repro: git repo with local-only commit AND gitignored segredo.env
+  const t09 = join(dir, '.worktrees', 'T-09');
+  mkdirSync(t09, { recursive: true });
+  g(t09, 'init', '-q');
+  g(t09, 'config', 'user.name', 'Test');
+  g(t09, 'config', 'user.email', 'test@example.com');
+  writeFileSync(join(t09, '.gitignore'), 'segredo.env\n');
+  writeFileSync(join(t09, 'local.txt'), 'only here\n');
+  g(t09, 'add', '.gitignore', 'local.txt');
+  g(t09, 'commit', '-q', '-m', 'local-only work');
+  writeFileSync(join(t09, 'segredo.env'), 'SECRET=1\n');
+
+  // Delivery logs for ENT-001 + shared logs (including cleanup-commands.sha256) + ENT-002 log
+  mkdirSync(join(dir, '.baco', 'logs', 'pr-ENT-001-r01'), { recursive: true });
+  writeFileSync(join(dir, '.baco', 'logs', 'quadro-ENT-001.json'), '{}');
+  writeFileSync(join(dir, '.baco', 'logs', 'harnesses.md'), 'keep\n');
+  writeFileSync(join(dir, '.baco', 'logs', 'cleanup-commands.sha256'), 'abc123\n');
+  writeFileSync(join(dir, '.baco', 'logs', 'quadro-ENT-002.json'), '{}');
+
+  const dry = JSON.parse((await run(['cleanup-branches', '--json', '--cwd', dir])).out.stdout);
+  assert.deepEqual(dry.orphanWorktrees, ['.worktrees/T-empty']);
+  assert.deepEqual(dry.skippedOrphans, [
+    { path: '.worktrees/T-09', reason: 'not_empty' },
+    { path: '.worktrees/meu-clone', reason: 'not_empty' },
+  ]);
+  assert.deepEqual(dry.deliveryLogs, ['.baco/logs/pr-ENT-001-r01', '.baco/logs/quadro-ENT-001.json']);
+
+  // Apply removes ONLY T-empty and ENT-001 logs; T-09 and meu-clone survive!
+  const applied = JSON.parse((await run(['cleanup-branches', '--apply', '--json', '--cwd', dir])).out.stdout);
+  assert.deepEqual(applied.removedWorktrees, ['.worktrees/T-empty']);
+  assert.deepEqual(applied.removedLogs, ['.baco/logs/pr-ENT-001-r01', '.baco/logs/quadro-ENT-001.json']);
+  assert.equal(existsSync(join(dir, '.worktrees', 'T-empty')), false);
+  assert.equal(existsSync(join(t09, 'segredo.env')), true, 'T-09 with ignored file and local commit must stay');
+  assert.equal(existsSync(join(dir, '.worktrees', 'meu-clone', 'rascunho.txt')), true);
+  assert.equal(existsSync(join(dir, '.baco', 'logs', 'harnesses.md')), true, 'shared log must stay');
+  assert.equal(existsSync(join(dir, '.baco', 'logs', 'cleanup-commands.sha256')), true, 'cleanup hash must stay');
+  assert.equal(existsSync(join(dir, '.baco', 'logs', 'quadro-ENT-002.json')), true, 'other delivery log must stay');
+});
+
+test('cleanup-branches removes known 0-byte untracked sandbox stubs before git worktree remove (no --force), but keeps non-empty or unknown files', async () => {
+  const { mkdirSync } = await import('node:fs');
+  // Case 1: known 0-byte untracked sandbox mount stubs -> removed cleanly without --force
+  const f1 = await fixture();
+  mkdirSync(join(f1.wt, '.claude'), { recursive: true });
+  writeFileSync(join(f1.wt, '.claude', 'settings.local.json'), '');
+  writeFileSync(join(f1.wt, '.mcp.json'), '');
+  const r1 = await run(['cleanup-branches', '--apply', '--json', '--cwd', f1.dir]);
+  assert.equal(r1.code, 0, r1.out.stdout + r1.out.stderr);
+  assert.equal(existsSync(f1.wt), false);
+  assert.ok(!branchesOf(f1.dir).includes('baco/ENT-001-T01'));
+
+  // Case 2: non-empty .mcp.json (real content!) -> kept, worktree step fails
+  const f2 = await fixture();
+  writeFileSync(join(f2.wt, '.mcp.json'), '{"real":true}\n');
+  const r2 = await run(['cleanup-branches', '--apply', '--json', '--cwd', f2.dir]);
+  assert.equal(r2.code, 1);
+  assert.equal(JSON.parse(r2.out.stdout).failed[0].step, 'worktree');
+  assert.equal(existsSync(join(f2.wt, '.mcp.json')), true);
+
+  // Case 3: unknown 0-byte file (not a known sandbox stub) -> kept, worktree step fails
+  const f3 = await fixture();
+  writeFileSync(join(f3.wt, 'empty-note.txt'), '');
+  const r3 = await run(['cleanup-branches', '--apply', '--json', '--cwd', f3.dir]);
+  assert.equal(r3.code, 1);
+  assert.equal(JSON.parse(r3.out.stdout).failed[0].step, 'worktree');
+  assert.equal(existsSync(join(f3.wt, 'empty-note.txt')), true);
 });

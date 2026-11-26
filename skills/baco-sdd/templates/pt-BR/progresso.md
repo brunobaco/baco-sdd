@@ -20,6 +20,8 @@ COMO USAR ESTE MODELO (apague este bloco ao criar o registro real)
 
 - **Atualizado em:** `<AAAA-MM-DD HH:MM>`
 - **Situação:** `<rodando, parado por cota, parado para conversa nova, parado por pergunta, parado por bloqueio, parado a pedido ou fim>`
+- **Execução autônoma:** `<sim ou não>`
+- **Conversa condutora:** `<endereço ou link da conversa que conduz a entrega, ou "não informado">`
 - **Onde está:** `<fase 6 ou 7; tarefas prontas, em andamento e esperando>`
 - **Rodando agora:** `<tarefas ou agentes em andamento, ou "nada">`
 - **Próximo passo:** `<o que a próxima conversa faz primeiro>`
@@ -50,6 +52,12 @@ Uma linha por tarefa começada e ainda não juntada na entrega. Atualizada junto
 
 | ID | Pendência | Impacto | Responsável | Destino | Situação |
 |---|---|---|---|---|---|
+
+## Instruções da pessoa
+
+Instruções, respostas ou ajustes ditos pela pessoa durante a entrega. Gravadas aqui assim que aparecem, para toda conversa nova ler daqui sem repasse entre conversas.
+
+- `<AAAA-MM-DD HH:MM | instrução ou decisão da pessoa>`
 
 ## Decisões registradas
 

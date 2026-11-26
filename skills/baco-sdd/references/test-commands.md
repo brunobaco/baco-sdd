@@ -21,3 +21,10 @@ Test titles must carry the criterion ID (`[CA-…]` or `[CT-…]`); that matters
 ## Machine settings: `.baco/local.env`
 
 Things that differ per machine (for example `PLAYWRIGHT_BROWSERS_PATH`, a local database URL for tests) go in `.baco/local.env`, one `KEY=VALUE` per line. `baco run-tests` loads it before each command. It is never versioned: add `.baco/local.env` to `.gitignore` and create the file only when there is something to put in it. If a test command only works with a path or variable specific to this machine, put it here, not in the command.
+
+## Parallel batteries and memory limits (OOM)
+
+When multiple tasks run in parallel on a memory-constrained machine, running heavy test suites concurrently (for example two Vitest/Jest integration layers or two Playwright browser runs at once) can exhaust memory and get OOM-killed. To prevent this:
+- Add every heavy test layer (not only `e2e`, also `integration` or bundler/database suites) to `tests.queue` in `.baco/config.yaml` so `baco run-tests` serializes them through the machine-wide queue.
+- Cap runner worker counts in the test command (for example Playwright `--workers=1` or Vitest `--maxWorkers=2`).
+- When running inside a sandbox that makes `/tmp` read-only, pass `BACO_QUEUE_DIR` to external implementers ([ambientes.md](ambientes.md), section 2) so all harnesses share one queue lock.

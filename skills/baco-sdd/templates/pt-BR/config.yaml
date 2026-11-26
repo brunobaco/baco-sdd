@@ -133,8 +133,10 @@ planning:
   # Depois que o plano é aprovado, uma mudança de spec vai para a próxima entrega, a não ser que você decida trazê-la.
   # freeze_specs: true
 
-# Quem faz cada papel, em ordem de preferência: o nome de uma ferramenta de "harnesses", ou
-# ferramenta/modelo para fixar um modelo. Se a cota de uma acabar, a seguinte continua o trabalho.
+# Quem faz cada papel, em ordem de preferência: o nome de uma ferramenta de "harnesses",
+# ferramenta/modelo para fixar um modelo, ou ferramenta/modelo@esforco (alto, medio ou baixo)
+# para fixar também o esforço (que vale sobre o esforço do tipo da tarefa). Se a cota de uma
+# acabar, a seguinte continua o trabalho.
 # Sem um papel aqui, o plano decide como sempre (a ferramenta em que o BACO roda, pelo tipo da tarefa).
 # Papéis: implementer (quem constrói, com task_split: funcionalidade), backend e frontend (com
 # front-back), task_reviewer (revisões de tarefa), task_reviewer_last (só a última revisão permitida
@@ -145,7 +147,7 @@ planning:
 roles:
   # backend: [antigravity-claude, claude-code]
   # frontend: [antigravity]
-  # task_reviewer: [codex, antigravity/gemini-4-argon]
+  # task_reviewer: [codex, antigravity/gemini-4-argon, claude-code/opus@baixo]
   # task_reviewer_last: [antigravity/gemini-4-argon]
 
 review:
@@ -196,9 +198,13 @@ provenance:
 #   integration_merge: ask    # ask (padrão) ou auto: com auto, se o "baco merge-check" disser que está tudo certo, junta sem perguntar
 
 # Tipos de cenário manual que só um QA especialista executa. Nunca são pedidos a você, nunca bloqueiam
-# uma junção (nem na principal) e ficam como pendência do especialista.
+# uma junção (nem na principal) e ficam fora de perguntas e resumos no chat (listados à parte no aceite.md e no PR).
 # qa:
-#   specialist: ["leitor de tela"]
+#   specialist: ["acessibilidade", "leitor de tela", "idioma", "aparelho físico", "aplicativo instalado"]
+
+# Comandos de limpeza do próprio projeto ao encerrar uma entrega (o BACO nunca decide sozinho o que é descartável).
+# cleanup:
+#   commands: []
 
 # O sistema chama um modelo de IA (por exemplo para resumir, classificar ou responder)? Com on, a
 # arquitetura, as specs, o plano e as revisões tratam a injeção de instruções em texto de fora.

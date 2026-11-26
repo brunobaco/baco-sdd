@@ -769,7 +769,7 @@ test('harness sandbox: protegida, rede and livre, the Codex call of each, the co
   const rules = read('skills/baco-sdd/templates/codex/baco.rules');
   const tpl = read('skills/baco-sdd/templates/pt-BR/config.yaml');
   for (const p of ['**Sandbox.**', '`protegida`', '`rede`', '`livre`', 'templates/codex/baco.rules', '`.codex/rules/baco.rules`',
-    'ignores a per-call trust override, so BACO adds none', 'run `git init -q` in it', '-c sandbox_workspace_write.network_access=true',
+    'ignores a per-call trust override, so BACO adds none', 'git worktree add --detach .baco/logs/harness-check/codex-escrita HEAD', 'trust_level = "trusted"', '-c sandbox_workspace_write.network_access=true',
     'shell_environment_policy.set={npm_config_cache="/tmp/baco-npm-cache"}', '-s danger-full-access', 'Start every Codex call in the background from the beginning', 'Do not add `< /dev/null` instead',
     'Never `--approve-for-me`', '`regra: sim`', 'identical to the skill\'s template (`cmp`)']) assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
   for (const p of ['`harnesses.<name>.sandbox`', '(a) protegida', '(b) rede', '(c) livre', 'Minha recomendação: (b) rede', 'Padrão: (b) rede.', 'A caixa vale a partir da próxima conversa', '`Bash(git switch docs/*)`',
@@ -864,9 +864,52 @@ test('antigravity: read-only reviewer call, resume, check with refusal, cost and
   for (const p of ['`agy` or `antigravity` on the PATH', '`.baco/antigravity/leitura.json`', '`Bash(antigravity -p * --settings .baco/antigravity/leitura.json *)`',
     '`Bash(antigravity *--dangerously-skip-permissions*)`', '`Bash(antigravity * --settings * --settings *)`',
     'as regras de leitura do BACO no Antigravity']) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
-  // A `--mode` on the read-only call is asked in either order, and a second `--mode` on any call.
+  // A `--mode` on the read-only call is asked in either order (including as first arg, trailing space or `=`, never matching `--model`), and a second `--mode` on any call.
+  const globToRegExp = (p) => new RegExp('^' + p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
   for (const bin of ['antigravity', 'agy']) {
-    for (const p of [`\`Bash(${bin} *leitura.json*--mode*)\``, `\`Bash(${bin} *--mode*leitura.json*)\``, `\`Bash(${bin} *--mode*--mode*)\``, `\`Bash(${bin} *--add-dir*)\``]) assert.ok(conf.includes(p), `configure.md: "${p}" missing`);
+    const modeAsks = [
+      `${bin} *leitura.json*--mode *`, `${bin} *leitura.json*--mode=*`,
+      `${bin} *--mode *leitura.json*`, `${bin} *--mode=*leitura.json*`,
+      `${bin} *--mode *--mode *`, `${bin} *--mode=*--mode *`,
+      `${bin} *--mode *--mode=*`, `${bin} *--mode=*--mode=*`,
+    ];
+    for (const p of [...modeAsks, `${bin} *--add-dir*`]) assert.ok(conf.includes(`\`Bash(${p})\``), `configure.md: "Bash(${p})" missing`);
+    assert.ok(!conf.includes(`\`Bash(${bin} *--mode*--mode*)\``), `configure.md: old greedy --mode*--mode* pattern must be removed`);
+    assert.ok(!conf.includes(`\`Bash(${bin} *leitura.json*--mode*)\``), `configure.md: old greedy leitura.json*--mode* pattern must be removed`);
+    assert.ok(!conf.includes(`\`Bash(${bin} * --mode *leitura.json*)\``), `configure.md: leading-space --mode pattern must be removed`);
+
+    const matchers = modeAsks.map(globToRegExp);
+    const allowedCalls = [
+      `${bin} -p "Leia o pedido" --settings .baco/antigravity/leitura.json --model gemini-4-neon-high --output-format json`,
+      `${bin} --model gemini-4-neon-high -p "Leia o pedido" --settings .baco/antigravity/leitura.json --output-format json`,
+      `${bin} -p "Siga" --conversation abc-123 --settings .baco/antigravity/leitura.json --model gemini-4-neon-high --output-format json`,
+      `${bin} -p "Construa T-001" --settings .agents/baco-construcao.json --model gemini-4-neon-high --mode accept-edits --print-timeout 0 --output-format json`,
+      `${bin} --model gemini-4-neon-high -p "Construa T-001" --settings .agents/baco-construcao.json --mode accept-edits --print-timeout 0 --output-format json`,
+      `${bin} -p "Siga" --conversation abc-123 --settings .agents/baco-construcao.json --model=gemini-4-neon-high --mode accept-edits --print-timeout 0 --output-format json`,
+      `${bin} -p "Construa T-001" --settings .agents/baco-construcao.json --mode=accept-edits --model gemini-4-neon-high --print-timeout 0 --output-format json`,
+    ];
+    for (const cmd of allowedCalls) {
+      assert.equal(matchers.some((rx) => rx.test(cmd)), false, `legitimate call should not match --mode ask: ${cmd}`);
+    }
+    const askedCalls = [
+      `${bin} -p "x" --settings .baco/antigravity/leitura.json --mode accept-edits`,
+      `${bin} -p "x" --settings .baco/antigravity/leitura.json --mode=auto`,
+      `${bin} -p "x" --mode auto --settings .baco/antigravity/leitura.json`,
+      `${bin} -p "x" --mode=auto --settings .baco/antigravity/leitura.json`,
+      `${bin} --mode auto -p "x" --settings .baco/antigravity/leitura.json`,
+      `${bin} --mode=auto -p "x" --settings .baco/antigravity/leitura.json`,
+      `${bin} -p "x" --settings .agents/baco-construcao.json --mode accept-edits --mode auto`,
+      `${bin} -p "x" --settings .agents/baco-construcao.json --mode=accept-edits --mode auto`,
+      `${bin} -p "x" --settings .agents/baco-construcao.json --mode accept-edits --mode=auto`,
+      `${bin} -p "x" --settings .agents/baco-construcao.json --mode=accept-edits --mode=auto`,
+      `${bin} --mode auto -p "x" --settings .agents/baco-construcao.json --model gemini-4-neon-high --mode accept-edits`,
+      `${bin} --mode=auto -p "x" --settings .agents/baco-construcao.json --model gemini-4-neon-high --mode accept-edits`,
+      `${bin} --mode auto -p "x" --settings .agents/baco-construcao.json --mode=accept-edits`,
+      `${bin} --mode=auto -p "x" --settings .agents/baco-construcao.json --mode=accept-edits`,
+    ];
+    for (const cmd of askedCalls) {
+      assert.equal(matchers.some((rx) => rx.test(cmd)), true, `escalated call must match --mode ask: ${cmd}`);
+    }
   }
 });
 
@@ -931,4 +974,31 @@ test('1.10.0 review fixes: specialist kinds, Antigravity npm/npx limit, conversa
   const del = ref('delivery.md');
   for (const p of ['`acceptance`', '`review.pr.reviewer: ambos`', 'fetching the destination from `origin`', 'the PR open and into that destination', 'not ok under `delivery.integration_merge: auto`']) assert.ok(del.includes(p), `delivery.md: "${p}" missing`);
   assert.ok(ref('gates.md').includes('acceptance report, nothing waiting'), 'gates.md: merge-check conditions');
+});
+
+test('1.11.0 rules: no .claude/ mid-delivery, merge-check --apply, board hook, worktree cleanup, PR split, wakeups, specialist silence, out_of_scope', () => {
+  const impl = ref('implementation.md');
+  for (const p of ['never edit `.claude/` during a running delivery', 'hooks/board-sync.mjs', 'baco board ENT-NNN --apply', 'Remove the task\'s worktree folder', '## Instruções da pessoa', 'Execução autônoma: sim', 'never cite a pending item by ID or number alone', 'modelo e esforço do revisor']) {
+    assert.ok(impl.includes(p), `implementation.md: "${p}" missing`);
+  }
+  const conf = configureAll();
+  for (const p of ['merge-check ENT-* --target <i> --pr * --apply*', 'modo sem confirmações', 'Never edit `.claude/` during a running delivery', 'cleanup.commands', 'aparelho físico']) {
+    assert.ok(conf.includes(p), `configure docs: "${p}" missing`);
+  }
+  const del = ref('delivery.md');
+  for (const p of ['baco merge-check ENT-NNN --target <integration> --pr <number> --apply', '.baco/logs/pr-body-ENT-NNN.md', '## Fora desta entrega', 'cleanup.commands']) {
+    assert.ok(del.includes(p), `delivery.md: "${p}" missing`);
+  }
+  const rev = ref('review.md');
+  for (const p of ['**both** the final review and the PR review are split by part', '.baco/logs/pr-body-ENT-NNN.md']) {
+    assert.ok(rev.includes(p), `review.md: "${p}" missing`);
+  }
+  const recon = ref('reconciliation.md');
+  for (const p of ['git switch -c baco/ENT-NNN-RECON origin/<target>', 'baco board ENT-NNN --apply']) {
+    assert.ok(recon.includes(p), `reconciliation.md: "${p}" missing`);
+  }
+  const amb = ref('ambientes.md');
+  for (const p of ['Multiple accounts of the same tool', 'baco check-stalled --minutes 20', '@<alto|medio|baixo>']) {
+    assert.ok(amb.includes(p), `ambientes.md: "${p}" missing`);
+  }
 });

@@ -6,7 +6,11 @@ Roles named below are subagents when the host has them; otherwise run the role i
 
 ## 1. Where the edits go
 
-The target branch is protected, so documents are not edited on it. Create a short branch from the updated target: `baco/ENT-NNN-RECON` (`baco check-branch` must pass before editing). Land it like any change once the work is done: pull request when the tracker is GitHub, local merge otherwise, with the approval rules of [delivery.md](delivery.md), section 6. Write the merge approval of the delivery (date, target, who approved, accepted blockers) in `progresso.md` here. After it lands, `baco cleanup-branches` removes this branch like the others.
+The target branch is protected, so documents are not edited on it. Create a short branch from the updated target:
+- **With an `origin` remote:** `git fetch origin <target>` then `git switch -c baco/ENT-NNN-RECON origin/<target>` (no need to switch the main checkout onto a protected branch). If you also fast-forward the local integration branch under `delivery.integration_merge: auto`, always run `git switch <integration>` before `git pull --ff-only origin <integration>` (which does not ask under `auto`; pushing or merging into `main` always asks).
+- **In a local-only repository (no remote):** create the branch straight from the local target with `git switch -c baco/ENT-NNN-RECON <target>`.
+
+Run `baco check-branch` before editing. Land it like any change once the work is done: pull request when the tracker is GitHub, local merge otherwise, with the approval rules of [delivery.md](delivery.md), section 6. Write the merge approval of the delivery (date, target, who approved, accepted blockers) in `progresso.md` here. After it lands, `baco cleanup-branches` removes this branch like the others.
 
 ## 2. Audit spec and code
 
@@ -20,6 +24,8 @@ For every definition of the cut (RF, RN, RNF, INV, CA) it reports one status wit
 - **sem prova**: nothing verifiable either way (typical for an RF or INV that no CA covers).
 
 A behavior the spec does not mention (`excedente`, or any divergence about it) is first checked with one question: is it a business rule? If it is not (keyboard focus, tie-break by millisecond, internal ordering, component details), record it in the reconciliation report as **detalhe técnico, fora da spec**, with the evidence, and do not propose a spec change: the spec gains only business rules. It is not a divergence to decide in section 3.
+
+Criteria marked `fora desta entrega` (in the plan or in QA) get a status too: for each one, the reconciler looks in the code for the function the criterion describes (routes, screens, services, tests). If it finds it, the criterion is listed as **suspeito: função parece existir**, with the evidence, and the proposal is to remove the mark and give it a task or a regression test in the next delivery. This is a search, not proof, so it goes to the report and does not block; the engine already blocks the certain case (a marked criterion with a passing test or an approved manual run, `merge.out_of_scope_built`).
 
 The trace proves CAs only. A CA `proven` is not proof of the RF or RN above it unless the semantic link holds (actor, operation, boundary, polarity, effect). Never claim a check that was not made; separate **proposto**, **alterado** and **verificado**.
 
@@ -82,4 +88,4 @@ Cases to keep in mind:
 
 ## 7. Closing
 
-Finish with: the audit verdict per spec, the divergences and the human's decisions, the catalog values written (read back), what is pending, the technical details left out of the spec, the lessons and the cost summary, in the communication pattern of `SKILL.md`. Run `baco validate-spec <spec>` for any spec touched. The next delivery starts again from [planning.md](planning.md), where `baco spec-diff <spec> --base auto` now measures from the sha you recorded.
+Finish with: the audit verdict per spec, the divergences and the human's decisions, the catalog values written (read back), what is pending (each item explained in plain words, never by ID alone, keeping specialist QA scenarios out of chat summaries and questions; they remain listed apart in `progresso.md`, `aceite.md` and the PR), the technical details left out of the spec, the lessons and the cost summary, in the communication pattern of `SKILL.md`. With `github.project` set, run `baco board ENT-NNN --apply` after reconciliation lands so the parent issue and every task are synced to `Done`. Run `baco validate-spec <spec>` for any spec touched. The next delivery starts again from [planning.md](planning.md), where `baco spec-diff <spec> --base auto` now measures from the sha you recorded.

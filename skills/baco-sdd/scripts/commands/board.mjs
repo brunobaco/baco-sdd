@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deliveryDir, ENT_ID } from '../lib/delivery.mjs';
@@ -5,7 +6,7 @@ import { githubProject } from '../lib/config.mjs';
 import { fold, headings, readText, tables } from '../lib/markdown.mjs';
 import { isAncestor, refExists } from '../lib/git.mjs';
 
-export const usage = 'baco board <ENT-NNN> [--applied "<issue-url>=<status>"]... [--all] [--json] [--cwd <dir>]';
+export const usage = 'baco board <ENT-NNN> [--apply] [--applied "<issue-url>=<status>"]... [--all] [--json] [--cwd <dir>]';
 
 const usageError = () => ({ code: 64, data: {}, messages: [{ key: 'cli.usage', params: { usage } }] });
 
@@ -106,14 +107,102 @@ export function boardItems({ parentUrl, tasks, started, merged, andamento, regis
 }
 
 // The delivery is merged when its branch, or the tag `entrega/ENT-NNN` that cleanup-branches leaves,
-// is contained in the integration branch (or in the main branch, for a delivery merged straight there).
+// is contained in the integration branch (local or origin/<integration>) or in the main branch.
 function deliveryMerged(root, config, entId) {
   const heads = [`refs/heads/baco/${entId}`, `refs/tags/entrega/${entId}`].filter((r) => refExists(r, root));
-  const targets = [config.branches?.integration, config.branches?.main]
-    .filter((b) => typeof b === 'string' && b)
-    .map((b) => `refs/heads/${b}`)
+  const branchNames = [config.branches?.integration, config.branches?.main].filter((b) => typeof b === 'string' && b);
+  const targets = branchNames
+    .flatMap((b) => [`refs/heads/${b}`, `refs/remotes/origin/${b}`])
     .filter((r) => refExists(r, root));
   return heads.some((h) => targets.some((t) => isAncestor(h, t, root)));
+}
+
+function ghRun(args, root) {
+  const r = spawnSync(process.env.BACO_GH || 'gh', args, { cwd: root, encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] });
+  if (r.error) return { ok: false, error: r.error.message, stdout: '' };
+  if (r.status !== 0) return { ok: false, error: String(r.stderr || r.stdout || '').trim().split('\n').pop() || `exit ${r.status ?? r.signal}`, stdout: r.stdout ?? '' };
+  return { ok: true, stdout: r.stdout ?? '' };
+}
+
+function fieldValueOf(item, fieldName) {
+  if (!item || typeof item !== 'object') return null;
+  const want = fold(fieldName);
+  for (const [k, v] of Object.entries(item)) {
+    if (fold(k) !== want) continue;
+    if (typeof v === 'string') return v;
+    if (v && typeof v === 'object' && typeof v.name === 'string') return v.name;
+  }
+  return null;
+}
+
+const BOARD_LIST_INITIAL_LIMIT = 100;
+const BOARD_LIST_MAX_LIMIT = 10000;
+
+// Queries `gh project item-list` with expanding limits based on `totalCount` (or page fill when
+// `totalCount` is absent) so large boards (> 200 items) never drop edited cards from read-back.
+function listBoardItems(project, root, wantedUrls) {
+  let limit = BOARD_LIST_INITIAL_LIMIT;
+  let lastItems = [];
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const listArgs = ['project', 'item-list', String(project.number), '--owner', project.owner, '--limit', String(limit), '--format', 'json'];
+    if (fold(project.field) !== 'status') listArgs.push('--field', project.field);
+    const listed = ghRun(listArgs, root);
+    if (!listed.ok) return { error: `read-back: ${listed.error}` };
+    let parsed;
+    try { parsed = JSON.parse(listed.stdout); } catch (e) { return { error: `read-back JSON: ${e.message}` }; }
+    const items = Array.isArray(parsed?.items) ? parsed.items : [];
+    lastItems = items;
+    const foundUrls = new Set(items.map((item) => item?.content?.url ?? item?.url).filter((u) => typeof u === 'string'));
+    if (wantedUrls.every((u) => foundUrls.has(u))) return { items };
+    const total = typeof parsed?.totalCount === 'number' ? parsed.totalCount : null;
+    if (total !== null) {
+      if (total <= items.length || limit >= Math.min(total, BOARD_LIST_MAX_LIMIT)) return { items };
+      limit = Math.min(total, BOARD_LIST_MAX_LIMIT);
+    } else {
+      if (items.length < limit || limit >= BOARD_LIST_MAX_LIMIT) return { items };
+      limit = Math.min(limit * 2, BOARD_LIST_MAX_LIMIT);
+    }
+  }
+  return { items: lastItems };
+}
+
+// Applies the pending board moves via gh, reads the board back to verify each move, and returns
+// { applied: [{ item, url, status }], failed: [{ item, url, status, error }] }.
+export function applyBoardChanges(changes, project, root) {
+  const edited = [];
+  const failed = [];
+  for (const it of changes) {
+    const editArgs = ['project', 'item-edit', String(project.number), '--owner', project.owner, '--url', it.url, '--field', project.field, '--value', it.status];
+    let r = ghRun(editArgs, root);
+    if (!r.ok) {
+      // If the issue is not yet on the project board, add it once and retry the edit.
+      const add = ghRun(['project', 'item-add', String(project.number), '--owner', project.owner, '--url', it.url], root);
+      if (add.ok) r = ghRun(editArgs, root);
+    }
+    if (!r.ok) {
+      failed.push({ item: it.task ?? null, url: it.url, status: it.status, error: r.error });
+    } else {
+      edited.push(it);
+    }
+  }
+  if (!edited.length) return { applied: [], failed };
+  const listed = listBoardItems(project, root, edited.map((it) => it.url));
+  if (listed.error) {
+    for (const it of edited) failed.push({ item: it.task ?? null, url: it.url, status: it.status, error: listed.error });
+    return { applied: [], failed };
+  }
+  const byUrl = new Map();
+  for (const item of listed.items) {
+    const u = item?.content?.url ?? item?.url;
+    if (typeof u === 'string') byUrl.set(u, fieldValueOf(item, project.field));
+  }
+  const applied = [];
+  for (const it of edited) {
+    const actual = byUrl.get(it.url);
+    if (actual === it.status) applied.push({ item: it.task ?? null, url: it.url, status: it.status });
+    else failed.push({ item: it.task ?? null, url: it.url, status: it.status, error: `read-back: expected "${it.status}", got "${actual ?? '-'}"` });
+  }
+  return { applied, failed };
 }
 
 function readRecord(path) {
@@ -181,6 +270,36 @@ export async function run(args, ctx) {
   }
   const changes = items.filter((it) => it.change);
   const command = (it) => `gh project item-edit ${project.number} --owner ${project.owner} --url ${it.url} --field "${project.field}" --value "${it.status}"`;
+
+  if (args.flags.apply === true) {
+    const { applied: moved, failed } = changes.length ? applyBoardChanges(changes, project, ctx.root) : { applied: [], failed: [] };
+    if (moved.length) {
+      for (const m of moved) applied[m.url] = m.status;
+      mkdirSync(join(ctx.root, '.baco', 'logs'), { recursive: true });
+      writeFileSync(recordPath, JSON.stringify({ project: { owner: project.owner, number: project.number }, applied }, null, 2) + '\n');
+    }
+    const messages = [{ key: 'board.summary', params: { ent: entId, owner: project.owner, number: project.number, total: items.length, changes: changes.length } }];
+    if (!parentUrl) messages.push({ key: 'board.parent_missing' });
+    if (missing.length) messages.push({ key: 'board.tasks_missing', params: { tasks: missing.join(', ') } });
+    if (moved.length) messages.push({ key: 'board.applied_ok', params: { n: moved.length, path: recordRel } });
+    for (const f of failed) messages.push({ key: 'board.apply_failed', params: { item: f.item ?? entId, status: f.status, error: f.error } });
+    return {
+      code: failed.length ? 1 : 0,
+      data: {
+        configured: true,
+        apply: true,
+        project: { owner: project.owner, number: project.number, field: project.field },
+        items,
+        changes: changes.map((it) => ({ ...it, command: command(it) })),
+        applied: moved,
+        applyFailed: failed,
+        missing,
+        parentMissing: !parentUrl,
+        record: recordRel,
+      },
+      messages,
+    };
+  }
 
   const messages = [{ key: 'board.summary', params: { ent: entId, owner: project.owner, number: project.number, total: items.length, changes: changes.length } }];
   if (!parentUrl) messages.push({ key: 'board.parent_missing' });

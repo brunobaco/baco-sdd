@@ -1,8 +1,8 @@
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { rmSync, mkdirSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { makeTempDir } from './tmpdir.mjs';
 
 // Isolate every git call made by the tests (helpers, test files and the engine, which inherit
 // process.env) from the user's global and system git config.
@@ -20,8 +20,8 @@ async function writeFiles(dir, files) {
   }
 }
 
-export async function makeRepo(files) {
-  const dir = await mkdtemp(join(tmpdir(), 'baco-'));
+export async function makeRepo(files, t = null) {
+  const dir = await makeTempDir('baco-', t);
   git(dir, 'init', '-q', '-b', 'main');
   git(dir, 'config', 'user.name', 'Baco Test');
   git(dir, 'config', 'user.email', 'baco@example.com');

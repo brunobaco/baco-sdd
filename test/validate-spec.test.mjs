@@ -47,10 +47,10 @@ test('validate-spec on the CRLF CRLF fixture has no errors', async () => {
 });
 
 test('validate-spec --json lists retired IDs and exits 1 on a spec read as empty', async () => {
-  const { mkdtempSync, writeFileSync } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
+  const { writeFileSync } = await import('node:fs');
   const { join } = await import('node:path');
-  const dir = mkdtempSync(join(tmpdir(), 'baco-vs-'));
+  const { makeTempDirSync } = await import('./helpers/tmpdir.mjs');
+  const dir = makeTempDirSync('baco-vs-');
   const md = (body) => `# Spec\n\n| Campo | Valor |\n|---|---|\n| Código | XYZ |\n| Versão | 1.0 |\n\n## Critérios de aceite\n\n${body}\n\n## Histórico\n\n| Versão | Data | Alteração |\n|---|---|---|\n| 1.0 | 2026-01-01 | x |\n`;
   writeFileSync(join(dir, 'a.md'), md('- **CA-XYZ-001 | A:** Dado a, quando b, então c.\n\n### Disposição\n\n| ID | Situação |\n|---|---|\n| CA-XYZ-002 | obsoleto |'));
   writeFileSync(join(dir, 'b.md'), md('**CA-XYZ-001 | A.** Dado a, quando b, então c.'));
@@ -66,10 +66,10 @@ test('validate-spec --json lists retired IDs and exits 1 on a spec read as empty
 });
 
 test('validate-spec shows next-free findings in pt-BR and exposes nextFree in --json', async () => {
-  const { mkdtempSync, writeFileSync } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
+  const { writeFileSync } = await import('node:fs');
   const { join } = await import('node:path');
-  const dir = mkdtempSync(join(tmpdir(), 'baco-nf-'));
+  const { makeTempDirSync } = await import('./helpers/tmpdir.mjs');
+  const dir = makeTempDirSync('baco-nf-');
   writeFileSync(join(dir, 's.md'), '# Spec\n\n| Campo | Valor |\n|---|---|\n| Código | XYZ |\n| Versão | 1.0 |\n| Próximos números livres | RF-XYZ-002, CA-XYZ-001 |\n\n## Critérios de aceite\n\n- **RF-XYZ-002 | A:** faz a.\n- **CA-XYZ-001 | B:** Dado a, quando b, então c.\n\n## Histórico\n\n| Versão | Data | Alteração |\n|---|---|---|\n| 1.0 | 2026-01-01 | x |\n');
   let c = capture();
   assert.equal(await main(['validate-spec', 's.md', '--json', '--cwd', dir], c.io), 0);

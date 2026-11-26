@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, realpathSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import { t } from '../skills/baco-sdd/scripts/lib/messages.mjs';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -38,7 +39,7 @@ test('check-branch resolves the root from a subdirectory', async () => {
 test('outside a git repo exits 65 with a localized stderr message (existing dir, ceiling set)', async () => {
   // M1: an EXISTING directory outside any repo; GIT_CEILING_DIRECTORIES stops git from walking up
   // into a repo that may contain the temp dir.
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'baco-norepo-')));
+  const dir = realpathSync(makeTempDirSync('baco-norepo-'));
   const prev = process.env.GIT_CEILING_DIRECTORIES;
   process.env.GIT_CEILING_DIRECTORIES = dirname(dir);
   try {

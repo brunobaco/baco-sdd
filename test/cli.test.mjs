@@ -41,10 +41,27 @@ test('unknown command exits 64', async () => {
   assert.ok(out.stderr.includes(t('pt-BR', 'cli.unknown_command', { name: 'nope' })));
 });
 
+test('human-gated commands must come first, so the ask rules always match', async () => {
+  for (const name of ['approve-plan', 'waive-review', 'import-verdict']) {
+    const { io, out } = capture();
+    assert.equal(await main(['--cwd', '/nao-existe', name, 'ENT-001', '--by', 'X', '--replace'], io), 64, name);
+    assert.ok(out.stderr.includes(t('pt-BR', 'cli.command_first', { name })), name);
+  }
+  const eq = capture();
+  assert.equal(await main(['--cwd=/nao-existe', 'approve-plan', 'ENT-001', '--replace'], eq.io), 64);
+  assert.ok(eq.out.stderr.includes(t('pt-BR', 'cli.command_first', { name: 'approve-plan' })));
+  // other commands keep accepting options before the name
+  const other = capture();
+  await main(['--cwd=/nao-existe', 'trace'], other.io);
+  assert.ok(!other.out.stderr.includes(t('pt-BR', 'cli.command_first', { name: 'trace' })));
+});
+
 test('--help lists every command with its summary and exits 0', async () => {
   const { io, out } = capture();
   assert.equal(await main(['--help'], io), 0);
-  assert.equal(COMMANDS.length, 21);
+  assert.equal(COMMANDS.length, 23);
+  assert.ok(COMMANDS.includes('approve-plan'));
+  assert.ok(COMMANDS.includes('check-stalled'));
   assert.ok(COMMANDS.includes('merge-check'));
   assert.ok(COMMANDS.includes('harness-answer'));
   assert.ok(COMMANDS.includes('antigravity-task'));

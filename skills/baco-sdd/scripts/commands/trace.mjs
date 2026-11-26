@@ -1,7 +1,7 @@
 import { relative, resolve, sep } from 'node:path';
 import { existsSync, readdirSync, realpathSync, writeFileSync, mkdirSync } from 'node:fs';
 import { revParse } from '../lib/git.mjs';
-import { ENT_ID, deliveryKnownIdsOf } from '../lib/delivery.mjs';
+import { ENT_ID, computeSpecScope, deliveryKnownIdsOf, deliveryScopeOf, builtOutOfScopeDetail, describeBuilt } from '../lib/delivery.mjs';
 import { t } from '../lib/messages.mjs';
 import { dirname } from 'node:path';
 import { readText } from '../lib/markdown.mjs';
@@ -63,7 +63,7 @@ function provesLayer(c, layer, files) {
 
 // Returns { result, evidence }. `evidence` is the evidence row used ({date, where, delivery}) or null.
 // With `delivery`, only evidence rows of that delivery count (R19).
-function scenarioResult(sc, qa, casesById, delivery, files) {
+function scenarioResult(sc, qa, casesById, delivery, files, forceOutOfScope = false) {
   const matched = casesById.get(sc.id) ?? [];
   const rows = qa.evidence.filter((e) => e.ct === sc.id && (delivery === null || String(e.delivery).trim() === delivery));
   // Latest row by document order across all evidence tables.
@@ -79,15 +79,19 @@ function scenarioResult(sc, qa, casesById, delivery, files) {
     else if (sc.layer && !matched.some((c) => provesLayer(c, sc.layer, files))) result = 'layer_mismatch';
     else result = junit;
   } else if (last?.result === 'reprovado') result = 'manual_fail'; // a rejection stands without a JUnit match too
+  else if (forceOutOfScope || sc.automation === 'out_of_scope') result = last?.result === 'aprovado' && sc.automation !== 'automatizado' ? 'manual_ok' : 'out_of_scope';
   else if (sc.automation === 'automatizado') result = 'not_run';
   else result = last ? MANUAL[last.result] ?? 'manual_pending' : 'manual_pending';
   return { result, evidence };
 }
 
-function caStatus(scenarios) {
-  if (scenarios.length === 0) return 'uncovered';
+function caStatus(scenarios, caOutOfScope = false) {
   if (scenarios.some((s) => isFailedResult(s.result))) return 'failed';
-  if (scenarios.every((s) => s.result === 'passed' || s.result === 'manual_ok')) return 'proven';
+  const inScope = scenarios.filter((s) => s.result !== 'out_of_scope');
+  if (inScope.length > 0 && inScope.every((s) => s.result === 'passed' || s.result === 'manual_ok')) return 'proven';
+  if (caOutOfScope) return 'out_of_scope';
+  if (scenarios.length === 0) return 'uncovered';
+  if (inScope.length === 0) return 'out_of_scope';
   return 'pending';
 }
 
@@ -103,7 +107,7 @@ export const orphansOf = (names, known) => {
 
 // `alsoKnown`: IDs of the other specs of the delivery (and their QA scenarios); a test tagged with
 // one of them belongs to the delivery, not to this spec, and is not an orphan.
-export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown = new Set() }) {
+export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown = new Set(), outOfScope = new Set() }) {
   const casesById = new Map();
   for (const c of cases) {
     for (const id of idsInTitle(c.name)) {
@@ -119,14 +123,15 @@ export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown
     return sc.specialistKind ? { ...out, specialist: true, specialistKind: sc.specialistKind } : { ...out, specialist: true };
   };
   const cas = spec.definitions.filter((d) => d.kind === 'CA').map((d) => {
+    const caOos = outOfScope.has(d.id);
     const scenarios = [];
     for (const sc of qa.scenarios.filter((s) => s.contracts.includes(d.id))) {
-      const { result, evidence } = scenarioResult(sc, qa, casesById, delivery, files);
+      const { result, evidence } = scenarioResult(sc, qa, casesById, delivery, files, caOos);
       scenarios.push(withLayer(sc, { id: sc.id, via: 'qa', automation: sc.automation, tests: sc.testRefs ?? [], result, evidence }));
     }
     const direct = casesById.get(d.id);
     if (direct?.length) scenarios.push({ id: d.id, via: 'direct', automation: 'automatizado', result: aggregate(direct), evidence: null });
-    return { ca: d.id, status: caStatus(scenarios), scenarios };
+    return { ca: d.id, status: caStatus(scenarios, caOos), scenarios };
   });
 
   // Scenarios tied to no CA of the spec (only to a rule, a requirement or nothing) are not proof of a
@@ -134,16 +139,26 @@ export function traceCoverage({ spec, qa, cases = [], delivery = null, alsoKnown
   // without evidence stays visible as pending and a rejected one as failed.
   const caIds = new Set(cas.map((c) => c.ca));
   const otherScenarios = qa.scenarios.filter((s) => !s.contracts.some((id) => caIds.has(id))).map((sc) => {
-    const { result, evidence } = scenarioResult(sc, qa, casesById, delivery, files);
+    const { result, evidence } = scenarioResult(sc, qa, casesById, delivery, files, false);
     return withLayer(sc, { id: sc.id, contracts: sc.contracts, automation: sc.automation, tests: sc.testRefs ?? [], result, evidence });
   });
+
+  // A criterion or scenario marked out of this delivery that already has proof (a test that passed or
+  // an approved manual run) is a function that exists: the mark would hide it, so it is a contradiction.
+  const builtDetail = builtOutOfScopeDetail(cas, otherScenarios, outOfScope);
+  const built = builtDetail.map((d) => d.id);
 
   const known = new Set([...spec.definitions.map((d) => d.id), ...qa.scenarios.map((s) => s.id), ...alsoKnown]);
   const orphanTests = orphansOf(cases.map((c) => c.name), known);
 
   const summary = { proven: 0, failed: 0, pending: 0, uncovered: 0 };
-  for (const c of cas) summary[c.status]++;
-  return { cas, otherScenarios, orphanTests, summary };
+  let oos = 0;
+  for (const c of cas) {
+    if (c.status === 'out_of_scope') oos++;
+    else summary[c.status]++;
+  }
+  if (oos > 0) summary.out_of_scope = oos;
+  return { cas, otherScenarios, orphanTests, summary, ...(built.length ? { builtOutOfScope: built, builtProofs: builtDetail } : {}) };
 }
 
 // `layer_mismatch`: the tests that passed are not of the layer the scenario declares; never proof.
@@ -199,7 +214,11 @@ export async function run(args, ctx) {
   const specPath = relative(base, realpathSync(specAbs)).split(sep).join('/');
   // With --delivery, the IDs of every spec of the plan are known (a delivery with no folder adds none).
   const alsoKnown = delivery && ctx.root ? deliveryKnownIdsOf(ctx.root, ctx.config, delivery) : new Set();
-  const coverage = traceCoverage({ spec, qa, cases, delivery, alsoKnown });
+  const planScope = delivery && ctx.root
+    ? deliveryScopeOf(ctx.root, ctx.config, delivery)
+    : { outOfScope: new Set(), coveredByTask: new Set(), contradictions: [], unrecognizedTasks: [] };
+  const specScope = computeSpecScope({ spec, qa, planOutOfScope: planScope.outOfScope, coveredByTask: planScope.coveredByTask });
+  const coverage = traceCoverage({ spec, qa, cases, delivery, alsoKnown, outOfScope: planScope.outOfScope });
   // --ca: only those criteria count (result and exit code). The JSON records the filter so a partial
   // trace is never taken as the proof of a whole delivery (acceptance-report and build-handoff refuse it).
   let filter = null;
@@ -208,17 +227,46 @@ export async function run(args, ctx) {
     coverage.cas = coverage.cas.filter((c) => filter.includes(c.ca));
     coverage.otherScenarios = [];
     coverage.summary = { proven: 0, failed: 0, pending: 0, uncovered: 0 };
-    for (const c of coverage.cas) coverage.summary[c.status]++;
+    let oos = 0;
+    for (const c of coverage.cas) {
+      if (c.status === 'out_of_scope') oos++;
+      else coverage.summary[c.status]++;
+    }
+    if (oos > 0) coverage.summary.out_of_scope = oos;
+    const builtKept = (coverage.builtProofs ?? []).filter((d) => filter.includes(d.id));
+    delete coverage.builtOutOfScope;
+    delete coverage.builtProofs;
+    if (builtKept.length) Object.assign(coverage, { builtOutOfScope: builtKept.map((d) => d.id), builtProofs: builtKept });
   }
-  const data = { head, spec: { path: specPath, version: spec.version ?? null }, delivery, filter, ...coverage };
+  const specCaSet = new Set(coverage.cas.map((c) => c.ca));
+  const scopeContradictions = [...new Set([
+    ...planScope.contradictions.filter((id) => !filter || specCaSet.has(id)),
+    ...specScope.contradictions.filter((id) => !filter || specCaSet.has(id)),
+  ])].sort();
+  const unrecognizedTasks = planScope.unrecognizedTasks ?? [];
+  const data = {
+    head,
+    spec: { path: specPath, version: spec.version ?? null },
+    delivery,
+    filter,
+    ...coverage,
+    ...(scopeContradictions.length ? { scopeContradictions } : {}),
+    ...(unrecognizedTasks.length ? { unrecognizedTasks } : {}),
+  };
   if (typeof args.flags.out === 'string') {
     const out = resolve(ctx.cwd, args.flags.out);
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(out, JSON.stringify(data, null, 2) + '\n');
   }
   const { summary } = data;
-  const messages = [{ key: 'trace.summary', params: { ...summary } }];
+  const messages = [{ key: summary.out_of_scope ? 'trace.summary_out_of_scope' : 'trace.summary', params: { ...summary } }];
   if (filter) messages.push({ key: 'trace.filtered', params: { ids: filter.join(', ') } });
+  for (const u of unrecognizedTasks) {
+    messages.push({ key: 'plan.unrecognized_task_marker', params: { cas: u.cas.join(', '), value: u.value, line: u.line } });
+  }
+  if (scopeContradictions.length) messages.push({ key: 'trace.scope_contradiction', params: { ids: scopeContradictions.join(', ') } });
+  const built = data.builtOutOfScope ?? [];
+  if (built.length) messages.push({ key: 'trace.built_out_of_scope', params: { ids: describeBuilt(data.builtProofs ?? []) } });
   for (const c of data.cas) {
     messages.push({
       key: 'trace.ca',
@@ -237,5 +285,5 @@ export async function run(args, ctx) {
   }
   if (data.orphanTests.length) messages.push({ key: 'trace.orphans', params: { tests: data.orphanTests.join('; ') } });
   const otherFailed = data.otherScenarios.some((s) => isFailedResult(s.result));
-  return { code: summary.uncovered + summary.failed > 0 || otherFailed ? 1 : 0, data, messages };
+  return { code: summary.uncovered + summary.failed > 0 || otherFailed || scopeContradictions.length > 0 || built.length > 0 ? 1 : 0, data, messages };
 }

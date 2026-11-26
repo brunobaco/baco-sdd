@@ -3,15 +3,17 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deliveryDir, latestVerdict, numberedFiles, readPlanHeader, ENT_ID } from '../lib/delivery.mjs';
 import { git, refExists, revParse, isAncestor, diffQuiet } from '../lib/git.mjs';
-import { manualPendingRule } from '../lib/config.mjs';
+import { manualPendingRule, githubProject } from '../lib/config.mjs';
 import { loadTrace } from '../lib/tracefile.mjs';
 import { readText, headings, tables, fold } from '../lib/markdown.mjs';
 import { readWaiver } from '../lib/waiver.mjs';
-import { combineDecision, freshnessCheck, mergeDecision, mergeTraces, pendingItems, provenanceBlockers, ProvenanceIgnoreError } from './acceptance-report.mjs';
+import { readPlanApproval } from '../lib/plan-approval.mjs';
+import { combineDecision, freshnessCheck, mergeDecision, mergeTraces, pendingItems, planScopeBlockers, provenanceBlockers, ProvenanceIgnoreError } from './acceptance-report.mjs';
+import { run as boardRun } from './board.mjs';
 import { STAMP_FILE, codePathspecs } from './run-tests.mjs';
 import { t } from '../lib/messages.mjs';
 
-export const usage = 'baco merge-check <ENT-NNN> --target <branch> [--pr <number>] [--json] [--cwd <dir>]';
+export const usage = 'baco merge-check <ENT-NNN> --target <branch> [--pr <number>] [--apply] [--json] [--cwd <dir>]';
 
 const usageError = () => ({ code: 64, data: {}, messages: [{ key: 'cli.usage', params: { usage } }] });
 const SHA = /^[0-9a-f]{7,64}$/;
@@ -216,7 +218,7 @@ function manualCondition({ read, config, target, isCurrent }) {
 // What `acceptance-report` decides, with the delivery's traces, its latest verdict or waiver and its
 // plan, against the delivery tip and the rule for this target: ok only when the merge is allowed and
 // no automated test is left not run (`merge.not_run`, a warning under a `warn` rule).
-function acceptanceCondition({ read, dir, revDir, config, target, entId, tip, isCurrent, lang }) {
+function acceptanceCondition({ read, root, dir, revDir, config, target, entId, tip, isCurrent, lang }) {
   if (read.none) return { reason: 'no_trace' };
   if (read.error) return { reason: 'bad_trace', params: { path: read.path } };
   let planText = '';
@@ -225,13 +227,19 @@ function acceptanceCondition({ read, dir, revDir, config, target, entId, tip, is
   const verdict = latestVerdict(revDir);
   const recorded = readWaiver(revDir);
   const waiver = recorded ? { ...recorded, current: isCurrent(recorded.head) } : null;
+  const merged = mergeTraces(read.traces);
   const prov = provenanceBlockers({ traces: read.traces, verdict, head: tip, entId, planSpecs, isCurrent });
-  const base = mergeDecision({ trace: mergeTraces(read.traces), verdict, rule: manualPendingRule(config, target), waiver, specialist: config.qa?.specialist ?? [] });
-  const decision = combineDecision(base, prov);
+  const scopeCheck = planScopeBlockers({ root, planText, config, trace: merged, approval: readPlanApproval(dir) });
+  const base = mergeDecision({ trace: merged, verdict, rule: manualPendingRule(config, target), waiver, specialist: config.qa?.specialist ?? [] });
+  const decision = combineDecision(base, {
+    blockers: [...prov.blockers, ...scopeCheck.blockers],
+    specsNotTraced: prov.specsNotTraced,
+  });
   const params = {
     'merge.spec_not_traced': { paths: prov.specsNotTraced.join(', ') },
     'merge.trace_other_delivery': { id: entId },
     'merge.waiver_stale': { by: waiver?.by ?? '-', date: waiver?.date ?? '-' },
+    ...scopeCheck.params,
   };
   if (!decision.allowed) return { reason: 'blocked', params: { reasons: decision.blockers.map((k) => t(lang, k, params[k])).join(' ') }, blockers: decision.blockers };
   if (decision.warnings.includes('merge.not_run')) return { reason: 'not_run', params: { reasons: t(lang, 'merge.not_run') } };
@@ -316,9 +324,17 @@ function ciCondition({ root, pr, tip, branch, target }) {
   return { reason: 'no_checks', params: { branch } };
 }
 
+const isMainTarget = (target, branches) => target === 'main' || target === 'master' || (typeof branches?.main === 'string' && branches.main.trim() !== '' && target === branches.main.trim());
+const hasEmptyMain = (config) => {
+  const m = typeof config?.branches?.main === 'string' ? config.branches.main.trim() : '';
+  return !m || (Array.isArray(config?.warnings) && config.warnings.some((w) => w.key === 'config.branches_main_empty'));
+};
+
 function policyCondition({ config, target }) {
   const b = config.branches ?? {};
-  if (target === b.main) return { reason: 'main' };
+  if (hasEmptyMain(config)) return { reason: 'main_empty' };
+  if (isMainTarget(target, b)) return { reason: 'main' };
+  if (b.integration === b.main) return { reason: 'same_branch', params: { branch: b.main } };
   if (target === b.integration) {
     const value = config.delivery?.integration_merge ?? 'ask';
     return value === 'auto' ? { ok: true, reason: 'auto' } : { reason: 'ask', params: { value } };
@@ -342,12 +358,21 @@ export function ciTimeoutMinutes(root) {
   return max;
 }
 
+function ghExec(args, root) {
+  const r = spawnSync(process.env.BACO_GH || 'gh', args, { cwd: root, encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'] });
+  if (r.error) return { ok: false, error: r.error.message };
+  if (r.status !== 0) return { ok: false, error: String(r.stderr || r.stdout || '').trim().split('\n').pop() || `exit ${r.status ?? r.signal}` };
+  return { ok: true, stdout: r.stdout ?? '' };
+}
+
 export async function run(args, ctx) {
   const entId = args._[0];
   const target = args.flags.target;
   const pr = args.flags.pr;
+  const apply = args.flags.apply === true;
   if (!entId || !ENT_ID.test(entId) || args._.length > 1 || typeof target !== 'string' || !target.trim()) return usageError();
   if (pr !== undefined && (typeof pr !== 'string' || !/^[1-9]\d*$/.test(pr))) return usageError();
+  if (apply && pr === undefined) return usageError();
 
   const dir = deliveryDir(ctx.root, ctx.config, entId); // not found -> 65 in the dispatcher
   const branch = `baco/${entId}`;
@@ -365,7 +390,7 @@ export async function run(args, ctx) {
     results.battery = batteryCondition({ root: ctx.root, config: ctx.config, tip, branch, target, read });
     results.verdict = verdictCondition({ revDir, progress, isCurrent, config: ctx.config, lang: ctx.lang });
     results.manual = manualCondition({ read: traces, config: ctx.config, target, isCurrent });
-    results.acceptance = acceptanceCondition({ read: traces, dir, revDir, config: ctx.config, target, entId, tip, isCurrent, lang: ctx.lang });
+    results.acceptance = acceptanceCondition({ read: traces, root: ctx.root, dir, revDir, config: ctx.config, target, entId, tip, isCurrent, lang: ctx.lang });
   } catch (e) {
     if (!(e instanceof ProvenanceIgnoreError)) throw e;
     return { code: 65, data: {}, messages: [{ key: 'acceptance.provenance_ignore_failed', params: { message: e.message } }] };
@@ -387,5 +412,56 @@ export async function run(args, ctx) {
     ...conditions.map((c) => ({ key: c.ok ? 'mergecheck.line_ok' : 'mergecheck.line_no', params: { name: t(ctx.lang, `mergecheck.name.${c.key}`), detail: c.detail } })),
     ...warnings.map((key) => ({ key, params: { seconds: batterySeconds, minutes } })),
   ];
-  return { code: ok ? 0 : 2, data, messages };
+  if (!apply) return { code: ok ? 0 : 2, data, messages };
+
+  data.apply = true;
+  data.merged = false;
+  const b = ctx.config.branches ?? {};
+  const canAutoMerge = ok
+    && !hasEmptyMain(ctx.config)
+    && !isMainTarget(target, b)
+    && b.integration !== b.main
+    && target === b.integration
+    && (ctx.config.delivery?.integration_merge ?? 'ask') === 'auto';
+  if (!canAutoMerge) return { code: 2, data, messages };
+
+  // Re-read PR base and head right before merging to guard against TOCTOU shifts (base retargeted to main, new commits pushed).
+  const live = gh(['pr', 'view', pr, '--json', 'headRefOid,baseRefName,state'], ctx.root);
+  if (live.error) {
+    data.applyError = live.error;
+    messages.push({ key: 'mergecheck.apply_failed', params: { pr, target, message: live.error } });
+    return { code: 1, data, messages };
+  }
+  const { headRefOid: liveHead, baseRefName: liveBase, state: liveState } = live.json ?? {};
+  if (liveState !== 'OPEN' || liveBase !== target || isMainTarget(liveBase, b) || liveHead !== tip) {
+    data.applyChanged = { state: liveState ?? null, base: liveBase ?? null, head: liveHead ?? null };
+    messages.push({
+      key: 'mergecheck.apply_changed',
+      params: { pr, target, base: liveBase ?? '-', state: liveState ?? '-', head: liveHead ? short(liveHead) : '-' },
+    });
+    return { code: 2, data, messages };
+  }
+
+  const merged = ghExec(['pr', 'merge', pr, '--merge', '--match-head-commit', tip], ctx.root);
+  if (!merged.ok) {
+    data.applyError = merged.error;
+    messages.push({ key: 'mergecheck.apply_failed', params: { pr, target, message: merged.error } });
+    return { code: 1, data, messages };
+  }
+  data.merged = true;
+  messages.push({ key: 'mergecheck.applied', params: { id: entId, pr, target } });
+  // Best-effort: fetch updated target and sync the GitHub Project board so cards move to Done.
+  fetchTarget(ctx.root, target);
+  if (githubProject(ctx.config)) {
+    try {
+      const b = await boardRun({ _: [entId], flags: { apply: true } }, ctx);
+      data.boardSync = { ok: b.code === 0, applied: b.data?.applied?.length ?? 0, failed: b.data?.applyFailed?.length ?? 0 };
+      if (b.code === 0) messages.push({ key: 'mergecheck.board_synced', params: { n: data.boardSync.applied } });
+      else messages.push({ key: 'mergecheck.board_sync_failed', params: { n: data.boardSync.failed } });
+    } catch (e) {
+      data.boardSync = { ok: false, error: e.message };
+      messages.push({ key: 'mergecheck.board_sync_failed', params: { n: 1 } });
+    }
+  }
+  return { code: 0, data, messages };
 }

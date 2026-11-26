@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync, mkdtempSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { makeTempDirSync } from './helpers/tmpdir.mjs';
 import {
   readText, fold, headings, tables, findDefinitions, findAllDefinitions,
 } from '../skills/baco-sdd/scripts/lib/markdown.mjs';
@@ -15,7 +15,7 @@ test('fixture really has CRLF bytes', () => {
 });
 
 test('readText converts CRLF and strips BOM', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'baco-md-'));
+  const dir = makeTempDirSync('baco-md-');
   const p = join(dir, 'a.md');
   writeFileSync(p, '﻿a\r\nb\r\n');
   assert.equal(readText(p), 'a\nb\n');

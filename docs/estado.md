@@ -1,6 +1,6 @@
 # Estado do trabalho
 
-Atualizado em 2026-11-24.
+Atualizado em 2026-11-25.
 
 ## Pronto
 
@@ -30,7 +30,50 @@ Atualizado em 2026-11-24.
 
 15. Versão 1.10.0: critério de risco e foco de revisão do projeto (`planning.risk`, `review.focus`), limite da revisão final (`review.final_rounds_max`), bateria completa uma vez com carimbo do motor (`test_runs`), `baco merge-check` e junção automática na integração quando limpa (`delivery`; na principal sempre pergunta), tamanho e congelamento da entrega, famílias de modelo, Antigravity em `rede`, cenários de especialista que nunca bloqueiam (`qa.specialist`), `guard-tests` com várias specs, `baco cost history` com estimativa em três partes e minutos de CI, resumo da conversa medido pela janela menos 33 mil tokens (padrão 290000), arquivos das ferramentas conferidos ao abrir a sessão, aviso de versão nova e texto de fora como dado em todos os papéis, com ADR, critérios de ataque e foco de revisão para sistema que chama uma IA (`product.uses_ai`). 760 testes do motor passando. Publicada (marca `v1.10.0` e release com o pacote da skill).
 
+16. Versão 1.11.0 (ainda não publicada, em branch `feat/1.11.0`, aguardando revisão final, evals, testes ao vivo no Claude Code, junção, marca e release):
+    - Item 1: ajudante único `scripts/lib/entrypoint.mjs` com `realpathSync` nos dois lados para `baco.mjs`, `hooks/write-guard.mjs`, `hooks/branch-guard.mjs`, `hooks/board-sync.mjs` e `tools/antigravity.mjs`, com testes unitários por link simbólico para todos.
+    - Item 2: conferência de escrita do Codex 0.169 medida ao vivo (worktree ligada herda confiança da raiz confiável e carrega `.codex/rules/baco.rules`; pasta solta com `git init` e `-c projects."<pasta>".trust_level="trusted"` não carregam) e `references/ambientes.md` atualizado.
+    - Item 3: padrões `--mode` do Antigravity em `references/configure.md` sem espaço à frente e com espaço ou `=` depois (cobrindo `--mode` como primeiro argumento em leitura e construção, sem casar com `--model`).
+    - Item 4: regra proibindo o condutor de editar `.claude/` durante uma entrega (permissão ausente vira pendência na Retomada).
+    - Item 5: `baco merge-check <ENT-NNN> --target <integração> --pr <n> --apply` relê `baseRefName`, `headRefOid` e `state` logo antes da junção, passa `--match-head-commit <tip>` ao `gh pr merge --merge` (sem `--delete-branch`) e recusa quando `branches.main` está vazio, quando `integration === main` ou quando o destino é `main`, `master` ou `branches.main` (`config.mjs` também avisa nos dois primeiros casos).
+    - Item 6 e Item 19: `baco board <ENT-NNN> --apply` (edita via `gh project item-edit`, lê o quadro de volta com paginação por `totalCount` em `gh project item-list` e grava registro), gancho `PostToolUse` (`hooks/board-sync.mjs`) com trava curta liberada pelo processo filho e marca de "sujo" para reexecutar em edição concorrente, raiz derivada do arquivo editado (não do `cwd`), limite de tamanho em `.baco/logs/quadro-sync.log` e teste por link simbólico, reconhecimento de `origin/<branch>` e sincronia após junção e reconciliação.
+    - Item 7: recomendação na configuração de abrir a conversa condutora sem confirmações (mantendo regras de "perguntar" e "nunca").
+    - Item 8: ajudante único `test/helpers/tmpdir.mjs` (todos os 10 arquivos que vazavam migrados + teste contra vazamento), remoção da worktree da tarefa sem `--force` após apagar apenas os stubs vazios (0 bytes, fora do git) conhecidos da montagem da caixa `rede` (regra alinhada em `implementation.md`, `ambientes.md`, `configure.md` e `cleanup-branches.mjs`, registrando em Pendências com `git status` se recusar), `baco cleanup-branches` removendo apenas pastas soltas vazias em `.worktrees/` (nunca pastas não vazias, sem flag `--orphans`) e atuando no `--apply` apenas sobre o plano do dry-run, e chave `cleanup.commands` com hash gravado em `.baco/logs/cleanup-commands.sha256` (mostrada à pessoa na primeira vez e quando mudar).
+    - Item 9: revisão do PR também dividida por parte quando não há terceira família.
+    - Item 10: esforço opcional `@<alto|medio|baixo>` em `roles` usando `Object.hasOwn`, preservando sufixos desconhecidos após `@` como parte do modelo (ex.: `claude/claude-sonnet-4@20250514`), aviso próprio `config.role_effort_invalid` em pt-BR e en, e permissão de modelo diferente da mesma fabricante como reserva quando não sobra outra fabricante (anotada como menos independente).
+    - Item 11 (parte do BACO): regra de tentar outra conta da mesma ferramenta antes da reserva do BACO onde o ambiente troca conta em chamada de terminal, e ir direto para a reserva onde não troca (caso atual da Ratoeira para chamadas CLI).
+    - Item 12: roteiro incremental no CHANGELOG listando só o que revisar em projetos já configurados.
+    - Item 13: estado `fora desta entrega` (`out_of_scope`) com cálculo único (`computeSpecScope` / `computeDeliveryScope`) compartilhado entre `approve-plan`, `trace`, `acceptance-report` e `merge-check`, restrito à marca nova da 1.11.0 (em `## Cobertura` só `T-NNN` é tarefa real; texto livre gera aviso). CA com cenários misturados segue no escopo e os cenários marcados entram em `outOfScopeScenarios` sem contradição. `baco approve-plan` grava retrato do recorte em `aprovacao-plano.md` em toda entrega (specs, universo de CAs e cenários, conjunto fora de escopo, quem aprovou e `gate: on|off`), sem segunda pergunta na primeira gravação (`--replace` obrigatório para sobrescrever e na lista `ask` de `configure.md` e da atualização de regras de `implementation.md`), `branch-guard` bloqueando `Write`/`Edit` direto em `aprovacao-plano.md` e `dispensa-revisao-externa.md`, e bloqueio humano em `acceptance-report`/`merge-check` se specs saírem ou mudarem de versão, o universo encolher, o conjunto fora de escopo mudar ou `gate: off` tiver algo fora de escopo. Listagem obrigatória dos critérios fora de escopo em palavras simples nos resumos à pessoa.
+    - Item 15: seção `## Instruções da pessoa` em `progresso.md`, gravada na hora e lida por toda conversa nova sem repasse entre conversas.
+    - Item 16: `Execução autônoma` e `Conversa condutora` na `## Retomada`, regra de retomar em qualquer despertar conferindo antes se processo ou conversa da tarefa ainda está viva, sinal de vida antes de esperas longas, comando `baco check-stalled` reconhecendo `rodando` e variantes como `rodando (T-03)` sem gastar IA, e prevenção de OOM em baterias paralelas (`tests.queue`, limite de workers, `BACO_QUEUE_DIR`).
+    - Item 17: relatório final explicando toda pendência em palavras simples (nunca só pelo número) e mostrando modelo e esforço de cada revisor na tabela.
+    - Item 18: reconciliação separando repositório com remoto (`origin/<destino>` e exigência de `git switch <integração>` antes de `git pull --ff-only origin <integração>`) de repositório só local (sem `origin`).
+    - Item 20: acompanhamento do CI em segundo plano e rascunhos/pedidos do condutor gravados em `.baco/logs/`, nunca na pasta temporária da sessão.
+    - Item 21: cenários de especialista (`qa.specialist`, com sugestões de acessibilidade, leitor de tela, idioma, aparelho físico e aplicativo instalado) fora de perguntas e resumos no chat, mantendo a listagem à parte em `progresso.md`, `aceite.md` e no PR.
+    - Item 22: corte de consumo de contexto do condutor (saídas filtradas, leitura por seção, sem repasse de mensagens).
+
 ## Em andamento
+
+A 1.11.0 foi juntada na `main`, marcada `v1.11.0` e publicada. Conferido antes:
+
+- Ganchos ao vivo no Claude Code pelo caminho com link simbólico: na 1.10.0 o `branch-guard` saía calado; na 1.11.0 ele nega a edição na `main`.
+- Evals: seis passaram de primeira. `ca-modificado` falha também na 1.10.0 (defeito anterior); `gate-obrigatorio` oscilou uma vez e passou 2 de 2; `meio-do-ciclo` teve um falso negativo do juiz.
+- Três rodadas de revisão independente. A última deixou um item obrigatório (com o portão `plan` desligado, o `--by` gravava um aprovador), corrigido junto com a exigência de `approve-plan`, `waive-review` e `import-verdict` virem logo depois de `baco.mjs`.
+- Função de entrega futura separada de teste manual pendente (marca `regressão`, contradição quando o item marcado já tem prova, aviso de critério sem marca no `plan-freshness`, resumo do aceite em frase simples), com revisão independente própria.
+
+Dependem do ambiente (pedidos fora do repositório): troca automática de conta nas chamadas de terminal (item 11), conclusão ou ocultação das conversas criadas por chamadas de terminal (item 23) e o modo de permissão das conversas abertas por outra conversa, que vem fixo na linha de comando e por isso não segue o `defaultMode` do projeto (item 14).
+
+Sugestões das revisões que ficaram para uma 1.11.x:
+
+1. `approve-plan`: recusar gravar sem `--replace` quando o histórico da branch já tem um retrato (hoje apagar o arquivo antes contorna), e o `merge-check` exigir o retrato mais recente do histórico.
+2. Entrega no formato da 1.11 com portão `plan` ligado e sem retrato vira portão humano (`merge.plan_unapproved`).
+3. Retrato com a versão lida do arquivo da spec (ou hash das linhas de CA), e universo com chave `caminho#ID`.
+4. Item marcado fora desta entrega com evidência manual aprovada de outra entrega: hoje passa sem alerta (o `trace` filtra a evidência pela entrega); um aviso que não trava ajudaria.
+5. Trava do `board-sync`: renovar a validade a cada rodada e apagar só se for do próprio processo.
+6. Caixa `rede`: conferir ao vivo se os arquivos vazios da montagem saem de dentro da caixa antes do `git worktree remove`; se não saírem, toda tarefa vira pendência.
+7. Hash dos `cleanup.commands` por um comando do motor, com forma canônica.
+
+Versão 1.12.0, planejada para depois da 1.11.0: entrada de trabalho pela issue do GitHub, num comando próprio, `/baco:issue` (sem número, escreve uma issue nova com a pessoa; com o número, implementa aquela issue). (a) Escrever a issue: a pessoa descreve a mudança e o BACO conversa com ela; numa melhoria, pergunta o que falta para entender o pedido; num defeito, pede evidências (passos, o que esperava e o que aconteceu, ambiente, registro de erro, print) e cria a issue com o tipo marcado. (b) Implementar a issue: classifica em defeito (correção com teste primeiro, ligada ao critério que o defeito quebra, entrega `leve` de uma tarefa) ou melhoria pequena (evolução pontual da spec, e do protótipo quando mexe em tela, entrega `leve`), com PR e junção; várias issues pequenas podem virar uma entrega só.
 
 Liberdade das ferramentas de IA quando constroem, em quatro etapas. As etapas 1 (caixa por ferramenta e regras do Codex) e 2 (Claude em `rede`) saíram na 1.1.0. A etapa 3 saiu na 1.3.0: a configuração explica o que cada opção muda e pergunta todos os ajustes que dependem da pessoa, e continua opcional (decisão de 2026-11-18). Falta:
 
@@ -54,4 +97,4 @@ Sem data. Pequenas evoluções do método que ficaram para depois da 1.0; versã
 
 ## Próximo passo
 
-A primeira entrega real com a 1.10.0 serve de teste: divisão em back-end e front-end, junção automática na integração e o Antigravity construindo na caixa `rede`, com o custo medido, num projeto real configurado com a fase 0 nova (o que cobre também a etapa 4).
+A 1.11.x com as sugestões acima e a 1.12.0 (`/baco:issue`).

@@ -89,6 +89,8 @@ export const DEFAULTS = {
   // uses_ai: the system being built calls an AI model; turns on the prompt-injection requirements of
   // the architecture, the specs, the plan and the reviews.
   product: { uses_ai: false },
+  // commands: project-declared cleanup commands run at delivery closeout (BACO never guesses what is disposable).
+  cleanup: { commands: [] },
 };
 
 // Status options of the board, by event: published (phase 5), started (building), review (task
@@ -242,9 +244,9 @@ function deepMerge(base, over) {
 }
 
 // Sections that must be maps; any other non-null value is ignored (defaults kept) with a warning.
-const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github', 'planning', 'roles', 'test_runs', 'ci', 'delivery', 'qa', 'product'];
+const MAP_SECTIONS = ['gates', 'branches', 'tests', 'models', 'review', 'manual_pending', 'tests_quick', 'app', 'provenance', 'context', 'harnesses', 'github', 'planning', 'roles', 'test_runs', 'ci', 'delivery', 'qa', 'product', 'cleanup'];
 // List settings where a single scalar is accepted as a one-element list.
-const LIST_SETTINGS = [['branches', 'protected'], ['tests', 'patterns'], ['tests', 'queue']];
+const LIST_SETTINGS = [['branches', 'protected'], ['tests', 'patterns'], ['tests', 'queue'], ['cleanup', 'commands']];
 
 // Model levels never name a model: forte = the most capable one of the environment, medio = the
 // intermediate one, leve = the fastest and cheapest. The old form (`model: opus|sonnet|haiku`,
@@ -270,7 +272,8 @@ function normalizeModels(models, warnings) {
     for (const [field, table, aliases] of [['level', LEVELS, ['level', 'model']], ['effort', EFFORTS, ['effort']]]) {
       const name = aliases.find((a) => entry[a] !== undefined && entry[a] !== null);
       if (name === undefined) continue;
-      const value = table[fold(entry[name])];
+      const k = fold(entry[name]);
+      const value = k !== null && Object.hasOwn(table, k) ? table[k] : undefined;
       if (value === undefined) warnings.push({ key: 'config.invalid_section', params: { section: `models.${cls}.${name}` } });
       else norm[field] = value;
     }
@@ -401,9 +404,47 @@ function normalizePlanning(planning, warnings) {
   return out;
 }
 
-// `roles.<role>`: a list (or one text) of `<harness>` or `<harness>/<model>`, in order of
-// preference. A role outside ROLE_NAMES, a list that is something else, an entry that is not text or
-// has an empty part, and an entry naming a harness absent from `harnesses` are dropped with a warning.
+const ownEffort = (raw) => {
+  const k = fold(raw);
+  return k !== null && Object.hasOwn(EFFORTS, k) ? EFFORTS[k] : null;
+};
+
+// `roles.<role>`: a list (or one text) of `<harness>`, `<harness>@<effort>`, `<harness>/<model>` or
+// `<harness>/<model>@<effort>`, in order of preference. Only a known effort after `@` is parsed as
+// effort; an unknown `@suffix` on a `<harness>/<model>` stays part of the model ID (e.g.
+// `claude-sonnet-4@20250514`), whereas an empty `@` or an unknown `@suffix` on a bare harness is
+// dropped with `config.role_effort_invalid`.
+function parseRoleEntry(item) {
+  const text = typeof item === 'string' ? item.trim() : '';
+  if (!text) return { error: 'shape' };
+  const slash = text.indexOf('/');
+  const at = text.lastIndexOf('@');
+  let base = text;
+  let effort = null;
+  if (at !== -1) {
+    const rawEffort = text.slice(at + 1).trim();
+    const resolved = rawEffort ? ownEffort(rawEffort) : null;
+    if (slash === -1 || at < slash) {
+      // Bare `<harness>@<effort>` (or `@` before `/`): `@suffix` is always an effort specifier.
+      if (!resolved || slash !== -1) return { error: 'effort', value: rawEffort, entry: text };
+      base = text.slice(0, at).trim();
+      effort = resolved;
+    } else if (rawEffort === '') {
+      // Trailing bare `@` after model (e.g. `claude/sonnet@`).
+      return { error: 'effort', value: '', entry: text };
+    } else if (resolved) {
+      base = text.slice(0, at).trim();
+      effort = resolved;
+    }
+    // Otherwise (`slash !== -1 && at > slash && !resolved`): keep `@rawEffort` inside the model ID.
+  }
+  const s = base.indexOf('/');
+  const harness = s === -1 ? base : base.slice(0, s).trim();
+  const model = s === -1 ? null : base.slice(s + 1).trim();
+  if (!harness || model === '') return { error: 'shape' };
+  return { harness, model, effort };
+}
+
 function normalizeRoles(roles, harnesses, warnings) {
   const out = {};
   for (const [role, value] of Object.entries(roles)) {
@@ -416,31 +457,38 @@ function normalizeRoles(roles, harnesses, warnings) {
     if (list === null) { warnings.push({ key: 'config.invalid_section', params: { section: `roles.${role}` } }); continue; }
     const kept = [];
     for (const item of list) {
-      const text = typeof item === 'string' ? item.trim() : '';
-      const slash = text.indexOf('/');
-      const harness = slash === -1 ? text : text.slice(0, slash).trim();
-      const model = slash === -1 ? null : text.slice(slash + 1).trim();
-      if (!harness || model === '') { warnings.push({ key: 'config.invalid_section', params: { section: `roles.${role}` } }); continue; }
+      const parsed = parseRoleEntry(item);
+      if (parsed.error === 'effort') {
+        warnings.push({ key: 'config.role_effort_invalid', params: { role, value: parsed.value, entry: parsed.entry } });
+        continue;
+      }
+      if (parsed.error) { warnings.push({ key: 'config.invalid_section', params: { section: `roles.${role}` } }); continue; }
+      const { harness, model, effort } = parsed;
       if (!Object.hasOwn(harnesses, harness)) {
         warnings.push({ key: 'config.role_harness_unknown', params: { role, harness } });
         continue;
       }
-      kept.push(model === null ? harness : `${harness}/${model}`);
+      const head = model === null ? harness : `${harness}/${model}`;
+      kept.push(effort === null ? head : `${head}@${effort}`);
     }
     if (kept.length) out[role] = kept;
   }
   return out;
 }
 
-// The resolved list of a role: [{ harness, tool, model }], model null when the entry names none (the
-// plan then takes the model of the task's level from that harness's `models`).
+// The resolved list of a role: [{ harness, tool, model }] (with `effort` when the entry pins one
+// via `@<alto|medio|baixo>`, overriding the role or task-class effort); `model` is null when the
+// entry names none (the plan then takes the model of the task's level from that harness's `models`).
 export function roleChain(config, role) {
   const list = config.roles?.[role];
   if (!Array.isArray(list)) return [];
   return list.map((entry) => {
-    const slash = entry.indexOf('/');
-    const harness = slash === -1 ? entry : entry.slice(0, slash);
-    return { harness, tool: harnessTool(config, harness), model: slash === -1 ? null : entry.slice(slash + 1) };
+    const parsed = parseRoleEntry(entry);
+    if (parsed.error) return { harness: entry, tool: harnessTool(config, entry), model: null };
+    const { harness, model, effort } = parsed;
+    const out = { harness, tool: harnessTool(config, harness), model };
+    if (effort !== null) out.effort = effort;
+    return out;
   });
 }
 
@@ -694,6 +742,18 @@ export function resolveConfig(parsed) {
     else qa.specialist = list;
     user = { ...user, qa };
   }
+  if (isPlainObject(user.branches)) {
+    const b = { ...user.branches };
+    if (Object.hasOwn(b, 'main')) {
+      const m = typeof b.main === 'string' ? b.main.trim() : '';
+      if (!m) {
+        delete b.main;
+        warnings.push({ key: 'config.branches_main_empty', params: {} });
+      } else b.main = m;
+    }
+    if (Object.hasOwn(b, 'integration') && typeof b.integration === 'string') b.integration = b.integration.trim();
+    user = { ...user, branches: b };
+  }
   if (isPlainObject(user.gates)) {
     for (const gate of MANDATORY_GATES) {
       if (Object.hasOwn(user.gates, gate) && user.gates[gate] !== true) {
@@ -702,6 +762,9 @@ export function resolveConfig(parsed) {
     }
   }
   const config = deepMerge(structuredClone(DEFAULTS), user);
+  if (config.branches.integration && config.branches.integration === config.branches.main) {
+    warnings.push({ key: 'config.branches_same', params: { branch: config.branches.main } });
+  }
   config.gates = { ...config.gates };
   for (const gate of MANDATORY_GATES) config.gates[gate] = true;
   return { ...config, warnings };
