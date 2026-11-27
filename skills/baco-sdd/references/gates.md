@@ -63,7 +63,7 @@ Record the approval where the phase says (catalog state, plan header, `progresso
 | 3 | human decision required (review loop limit) | stop; ask the human |
 | 64 / 65 | usage or environment error | fix the call or the setup; tell the user only if you cannot |
 
-Codes 2 and 3 are not errors to work around. In autonomous execution, the item that got them waits for the human and goes to the end-of-run summary; independent work goes on ([implementation.md](implementation.md), section 7). Do not retry with other flags, edit the config, allow-list findings on your own, or change the target branch to get a 0. Read the engine's message keys (they say what blocked), then speak to the human.
+Codes 2 and 3 are not errors to work around. In autonomous execution nothing is asked mid-run ([implementation.md](implementation.md), section 7): a `guard-tests` finding is decided by you as section 5 of implementation.md says (release a test change that only adds, with `--allow`, recorded as "teste liberado pelo agente, conferir no fim"; never release one that weakens a check); any other item that got 2 or 3 waits in the end list and independent work goes on. The questions below are then asked once, in the end-of-run summary. Do not retry with other flags, edit the config, or change the target branch to get a 0, and outside that one `guard-tests` rule do not allow-list findings on your own. Read the engine's message keys (they say what blocked), then speak to the human.
 
 Code 2 (for example `guard-tests` found changes to tested scenarios, or `acceptance-report` blocked the merge):
 
