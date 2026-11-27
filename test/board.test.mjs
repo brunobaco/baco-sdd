@@ -343,3 +343,50 @@ test('taskIssues: the Issue row first, then the related ones; taskIssue keeps th
   // #N without a full Issue URL has no repository to resolve against: only full URLs count.
   assert.deepEqual(taskIssues(`${task('T-003', null)}| Issues relacionadas | #6, ${URL(7)} |\n`), [URL(7)]);
 });
+
+// 1.13.1: the board followed only an exact state word in progresso.md. A note after the state
+// ("FEITO (junção abc)"), a merged task left in `Tarefas em andamento` with its step written as
+// "juntada (...)", or a merged task missing from both tables kept its issue in Backlog or In progress
+// for the whole delivery. The state is now read by its leading word, and git decides first: a task
+// whose branch tip is a merged parent of a merge commit on the delivery branch is merged.
+test('board: a note after the logged state, or a merged step left in the table, still counts as merged', async () => {
+  const dir = await repo({
+    prog: progress({
+      situacao: '`rodando`',
+      andamento: [['T-003', 'juntada na entrega (revisão 01 aprovada, três sugestões)']],
+      registro: [['T-001', 'FEITO (junção 8929e741)'], ['T-002', 'FEITO_COM_RESSALVAS, duas sugestões']],
+    }),
+  });
+  const r = await run(dir, 'ENT-001', '--json');
+  assert.deepEqual(statusOf(r.data), { 'mãe': 'In progress', 'T-001': 'Done', 'T-002': 'Done', 'T-003': 'Done' });
+});
+
+test('board: git decides first: a task branch merged into the delivery branch is Done even without a line in progresso.md', async () => {
+  const dir = await repo({ prog: progress({ situacao: '`rodando`', andamento: [['T-002', 'construção, rodada 1']] }) });
+  git(dir, 'checkout', '-q', '-b', 'baco/ENT-001');
+  // T-001: built and merged with --no-ff, never written in progresso.md.
+  git(dir, 'checkout', '-q', '-b', 'baco/ENT-001-T-001');
+  commit(dir, { 'src/t1.js': 'x\n' }, 'T-001: construção');
+  git(dir, 'checkout', '-q', 'baco/ENT-001');
+  git(dir, 'merge', '-q', '--no-ff', '-m', 'ENT-001: junta T-001', 'baco/ENT-001-T-001');
+  // T-002: still being built, with commits of its own; T-003: a branch just created, nothing on it.
+  git(dir, 'checkout', '-q', '-b', 'baco/ENT-001-T-002');
+  commit(dir, { 'src/t2.js': 'x\n' }, 'T-002: construção');
+  git(dir, 'checkout', '-q', 'baco/ENT-001');
+  git(dir, 'branch', 'baco/ENT-001-T-003');
+  const r = await run(dir, 'ENT-001', '--json');
+  assert.deepEqual(statusOf(r.data), { 'mãe': 'In progress', 'T-001': 'Done', 'T-002': 'In progress', 'T-003': 'Backlog' });
+});
+
+test('board: a fix round after the merge moves the branch tip, and progresso.md decides again', async () => {
+  const dir = await repo({ prog: progress({ situacao: '`rodando`', andamento: [['T-001', 'correção, rodada 1']] }) });
+  git(dir, 'checkout', '-q', '-b', 'baco/ENT-001');
+  git(dir, 'checkout', '-q', '-b', 'baco/ENT-001-T-001');
+  commit(dir, { 'src/t1.js': 'x\n' }, 'T-001: construção');
+  git(dir, 'checkout', '-q', 'baco/ENT-001');
+  git(dir, 'merge', '-q', '--no-ff', '-m', 'ENT-001: junta T-001', 'baco/ENT-001-T-001');
+  git(dir, 'checkout', '-q', 'baco/ENT-001-T-001');
+  commit(dir, { 'src/t1.js': 'y\n' }, 'T-001: correção 1');
+  const r = await run(dir, 'ENT-001', '--json');
+  assert.equal(statusOf(r.data)['T-001'], 'In progress');
+});

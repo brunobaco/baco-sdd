@@ -108,28 +108,60 @@ export function readProgress(md) {
   return { andamento, registro, started };
 }
 
-// The state of one task: in `Tarefas em andamento`, review (task review or a human check) or started
-// (building, fix round); out of it, merged when its last log row is FEITO or FEITO_COM_RESSALVAS
-// (a merged task leaves the table), started for any other logged state, published otherwise.
-function taskState(id, andamento, registro) {
-  if (andamento.has(id)) return /revis|esperando/.test(andamento.get(id)) ? 'review' : 'started';
+// The state of one task. Git first: a task in `gitMerged` (its branch tip is a merged parent on the
+// delivery branch) is merged. Then `Tarefas em andamento`: a step that starts with "juntada" (or
+// "feito", "merged") is merged, one that mentions review or a human check is review, any other is
+// started (building, fix round). Out of the table, merged when its last log row starts with FEITO or
+// FEITO_COM_RESSALVAS (a note may follow the state), started for any other logged state, published
+// otherwise. States are read by their leading word, so a note after them never holds the board back.
+const MERGED_STEP = /^(juntad|feito|merged|done)/;
+const MERGED_LOG = /^FEITO(_COM_RESSALVAS)?(?![A-Z_])/;
+function taskState(id, andamento, registro, gitMerged = new Set()) {
+  if (gitMerged.has(id)) return 'merged';
+  if (andamento.has(id)) {
+    const step = andamento.get(id);
+    if (MERGED_STEP.test(step)) return 'merged';
+    return /revis|esperando/.test(step) ? 'review' : 'started';
+  }
   const last = registro.get(id);
   if (last === undefined) return 'published';
-  return /^FEITO(_COM_RESSALVAS)?$/.test(last) ? 'merged' : 'started';
+  return MERGED_LOG.test(last) ? 'merged' : 'started';
+}
+
+// Tasks whose branch `baco/<ENT>-<task>` has its tip as a merged (non-first) parent of a merge commit
+// on the delivery branch `baco/<ENT>`: proof from git that the task was merged with --no-ff, whatever
+// progresso.md says. A fix round after the merge moves the tip, and the task leaves the set. A branch
+// already deleted gives no proof, and progresso.md decides.
+export function gitMergedTasks(root, entId, ids) {
+  const out = new Set();
+  const delivery = `refs/heads/baco/${entId}`;
+  if (!ids.length || !refExists(delivery, root)) return out;
+  const r = spawnSync('git', ['rev-list', '--merges', '--parents', delivery], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  if (r.status !== 0) return out;
+  const mergedParents = new Set();
+  for (const line of r.stdout.split('\n')) for (const sha of line.trim().split(/\s+/).slice(2)) mergedParents.add(sha);
+  if (!mergedParents.size) return out;
+  for (const id of ids) {
+    const ref = `refs/heads/baco/${entId}-${id}`;
+    if (!refExists(ref, root)) continue;
+    const tip = spawnSync('git', ['rev-parse', ref], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    if (tip.status === 0 && mergedParents.has(tip.stdout.trim())) out.add(id);
+  }
+  return out;
 }
 
 // Pure mapping from the parsed delivery to the board items, the parent first. A task gives one item
 // per issue (`urls`, or the single `url`), all with the task's state; an issue already on the list
 // (listed by two tasks) keeps its first item.
-export function boardItems({ parentUrl, tasks, started, merged, andamento, registro, status }) {
+export function boardItems({ parentUrl, tasks, started, merged, andamento, registro, status, gitMerged = new Set() }) {
   const items = [];
-  const anyTask = tasks.some((t) => andamento.has(t.id) || registro.has(t.id));
+  const anyTask = tasks.some((t) => andamento.has(t.id) || registro.has(t.id) || gitMerged.has(t.id));
   if (parentUrl) {
     const state = merged ? 'merged' : started || anyTask ? 'started' : 'published';
     items.push({ kind: 'parent', task: null, url: parentUrl, state, status: status[state] });
   }
   for (const t of tasks) {
-    const state = merged ? 'merged' : taskState(t.id, andamento, registro);
+    const state = merged ? 'merged' : taskState(t.id, andamento, registro, gitMerged);
     for (const url of t.urls ?? [t.url]) {
       if (items.some((it) => it.url === url)) continue;
       items.push({ kind: 'task', task: t.id, url, state, status: status[state] });
@@ -278,7 +310,8 @@ export async function run(args, ctx) {
   const { andamento, registro, started } = readProgress(progressMd);
   const planPath = relative(ctx.root, join(dir, 'plano.md')).split(sep).join('/');
   const merged = deliveryMerged(ctx.root, ctx.config, entId, planPath);
-  const items = boardItems({ parentUrl, tasks, started, merged, andamento, registro, status: project.status });
+  const gitMerged = merged ? new Set() : gitMergedTasks(ctx.root, entId, tasks.map((t) => t.id));
+  const items = boardItems({ parentUrl, tasks, started, merged, andamento, registro, status: project.status, gitMerged });
 
   // --applied <url>=<status>: the conductor set that column and read it back.
   const recordPath = join(ctx.root, '.baco', 'logs', `quadro-${entId}.json`);
