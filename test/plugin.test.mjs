@@ -114,9 +114,9 @@ const denied = (r) => r.status === 0 && r.stdout !== '' && JSON.parse(r.stdout).
 
 test('hooks.json wires the guard on Edit|Write|NotebookEdit', () => {
   const all = JSON.parse(read(join(REPO, 'hooks', 'hooks.json'))).hooks;
-  assert.deepEqual(Object.keys(all).sort(), ['PostToolUse', 'PreToolUse', 'SessionStart'], 'PreToolUse + PostToolUse + SessionStart');
+  assert.deepEqual(Object.keys(all).sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'Stop'], 'PreToolUse + PostToolUse + SessionStart + Stop');
   const h = all.PreToolUse;
-  assert.equal(h.length, 2, 'the branch guard and the Bash write guard (write-guard.test.mjs)');
+  assert.equal(h.length, 3, 'the branch guard, the Bash write guard (write-guard.test.mjs) and the autonomy guard (autonomy-guard.test.mjs)');
   assert.equal(h[0].matcher, 'Edit|Write|NotebookEdit');
   assert.equal(h[0].hooks[0].command, 'node "${CLAUDE_PLUGIN_ROOT}/hooks/branch-guard.mjs"');
   assert.equal(h[0].hooks[0].timeout, 10);
