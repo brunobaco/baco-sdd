@@ -25,6 +25,8 @@ Atualizado em 2026-11-26.
 
 ## Em andamento
 
+A 1.13.1 está na branch `fix/autonomous-no-stop`, esperando a aprovação para juntar na `main`: gancho `autonomy-guard` (o condutor de uma entrega autônoma rodando não pergunta nem encerra a resposta), execução autônoma sem pergunta no meio (dúvidas e liberação de teste que só acrescenta vão para a lista do fim), troca de conversa sem mensagem às conversas anteriores e quadro do GitHub decidido pelo git. Conferido: 10 testes novos do gancho e 3 do quadro; o motor novo, lido contra uma entrega real, reconhece pelo git todas as tarefas juntadas.
+
 A 1.13.0 foi juntada na `main`, marcada `v1.13.0` e publicada. Conferido antes:
 
 - Revisão independente do diff completo: nenhum achado obrigatório; todos os quatro importantes (teste cosmético alinhado a `importante`, `simplifier` mantido em cortes puros com links/divisão no `final-reviewer`, campo `Carga esperada` no modelo `arquitetura.md`, modo `Audit` sem exigir specs aprovadas nem troca de branch) e as três sugestões (`agents/architect.md` e `dispatch.md` com exceção de `Audit`, `prompt-revisor-pr.md` espelhando as regras novas para outro harness, ressalva do `guard-tests` em `implementer.md`) foram corrigidos e cobertos por testes.
