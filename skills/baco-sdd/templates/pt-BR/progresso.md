@@ -3,7 +3,7 @@
 <!--
 COMO USAR ESTE MODELO (apague este bloco ao criar o registro real)
 - Copie para `docs/entregas/ENT-NNN-<nome>/progresso.md`. Cada tarefa que termina ganha uma linha nova no fim da tabela.
-- Toda data e hora vem do relógio do computador (comando `date`), nunca de estimativa.
+- Toda data e hora vem do relógio do computador (comando `date`), nunca de estimativa, no fuso da pessoa e com o deslocamento (por exemplo `TZ=America/Sao_Paulo date -Iminutes`), mesmo que o servidor esteja em UTC.
 - Retomada: o estado da execução. É atualizada a cada tarefa que termina, a cada etapa longa (início e fim de uma bateria de testes, espera na fila) e a cada parada, e uma conversa nova continua daqui. Quem começa ou retoma escreve primeiro `rodando`, a hora e a linha "Dono da execução". Uma conversa nova só assume sem perguntar se a situação é `parado por cota`, `parado para conversa nova`, ou `rodando` sem atualização há mais de 6 horas. Situação: `rodando`, `parado por cota`, `parado para conversa nova`, `parado por pergunta`, `parado por bloqueio`, `parado a pedido` ou `fim`. Trocas de conversa: cada vez que a execução continuou numa conversa nova por causa do tamanho da conversa.
 - Estado: FEITO (tudo certo), FEITO_COM_RESSALVAS (feito, mas com um aviso na nota), PRECISA_CONTEXTO (faltou informação, uma pessoa precisa responder) ou BLOQUEADO (não dá para seguir).
 - Commits: os códigos curtos (sha) dos commits da tarefa.

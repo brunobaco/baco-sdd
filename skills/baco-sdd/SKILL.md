@@ -57,7 +57,7 @@ Answer lean and decision-oriented, in this order as the phase requires, with the
 - Always say which of these a statement is: proposto, alterado or verificado.
 - Never ask a non-developer to run a technical command: run it yourself, or explain what to click.
 - When an engine exit 1 or 2 is a guard doing its job (for example `check-branch` exit 1 on a protected branch), say so in plain words, so it does not read as a failure.
-- Times written to records come from the clock (`date`), never estimated.
+- Times come from the clock (`date`), never estimated, in the person's time zone with its offset (`TZ=<zona> date -Iminutes`), even on a UTC server; convert a time read from a log or commit before showing it.
 - Engine results go under Achados as a **Motor:** list with one row per `baco` command you executed in this session, copied from your own tool calls, never from the phase checklist: `comando → saída N`. Then one **Não rodado:** line naming each check the phase requires that you did not run, with the reason. When a command fails for an environment reason (exit 65, e.g. version control did not respond), say which later checks were therefore not run. Write each command separately; never group them in one sentence. Example:
   > **Motor:** `check-branch` → saída 65 (o controle de versões não respondeu). **Não rodado:** `plan-freshness` e `guard-tests`, porque o git falhou antes e não tentei.
 
