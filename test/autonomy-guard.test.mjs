@@ -1,10 +1,10 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { makeRepo } from './helpers/tmprepo.mjs';
+import { makeRepo, commit } from './helpers/tmprepo.mjs';
 import { SKILL_ROOT } from './helpers/content.mjs';
 
 // autonomy-guard: while a delivery runs autonomously, the conversation recorded as its conductor
@@ -68,7 +68,7 @@ test('another conversation in the same project may ask', async () => {
 });
 
 test('a delivery that is not running, or not autonomous, does not block the question', async () => {
-  for (const [status, autonomous] of [['pronta para testar', 'sim'], ['parado para conversa nova', 'sim'], ['rodando', 'não']]) {
+  for (const [status, autonomous] of [['fim', 'sim'], ['parado para conversa nova', 'sim'], ['rodando', 'não']]) {
     const repo = await repoWith(status, { autonomous });
     assert.equal(run(ask(repo), tmp()).stdout, '', `${status} / ${autonomous}`);
   }
@@ -82,8 +82,8 @@ test('conductor of a running delivery: Stop is blocked and told how to end legit
   assert.equal(out.decision, 'block');
   assert.match(out.reason, /ENT-004/);
   assert.match(out.reason, /segundo plano/);
-  assert.match(out.reason, /parado para conversa nova/);
-  assert.match(out.reason, /parado pela pessoa/);
+  // The situations named are the ones of the progresso.md template.
+  for (const s of ['parado para conversa nova', 'fim', 'parado por pergunta', 'parado a pedido']) assert.match(out.reason, new RegExp(`"${s}"`));
 });
 
 test('Stop is allowed once the conductor changed the situation, and for any other conversation', async () => {
@@ -93,16 +93,49 @@ test('Stop is allowed once the conductor changed the situation, and for any othe
   assert.equal(run(stop(repo), tmp()).stdout, '');
 });
 
-test('Stop gives up after three blocks in a row without progresso.md changing, and starts over when it changes', async () => {
+test('Stop gives up after three blocks without a new commit; touching progresso.md is not progress, a commit is', async () => {
   const repo = await repoWith('rodando');
+  execFileSync('git', ['branch', 'baco/ENT-004'], { cwd: repo });
   const state = tmp();
   const file = join(repo, PROGRESS);
-  utimesSync(file, new Date(1000000), new Date(1000000));
   assert.equal(json(run(stop(repo), state)).decision, 'block');
-  for (let i = 0; i < 2; i++) assert.equal(json(run(stop(repo, CONDUCTOR, { stop_hook_active: true }), state)).decision, 'block');
-  assert.equal(run(stop(repo, CONDUCTOR, { stop_hook_active: true }), state).stdout, '', 'the fourth stop in a row goes through');
-  utimesSync(file, new Date(2000000), new Date(2000000));
-  assert.equal(json(run(stop(repo, CONDUCTOR, { stop_hook_active: true }), state)).decision, 'block', 'progress made: blocks again');
+  for (let i = 0; i < 2; i++) {
+    utimesSync(file, new Date(1000000 * (i + 2)), new Date(1000000 * (i + 2)));
+    assert.equal(json(run(stop(repo, CONDUCTOR, { stop_hook_active: true }), state)).decision, 'block');
+  }
+  utimesSync(file, new Date(9000000), new Date(9000000));
+  assert.equal(run(stop(repo, CONDUCTOR, { stop_hook_active: true }), state).stdout, '', 'the fourth stop goes through even with progresso.md touched');
+  commit(repo, { 'src/x.js': 'x\n' }, 'ENT-004 T-001: construção');
+  execFileSync('git', ['branch', '-f', 'baco/ENT-004-T-001'], { cwd: repo });
+  assert.equal(json(run(stop(repo, CONDUCTOR, { stop_hook_active: true }), state)).decision, 'block', 'a new commit on a delivery branch: blocks again');
+});
+
+test('Stop gives up after ten blocks in one hour, even with commits in between', async () => {
+  const repo = await repoWith('rodando');
+  const state = tmp();
+  const file = join(state, `baco-context-size-${process.getuid()}`, `${CONDUCTOR}-autonomy-stop.json`);
+  mkdirSync(join(state, `baco-context-size-${process.getuid()}`), { recursive: true });
+  const now = Date.now();
+  writeFileSync(file, JSON.stringify({ key: 'outro', blocks: 0, times: Array.from({ length: 10 }, (_, i) => now - i * 60000) }));
+  assert.equal(run(stop(repo), state).stdout, '');
+  writeFileSync(file, JSON.stringify({ key: 'outro', blocks: 0, times: Array.from({ length: 10 }, (_, i) => now - 3600000 - i * 60000) }));
+  assert.equal(json(run(stop(repo), state)).decision, 'block', 'blocks older than an hour do not count');
+});
+
+test('only the first conversation named in "Conversa condutora" is the conductor', async () => {
+  const repo = await repoWith('rodando', { conductor: `/portal/?chat=claude%3A${OTHER}&de=x (antes: /portal/?chat=claude%3A${CONDUCTOR}&de=x)` });
+  assert.equal(run(stop(repo), tmp()).stdout, '', 'the old conductor ends freely');
+  assert.equal(json(run(stop(repo, OTHER), tmp())).decision, 'block');
+});
+
+test('a BACO project in a subfolder of a larger repository is found, also from a worktree', async () => {
+  const repo = track(await makeRepo({ 'app/.baco/config.yaml': 'language: pt-BR\n', 'app/src/a.js': '', [`app/${PROGRESS}`]: progress('rodando') }));
+  assert.equal(json(run(ask(join(repo, 'app')), tmp())).hookSpecificOutput.permissionDecision, 'deny');
+  assert.equal(json(run(ask(join(repo, 'app', 'src')), tmp())).hookSpecificOutput.permissionDecision, 'deny', 'from a folder below the project');
+  const wt = join(repo, 'wt');
+  execFileSync('git', ['worktree', 'add', '-q', '-b', 'baco/ENT-004-T-002', wt], { cwd: repo });
+  writeFileSync(join(wt, 'app', PROGRESS), progress('fim'));
+  assert.equal(json(run(ask(join(wt, 'app')), tmp())).hookSpecificOutput.permissionDecision, 'deny');
 });
 
 test('inside a subagent the hook stays silent', async () => {
