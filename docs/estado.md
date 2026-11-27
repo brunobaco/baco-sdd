@@ -25,7 +25,7 @@ Atualizado em 2026-11-26.
 
 ## Em andamento
 
-A 1.13.1 está na branch `fix/autonomous-no-stop`, esperando a aprovação para juntar na `main`: gancho `autonomy-guard` (o condutor de uma entrega autônoma rodando não pergunta nem encerra a resposta), execução autônoma sem pergunta no meio (dúvidas e liberação de teste que só acrescenta vão para a lista do fim), troca de conversa sem mensagem às conversas anteriores e quadro do GitHub decidido pelo git. Conferido: 10 testes novos do gancho e 3 do quadro; o motor novo, lido contra uma entrega real, reconhece pelo git todas as tarefas juntadas.
+A 1.13.1 está na branch `fix/autonomous-no-stop`, esperando a aprovação para juntar na `main`: gancho `autonomy-guard` (o condutor de uma entrega autônoma rodando não pergunta nem encerra a resposta), execução autônoma sem pergunta no meio (dúvidas e liberação de teste que só acrescenta vão para a lista do fim), troca de conversa sem mensagem às conversas anteriores e quadro do GitHub decidido pelo git. Conferido: 13 testes novos do gancho e 3 do quadro, suíte completa passando; uma revisão independente não achou nada crítico, e o achado importante (laço sem limite) e três sugestões foram corrigidos; o motor novo, lido contra uma entrega real, reconhece pelo git todas as tarefas juntadas. Ficou de fora, de propósito: a tarefa que volta para correção aparece em Done até o primeiro commit da correção.
 
 A 1.13.0 foi juntada na `main`, marcada `v1.13.0` e publicada. Conferido antes:
 
