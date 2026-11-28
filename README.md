@@ -6,7 +6,7 @@ O BACO-SDD leva uma necessidade de produto da ideia até a entrega verificada, c
 
 É uma skill no formato aberto Agent Skills, com um motor de verificação em Node, e um plugin do Claude Code que acrescenta comandos, agentes próprios e travas automáticas. A experiência completa é a do plugin no Claude Code. No Antigravity, o BACO gera um plugin próprio, com os subagentes e as travas. Em outras ferramentas (Codex e outras que leiam Agent Skills) roda a skill, com as mesmas fases e o mesmo motor, mas sem as travas do plugin. A seção [Onde funciona](#onde-funciona) mostra recurso por recurso.
 
-Versão 1.13.1 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.13.1), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
+Versão 1.14.0 ([release](https://github.com/brunobaco/baco-sdd/releases/tag/v1.14.0), [histórico de mudanças](CHANGELOG.md)). Licença [MIT](LICENSE).
 
 ## A ideia em uma frase
 
@@ -107,7 +107,7 @@ A coluna "Garantido por" diz de onde vem cada proteção: **motor** (vale em qua
 | Instalação limpa | A tarefa que cria o esqueleto do projeto prova a instalação e os testes numa cópia nova, para que a falta de um compilador ou de uma biblioteca do sistema apareça na primeira tarefa. O revisor confere rodando, ou marca como não verificado. | método |
 | Validador do aceite | Antes do relatório, um agente confere se a prova de cada critério corresponde ao que o critério diz, lendo o corpo de cada teste e rodando quando há dúvida. | método (papel `acceptance-validator`) |
 | Decisão aceita não se edita | Um ADR aceito nunca é reescrito: decisão nova vira ADR novo que substitui o antigo, com link. | método |
-| Medição de custo real | `baco cost measure` lê o consumo dos arquivos das conversas do Claude Code, do Codex e do OpenCode nesta máquina e as chamadas do Antigravity anotadas pelo motor, separa condutor, subagentes e cada ferramenta, e grava no `custo.md` da entrega. Nunca usa o que um agente disse sobre o próprio consumo. | motor |
+| Medição de custo real | `baco cost measure` lê o consumo dos arquivos das conversas do Claude Code, do Codex, do Antigravity (condutor, subagentes e chamadas anotadas pelo motor) e do OpenCode nesta máquina, separa condutor, subagentes e cada ferramenta, e grava no `custo.md` da entrega. Nunca usa o que um agente disse sobre o próprio consumo. | motor |
 | Troca de conversa por tamanho | A partir de 290 mil tokens de contexto (`context.handoff_at`, ajustável), ou antes do resumo automático do Claude Code, o condutor é avisado, termina o passo em andamento, grava onde parou e continua numa conversa nova. O resumo automático acontece perto da janela configurada (`autoCompactWindow`) menos 33 mil tokens, e não nos 80% que se supunha. Depois de um resumo automático, é mandado reler as regras e a retomada antes do próximo passo. | plugin (aviso e releitura) e método (retomada pelo disco) |
 | Bateria completa uma vez, com carimbo | A bateria completa roda uma vez, depois do último veredito aprovado, e o motor grava um carimbo (`.baco/logs/bateria-completa.json`) com o commit, o tempo e as falhas. O `baco merge-check` só aceita o carimbo se o código não mudou desde então e a linha de destino não recebeu nada no meio. Falha que passa quando só aquele teste roda de novo vira pendência ("falha instável"). O CI completo pode ficar só manual (`test_runs.ci_full: manual`). | motor |
 | Junção automática só quando limpa | Com `delivery.integration_merge: auto`, a junção na linha de integração segue sem perguntar apenas se o `baco merge-check` sai limpo: bateria válida, veredito aprovado ou dispensado, nenhum cenário manual bloqueando, nada esperando você e CI do PR verde. Qualquer condição fora para e pergunta. Na principal, sempre pergunta. | motor (`merge-check`) e método |
@@ -201,9 +201,10 @@ Requisitos: git e Node 22 ou mais novo na máquina, e uma ferramenta de IA que t
 | Agentes próprios, com modelo, esforço e ferramentas definidos (revisores sem permissão de editar) | sim, 18 agentes | não, subagentes genéricos | sim, 18 subagentes, todos no modelo do condutor, sem esforço por papel | depende da ferramenta; sem subagentes, os papéis rodam na mesma conversa, com aviso |
 | Bloqueio automático de edição em `main` e `develop` | sim | não, só a instrução e o `check-branch` | sim | não, só a instrução e o `check-branch` |
 | Trava de gravação fora do projeto | sim | não | sim | não |
+| Trava de execução autônoma (`autonomy-guard`: não pergunta nem encerra no meio) | sim | não | sim | não |
 | Reconhece sozinho um projeto com BACO ao abrir a conversa, confere os arquivos das ferramentas e avisa de versão nova | sim | não | sim | não |
 | Aviso de tamanho da conversa e releitura depois de um resumo automático | sim | não | só o aviso | não, usa o indicador de tamanho da própria ferramenta |
-| Medição de custo real (`cost measure`) | sim | sim | só as chamadas dele em papéis | Codex e OpenCode sim; outras não |
+| Medição de custo real (`cost measure`) | sim | sim | sim | Codex e OpenCode sim; outras não |
 | Atualização | `claude plugin update baco@baco-sdd` | copiar a pasta de novo | gerar de novo | copiar a pasta de novo |
 
 Testado de ponta a ponta no Claude Code com o plugin em dois arranjos: o Codex revisando o PR em modo só leitura, e o Codex construindo na caixa `rede` com o Claude conduzindo e revisando, também na caixa `rede`. No Antigravity, os ganchos do plugin, a revisão em modo só leitura e a construção de uma tarefa de teste foram conferidos em sessões reais, ainda sem uma entrega de ponta a ponta com ele construindo ou conduzindo. Nas outras ferramentas a skill segue o formato Agent Skills, sem teste de ponta a ponta próprio.
@@ -264,7 +265,7 @@ Confira que existe `.../baco-sdd/SKILL.md`. Os papéis pedem um nível de modelo
 1. A trava de gravação fora do projeto e o isolamento do revisor do PR no modo `pr` evitam engano, não ataque: um agente determinado consegue contorná-los.
 2. A proteção contra teste enfraquecido lê testes no estilo JavaScript (`it`, `test`, `describe`). Testes em outras linguagens ou escritos numa linha só podem escapar dela.
 3. O motor lê specs nos formatos documentados (títulos, listas e tabelas com o ID na frente). Item em outro formato não conta, e a validação avisa nos casos comuns.
-4. `cost measure` lê o Claude Code, o Codex, o OpenCode e as chamadas do Antigravity em papéis; o Antigravity como condutor e outras ferramentas ficam fora da medição.
+4. `cost measure` lê o Claude Code, o Codex, o Antigravity (condutor, subagentes e chamadas em papéis) e o OpenCode; outras ferramentas ficam fora da medição.
 5. As regras de comando do Codex filtram comandos, não são uma barreira, e a caixa do Claude Code cobre só os comandos do terminal (ler e editar arquivos seguem as regras de permissão). Dentro da caixa do Claude, um servidor iniciado num comando não responde no comando seguinte: quem confere o app rodando faz tudo num comando só.
 6. Documentar sistema legado está fora do escopo desta versão.
 7. O `merge-check` só confere o CI de um PR do GitHub; sem `--pr` ou sem o `gh`, a junção automática não acontece e a pessoa decide.

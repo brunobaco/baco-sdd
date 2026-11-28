@@ -1,5 +1,17 @@
 # Histórico de mudanças
 
+## 1.14.0 (2026-11-28)
+
+O Antigravity passa a conduzir entregas autônomas (fases 6 a 8) com as mesmas travas de autonomia e medição real de custo que o Claude Code tem.
+
+- Gancho `autonomy-guard` no Antigravity (`hooks/host.mjs`, `hooks/autonomy-guard.mjs`, `tools/antigravity.mjs`, conferido na CLI 1.5.15 pela documentação embutida e por teste ao vivo): `hooks/host.mjs` ganha `stopAnswer` e passa a ler `terminationReason` e `continuationActive` no formato do Antigravity. O `autonomy-guard` recusa `ask_question` no `PreToolUse` (`{"decision":"deny","reason":...}`) e mantém o laço no `Stop` (`{"decision":"continue","reason":...}`) enquanto a entrega autônoma estiver `rodando` na conversa condutora. No `Stop`, encerramentos que não são fim normal de turno (`USER_CANCELED`, `ERROR`, `MAX_INVOCATIONS`, `MAX_FORCED_INVOCATIONS`, `MAX_TOKEN_BUDGET_EXCEEDED`, `TERMINAL_CUSTOM_HOOK`, `TERMINAL_STEP_TYPE`) passam sem bloqueio, e o contador próprio contra laço (3 recusas sem novo commit nas branches da entrega, 10 por hora) vale igual nos dois ambientes. O gerador do plugin (`node tools/antigravity.mjs`) registra o `autonomy-guard` em `PreToolUse` (`ask_question`) e em `Stop` (6 ganchos ao todo), validado com `antigravity plugin validate`.
+- Medição real de custo para o Antigravity como condutor e seus subagentes (`baco cost measure`, `scripts/lib/usage.mjs`, `scripts/commands/cost.mjs`, `scripts/lib/messages.mjs`): o motor lê o índice `conversation_summaries.db` (somente leitura via `node:sqlite`) e as transcrições `brain/<id>/.system_generated/logs/transcript.jsonl` (com fallback para `transcript_full.jsonl`) em `~/.gemini/antigravity-cli` (ou `ANTIGRAVITY_APP_DATA_DIR`, `AGY_GEMINI_DIR`, `--antigravity-dir`, e `--no-antigravity` para pular). Com `--conductor-harness antigravity`, a conversa principal conta como `condutor` (com `Maior contexto` e `conductorSessions`) e os subagentes entram pelo `agent_name` (`baco-implementer-*`, `baco-task-reviewer`, etc.); com outro condutor, conversas principais soltas do Antigravity contam como `avulsa`. Conversas já registradas em `.baco/logs/uso-ferramentas.jsonl` pelo `baco harness-answer` são puladas no leitor de transcrições para evitar dupla contagem e preservar o perfil e o papel da chamada. `baco cost history` (`costGroupOf`) passa a reconhecer também o prefixo `baco-` dos subagentes do Antigravity.
+- Referências e documentação (`ambientes.md`, `dispatch.md`, `implementation.md`, `scripts/README.md`, `README.md`, `docs/decisoes.md`, `docs/estado.md`): atualizadas com o `autonomy-guard` e a medição de custo no Antigravity, mantendo o corpo do `SKILL.md` abaixo dos 24.000 bytes carregados pelo Antigravity.
+
+### Para projetos já configurados: o que revisar na 1.14.0
+
+Nenhuma chave nova em `.baco/config.yaml`. Quem conduz entregas no Antigravity precisa rodar `node tools/antigravity.mjs` de novo para atualizar o plugin com o `autonomy-guard` (6 ganchos) e abrir uma conversa nova; ao medir custo com Antigravity como condutor, usar `--conductor-harness antigravity`.
+
 ## 1.13.1 (2026-11-27)
 
 A execução autônoma deixa de parar no meio, e o quadro do GitHub passa a seguir o git. Até aqui, a regra de não parar estava só no texto da skill, e o condutor ainda assim fazia uma pergunta que segurava a entrega horas à espera de resposta, ou encerrava a resposta com trabalho pela metade.
