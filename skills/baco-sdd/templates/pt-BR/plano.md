@@ -81,7 +81,7 @@ Tarefa com parada humana leva a palavra `PARADA` ao lado do código na coluna `T
 | `<revisor do PR>` | `revisa o PR da entrega, só leitura, sem ver docs/entregas/` | `forte` | `<de preferência outro que não o de quem construiu>` | `<modelo e esforço reais>` | `<review.external_rounds_max>` |
 | `<localizador, se for usado>` | `acha onde está a informação e devolve o trecho literal` | `leve` | `<ferramenta>` | `<modelo e esforço reais>` | `não se aplica` |
 
-**Condutor:** `<a ferramenta e o modelo da conversa principal; se a conta dela acabar, quem continua: na Ratoeira, a próxima conta da fila de contas (e, se for outro agente, que o BACO segue sem os agentes e os ganchos do plugin); fora dela, a entrega para até a cota voltar>`
+**Condutor:** `<a ferramenta e o modelo da conversa principal; se a conta dela acabar, quem continua: na Ratoeira, a próxima conta da fila de contas (e, se for um agente sem o plugin do BACO, como Codex, Grok ou OpenCode, que o BACO segue sem os agentes e os ganchos do plugin); fora dela, a entrega para até a cota voltar>`
 
 **Estimativa de uso da cota:** `<em três partes, tiradas de baco cost history: o condutor por tarefa, os construtores por revisão e os revisores por revisão, com as revisões esperadas por tarefa; ou "sem histórico">`
 
