@@ -4,9 +4,9 @@ import { spawnSync } from 'node:child_process';
 import { deliveryDir, ENT_ID } from '../lib/delivery.mjs';
 import { tables, fold } from '../lib/markdown.mjs';
 import { git, mainCheckout, worktrees } from '../lib/git.mjs';
-import { claudeHome, codexSessionsDir, encodeProjectDir, measureUsage, opencodeDbPath, totals, TOOL_LEDGER } from '../lib/usage.mjs';
+import { antigravityDataDir, claudeHome, codexSessionsDir, encodeProjectDir, measureUsage, opencodeDbPath, totals, TOOL_LEDGER } from '../lib/usage.mjs';
 
-export const usage = 'baco cost add <ENT-NNN> --phase <n> --agent <name> --model <m> --effort <e> [--harness <h>] [--turns n] [--tokens n] [--seconds n] [--note s] | baco cost summary | baco cost summary <ENT-NNN> | baco cost summary --project | baco cost measure [<ENT-NNN>] [--since <AAAA-MM-DD HH:MM>] [--until <AAAA-MM-DD HH:MM>] [--session <id>]... [--claude-dir <dir>]... [--codex-dir <dir> | --no-codex] [--opencode-db <arquivo> | --no-opencode] [--conductor-harness <claude-code|codex>] [--write [--label <etapa>]] [--json] | baco cost history [--json] [--cwd <dir>]';
+export const usage = 'baco cost add <ENT-NNN> --phase <n> --agent <name> --model <m> --effort <e> [--harness <h>] [--turns n] [--tokens n] [--seconds n] [--note s] | baco cost summary | baco cost summary <ENT-NNN> | baco cost summary --project | baco cost measure [<ENT-NNN>] [--since <AAAA-MM-DD HH:MM>] [--until <AAAA-MM-DD HH:MM>] [--session <id>]... [--claude-dir <dir>]... [--codex-dir <dir> | --no-codex] [--antigravity-dir <dir> | --no-antigravity] [--opencode-db <arquivo> | --no-opencode] [--conductor-harness <claude-code|codex|antigravity>] [--write [--label <etapa>]] [--json] | baco cost history [--json] [--cwd <dir>]';
 
 const DASH = '—';
 const HARNESS_NAME = { 'claude-code': 'Claude', codex: 'Codex', antigravity: 'Antigravity', opencode: 'OpenCode' };
@@ -129,7 +129,7 @@ function projectTotal(ctx) {
 // sessions, whose role cannot be told).
 const REVIEWER_ROLES = ['task-reviewer', 'final-reviewer', 'pr-reviewer', 'simplifier'];
 export function costGroupOf(who) {
-  const w = fold(String(who ?? '')).trim().replace(/^baco:/, '').replace(/_/g, '-');
+  const w = fold(String(who ?? '')).trim().replace(/^baco[:-]/, '').replace(/_/g, '-');
   if (w === 'condutor') return 'conductor';
   if (w.startsWith('implementer') || w === 'backend' || w === 'frontend') return 'implementers';
   if (REVIEWER_ROLES.some((r) => w === r || w.startsWith(`${r}-`))) return 'reviewers';
@@ -331,7 +331,7 @@ async function measure(args, ctx) {
   const f = args.flags;
   // A boolean flag written before the delivery id swallows it (`--write ENT-001`): give it back.
   const pos = [...args._.slice(1)];
-  for (const k of ['write', 'no-codex', 'no-opencode']) if (typeof f[k] === 'string') { pos.push(f[k]); f[k] = true; }
+  for (const k of ['write', 'no-codex', 'no-antigravity', 'no-opencode']) if (typeof f[k] === 'string') { pos.push(f[k]); f[k] = true; }
   const ent = pos[0];
   if (pos.length > 1 || (ent !== undefined && !ENT_ID.test(ent))) return bad('cli.usage', { usage });
   const dir = ent ? deliveryDir(ctx.root, ctx.config, ent) : null;
@@ -360,6 +360,13 @@ async function measure(args, ctx) {
       codexDir = f['codex-dir'];
     } else if (existsSync(codexSessionsDir())) codexDir = codexSessionsDir();
   }
+  let antigravityDir = null;
+  if (f['no-antigravity'] !== true) {
+    if (typeof f['antigravity-dir'] === 'string') {
+      if (!existsSync(f['antigravity-dir'])) return { code: 65, data: {}, messages: [{ key: 'cost.measure_dir_missing', params: { path: f['antigravity-dir'] } }] };
+      antigravityDir = f['antigravity-dir'];
+    } else if (existsSync(antigravityDataDir())) antigravityDir = antigravityDataDir();
+  }
   let opencodeDb = null;
   if (f['no-opencode'] !== true) {
     if (typeof f['opencode-db'] === 'string') {
@@ -373,18 +380,27 @@ async function measure(args, ctx) {
   // A window with a start ends now unless --until says otherwise; chosen sessions alone have no window.
   const until = time.until ?? (time.since === null ? null : (ctx.now ? ctx.now() : new Date()).getTime());
   const conductorHarness = typeof f['conductor-harness'] === 'string' && f['conductor-harness'].trim() ? f['conductor-harness'].trim() : 'claude-code';
-  const result = measureUsage({ claudeDirs, codexDir, toolLedger, opencodeDb, since: time.since, until, sessions: sessions.length ? sessions : null, roots, conductorHarness });
+  const result = measureUsage({ claudeDirs, codexDir, antigravityDir, toolLedger, opencodeDb, since: time.since, until, sessions: sessions.length ? sessions : null, roots, conductorHarness });
   const iso = (t) => (t === null ? null : new Date(t).toISOString());
   const data = { ent: ent ?? null, since: iso(time.since), until: iso(until), sessions, ...result };
   // Session ids stay out of the written file: the window names only how many were chosen.
   const window = sessions.length && time.since === null ? `${sessions.length} sessão(ões) escolhida(s)` : `${formatTimestamp(new Date(time.since))} a ${formatTimestamp(new Date(until))}`;
   const messages = [...warnings, { key: 'cost.measure_title', params: { window } },
     { key: 'cost.measure_sources', params: { conductor: result.sources.claude.conductorFiles, subagents: result.sources.claude.subagentFiles, codex: result.sources.codex.sessions } },
-    { key: 'cost.measure_sources_more', params: { tools: result.sources.tools.calls, opencode: result.sources.opencode.sessions } }];
+    {
+      key: 'cost.measure_sources_more',
+      params: {
+        antigravity: result.sources.antigravity.sessions,
+        antigravitySubagents: result.sources.antigravity.subagentFiles,
+        tools: result.sources.tools.calls,
+        opencode: result.sources.opencode.sessions,
+      },
+    }];
+  if (result.sources.antigravity.unreadable) messages.push({ key: 'cost.measure_antigravity_unreadable', params: { path: join(antigravityDir, 'conversation_summaries.db') } });
   if (result.sources.opencode.unreadable) messages.push({ key: 'cost.measure_opencode_unreadable', params: { path: opencodeDb } });
   if (result.skippedLines) messages.push({ key: 'cost.measure_bad_lines', params: { n: result.skippedLines } });
   if (!result.rows.length) {
-    const dirs = [...claudeDirs, ...(codexDir ? [codexDir] : []), toolLedger, ...(opencodeDb ? [opencodeDb] : [])].join(', ') || '—';
+    const dirs = [...claudeDirs, ...(codexDir ? [codexDir] : []), ...(antigravityDir ? [antigravityDir] : []), toolLedger, ...(opencodeDb ? [opencodeDb] : [])].join(', ') || '—';
     return { code: 1, data, messages: [...messages, { key: 'cost.measure_none', params: { dirs } }] };
   }
   messages.push({ key: 'cost.measure_head' });

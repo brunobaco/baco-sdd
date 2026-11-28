@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { main } from '../skills/baco-sdd/scripts/baco.mjs';
-import { appendCost, writeMeasured, summarizeMeasured } from '../skills/baco-sdd/scripts/commands/cost.mjs';
+import { appendCost, writeMeasured, summarizeMeasured, costGroupOf } from '../skills/baco-sdd/scripts/commands/cost.mjs';
 import { encodeProjectDir, measureUsage, insideRoot } from '../skills/baco-sdd/scripts/lib/usage.mjs';
 import { parseTime } from '../skills/baco-sdd/scripts/commands/cost.mjs';
 import { makeRepo, commit } from './helpers/tmprepo.mjs';
@@ -558,4 +558,145 @@ test('measure: reads the tool ledger of the main checkout and the OpenCode file;
   const without = await run('--opencode-db', db, '--no-opencode');
   assert.equal(without.byHarness.opencode, undefined);
   assert.equal((await call(dir, 'cost', 'measure', ...WINDOW, '--opencode-db', join(base, 'nada.db'), '--json')).code, 65);
+});
+
+// Antigravity CLI keeps conversation metadata in conversation_summaries.db and per-step token
+// usage in brain/<id>/.system_generated/logs/transcript.jsonl (checked with CLI 1.5.15).
+function antigravityFixture(base, root) {
+  const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
+  const dir = join(base, 'antigravity-cli');
+  mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync(join(dir, 'conversation_summaries.db'));
+  db.exec(`CREATE TABLE conversation_summaries (
+    conversation_id text PRIMARY KEY,
+    workspace_uris text NOT NULL,
+    agent_name text NOT NULL DEFAULT '',
+    parent_conversation_id text NOT NULL DEFAULT '',
+    last_modified_time text NOT NULL DEFAULT ''
+  );`);
+  const ins = db.prepare('INSERT INTO conversation_summaries (conversation_id, workspace_uris, agent_name, parent_conversation_id, last_modified_time) VALUES (?, ?, ?, ?, ?)');
+  const uri = (p) => JSON.stringify([`file://${p}`]);
+  ins.run('agy-main', uri(root), '', '', '2026-03-10 13:00:00+00:00');
+  ins.run('agy-impl', uri(root), 'baco-implementer-standard', 'agy-main', '2026-03-10 12:15:00+00:00');
+  ins.run('agy-rev', uri(root), 'baco-task-reviewer', 'agy-main', '2026-03-10 12:30:00+00:00');
+  ins.run('agy-cli-call', uri(root), '', '', '2026-03-10 12:40:00+00:00');
+  ins.run('agy-other', uri('/outro/projeto'), '', '', '2026-03-10 12:00:00+00:00');
+  db.close();
+  const step = (idx, ts, model, input, cacheRead, output) => ({
+    step_index: idx, source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE', created_at: ts,
+    model, input_tokens: input, cache_read_tokens: cacheRead, output_tokens: output,
+  });
+  const writeTranscript = (id, lines) => put(join(dir, 'brain', id, '.system_generated', 'logs', 'transcript.jsonl'), lines);
+  writeTranscript('agy-main', [
+    { step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', status: 'DONE', created_at: '2026-03-10T12:00:00Z' },
+    step(1, '2026-03-10T12:00:05Z', 'gemini-4-neon-high', 1000, 0, 50),
+    step(1, '2026-03-10T12:00:05Z', 'gemini-4-neon-high', 1000, 0, 50),
+    step(3, '2026-03-10T12:10:00Z', 'gemini-4-neon-high', 200, 1200, 30),
+    step(5, '2026-03-09T10:00:00Z', 'gemini-4-neon-high', 9999, 0, 10),
+    '{linha quebrada',
+  ]);
+  writeTranscript('agy-impl', [
+    step(1, '2026-03-10T12:15:00Z', 'gemini-4-neon-high', 500, 300, 40),
+  ]);
+  writeTranscript('agy-rev', [
+    step(1, '2026-03-10T12:30:00Z', 'gemini-3.8-flash-low', 250, 100, 20),
+  ]);
+  // Also recorded in uso-ferramentas.jsonl by baco harness-answer: must not be double counted.
+  writeTranscript('agy-cli-call', [
+    step(1, '2026-03-10T12:40:00Z', 'gemini-4-neon-high', 700, 100, 25),
+  ]);
+  writeTranscript('agy-other', [
+    step(1, '2026-03-10T12:00:00Z', 'gemini-4-neon-high', 8888, 0, 10),
+  ]);
+  return dir;
+}
+
+test('usage: Antigravity as conductor reads transcripts and subagents, avoids double counting tool ledger calls', (t) => {
+  const base = tmp(t);
+  const agy = antigravityFixture(base, '/proj');
+  const ledger = join(base, 'uso-ferramentas.jsonl');
+  put(ledger, [
+    toolRow('2026-03-10T12:40:00.000Z', 'agy-cli-call', 700, 25, { harness: 'antigravity-claude', model: 'claude-opus-5-5-high', agent: 'pr-reviewer', cacheRead: 100 }),
+  ]);
+  const d = measureUsage({
+    claudeDirs: [], codexDir: null, antigravityDir: agy, toolLedger: ledger,
+    since: SINCE, until: UNTIL, sessions: null, roots: ['/proj'], conductorHarness: 'antigravity',
+  });
+  const row = (h, w) => d.rows.find((x) => x.harness === h && x.who === w);
+  const cond = row('antigravity', 'condutor');
+  assert.deepEqual(cond, {
+    harness: 'antigravity', model: 'gemini-4-neon-high', who: 'condutor',
+    responses: 2, input: 1200, cacheRead: 1200, cacheWrite: 0, output: 80, total: 2480, maxContext: 1400,
+  });
+  const impl = row('antigravity', 'baco-implementer-standard');
+  assert.deepEqual([impl.responses, impl.input, impl.cacheRead, impl.output, impl.total, impl.maxContext], [1, 500, 300, 40, 840, null]);
+  const rev = row('antigravity', 'baco-task-reviewer');
+  assert.deepEqual([rev.responses, rev.model, rev.total], [1, 'gemini-3.8-flash-low', 370]);
+  const pr = row('antigravity-claude', 'pr-reviewer');
+  assert.equal(pr.total, 825, 'tool ledger call counted once, keeping its profile and role');
+  assert.equal(d.rows.filter((r) => r.harness === 'antigravity' && r.who === 'avulsa').length, 0, 'ledger conversation not recounted as avulsa');
+  assert.ok(!d.rows.some((r) => r.total === 8898), 'conversation of another project left out');
+  assert.equal(d.conductorHarness, 'antigravity');
+  assert.equal(d.conductor.total, 2480);
+  assert.equal(d.conductor.maxContext, 1400);
+  assert.equal(d.conductorSessions.length, 1);
+  assert.equal(d.conductorSessions[0].owner, true);
+  assert.deepEqual(
+    d.groups.map((g) => [g.kind, g.harness, g.total]),
+    [['conductor', 'antigravity', 2480], ['subagents', 'antigravity', 840 + 370], ['harness', 'antigravity-claude', 825]],
+  );
+  assert.deepEqual(d.sources.antigravity, { sessions: 1, subagentFiles: 2, unreadable: false });
+  assert.equal(d.skippedLines, 1);
+});
+
+test('usage: Antigravity main session is avulsa when Claude Code conducts; --session includes its subagents', (t) => {
+  const base = tmp(t);
+  const agy = antigravityFixture(base, '/proj');
+  const d = measureUsage({
+    claudeDirs: [], codexDir: null, antigravityDir: agy,
+    since: SINCE, until: UNTIL, sessions: null, roots: ['/proj'], conductorHarness: 'claude-code',
+  });
+  assert.equal(d.rows.find((x) => x.harness === 'antigravity' && x.who === 'condutor'), undefined);
+  assert.ok(d.rows.some((x) => x.harness === 'antigravity' && x.who === 'avulsa'));
+  const bySession = measureUsage({
+    claudeDirs: [], codexDir: null, antigravityDir: agy,
+    since: null, until: null, sessions: ['agy-main'], roots: ['/outro'], conductorHarness: 'antigravity',
+  });
+  assert.deepEqual(bySession.rows.map((r) => r.who).sort(), ['baco-implementer-standard', 'baco-task-reviewer', 'condutor']);
+  assert.equal(bySession.conductor.total, 2480 + 10009, 'without a window, all responses of the chosen session count');
+});
+
+test('measure CLI: --antigravity-dir, --no-antigravity, --conductor-harness antigravity, ANTIGRAVITY_APP_DATA_DIR and costGroupOf', async (t) => {
+  const base = tmp(t);
+  const dir = await makeRepo({ '.gitignore': '.baco/logs/\n' });
+  put(join(dir, '.baco', 'logs', 'uso-ferramentas.jsonl'), [
+    toolRow('2026-03-10T12:40:00.000Z', 'agy-cli-call', 700, 25, { harness: 'antigravity-claude', model: 'claude-opus-5-5-high', agent: 'pr-reviewer', cacheRead: 100 }),
+  ]);
+  const agy = antigravityFixture(base, dir);
+  const empty = join(base, 'vazio');
+  mkdirSync(empty);
+  const r = await call(dir, 'cost', 'measure', ...WINDOW, '--claude-dir', empty, '--no-codex', '--no-opencode', '--antigravity-dir', agy, '--conductor-harness', 'antigravity', '--json');
+  assert.equal(r.code, 0, r.stderr);
+  const d = JSON.parse(r.stdout);
+  assert.equal(d.conductorHarness, 'antigravity');
+  assert.equal(d.conductor.total, 2480);
+  assert.equal(d.byHarness['antigravity-claude'].total, 825, 'tool ledger conversation counted once');
+  const h = await call(dir, 'cost', 'measure', ...WINDOW, '--claude-dir', empty, '--no-codex', '--no-opencode', '--antigravity-dir', agy, '--conductor-harness', 'antigravity');
+  assert.match(h.stdout, /\| Condutor \(Antigravity\) \| 2 \| 2480 \| 1400 \|/);
+  assert.match(h.stdout, /\| Subagentes \(Antigravity\) \| 2 \| 1210 \|/);
+  const skipped = await call(dir, 'cost', 'measure', ...WINDOW, '--claude-dir', empty, '--no-codex', '--no-opencode', '--no-antigravity', '--json');
+  assert.equal(skipped.code, 0, 'tool ledger call still measured when --no-antigravity skips transcripts');
+  assert.equal(JSON.parse(skipped.stdout).byHarness.antigravity, undefined);
+  assert.equal((await call(dir, 'cost', 'measure', ...WINDOW, '--antigravity-dir', join(base, 'nada'), '--json')).code, 65);
+  // Default path respects ANTIGRAVITY_APP_DATA_DIR.
+  const old = process.env.ANTIGRAVITY_APP_DATA_DIR;
+  process.env.ANTIGRAVITY_APP_DATA_DIR = agy;
+  t.after(() => { if (old === undefined) delete process.env.ANTIGRAVITY_APP_DATA_DIR; else process.env.ANTIGRAVITY_APP_DATA_DIR = old; });
+  const envRun = JSON.parse((await call(dir, 'cost', 'measure', ...WINDOW, '--claude-dir', empty, '--no-codex', '--no-opencode', '--conductor-harness', 'antigravity', '--json')).stdout);
+  assert.equal(envRun.conductor.total, 2480);
+  // Antigravity subagent names use `baco-` instead of `baco:`.
+  assert.equal(costGroupOf('baco-implementer-standard'), 'implementers');
+  assert.equal(costGroupOf('baco-task-reviewer'), 'reviewers');
+  assert.equal(costGroupOf('baco-final-reviewer'), 'reviewers');
+  assert.equal(costGroupOf('baco-locator'), 'others');
 });

@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Real token usage read from the session transcripts of the AI tools, never from what an agent
 // says it spent. Only numbers, model names and agent types leave this module: no message text,
@@ -33,6 +34,8 @@ import { basename, join } from 'node:path';
 
 export const claudeHome = () => process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
 export const codexSessionsDir = () => join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'sessions');
+export const antigravityDataDir = () => process.env.ANTIGRAVITY_APP_DATA_DIR
+  || join(process.env.AGY_GEMINI_DIR || join(homedir(), '.gemini'), 'antigravity-cli');
 export const opencodeDbPath = () => join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), 'opencode', 'opencode.db');
 export const TOOL_LEDGER = join('.baco', 'logs', 'uso-ferramentas.jsonl');
 
@@ -297,10 +300,14 @@ function readCodex(dir, ledger, opts, stats) {
 }
 
 // The ledger of `baco harness-answer`. `who` is the role the conductor named (`--agent`), else 'exec'.
+// Returns the set of all conversation ids recorded in the ledger, so readAntigravity skips them and
+// never double counts a non-interactive call already tracked here with its profile and role.
 function readToolLedger(file, ledger, opts, stats) {
   const calls = new Map(); // harness + conversation -> [line]
+  const seenConversations = new Set();
   for (const o of readLines(file, () => stats.skippedLines++)) {
     if (!o || typeof o.harness !== 'string' || typeof o.conversation !== 'string') { stats.skippedLines++; continue; }
+    seenConversations.add(o.conversation);
     if (opts.sessions && !opts.sessions.includes(o.conversation)) continue;
     const k = JSON.stringify([o.harness, o.conversation]);
     if (!calls.has(k)) calls.set(k, []);
@@ -326,6 +333,113 @@ function readToolLedger(file, ledger, opts, stats) {
         input: added.input, cacheRead: added.cacheRead, cacheWrite: 0, output: added.output + added.thinking,
         context: added.input + added.cacheRead,
       });
+    }
+  }
+  return seenConversations;
+}
+
+function uriToPath(uri) {
+  if (typeof uri !== 'string' || !uri) return null;
+  if (!uri.startsWith('file://')) return uri;
+  try { return fileURLToPath(uri); } catch { return decodeURIComponent(uri.replace(/^file:\/\//, '')); }
+}
+
+function antigravityTranscriptPath(dir, id) {
+  const logs = join(dir, 'brain', id, '.system_generated', 'logs');
+  const compact = join(logs, 'transcript.jsonl');
+  if (existsSync(compact)) return compact;
+  const full = join(logs, 'transcript_full.jsonl');
+  return existsSync(full) ? full : null;
+}
+
+function readAntigravityFile(file, id, who, tracked, ledger, opts, stats) {
+  let line = 0;
+  for (const o of readLines(file, () => stats.skippedLines++)) {
+    line++;
+    if (o?.type !== 'PLANNER_RESPONSE' || o.source !== 'MODEL') continue;
+    if (!Number.isFinite(o.input_tokens) && !Number.isFinite(o.cache_read_tokens) && !Number.isFinite(o.output_tokens)) continue;
+    const insideWin = inWindow(o.created_at, opts.since, opts.until);
+    const respKey = Number.isInteger(o.step_index) ? `antigravity:${id}:${o.step_index}` : null;
+    if (tracked) ledger.seen(`antigravity:${id}`, 'antigravity', who, respKey ?? `linha-${line}`, insideWin);
+    if (!insideWin) continue;
+    const input = n(o.input_tokens), cacheRead = n(o.cache_read_tokens), output = n(o.output_tokens) + n(o.thinking_tokens);
+    const at = Date.parse(o.created_at ?? '');
+    ledger.add({
+      key: respKey, harness: 'antigravity', model: typeof o.model === 'string' && o.model ? o.model : 'desconhecido',
+      who, session: tracked ? `antigravity:${id}` : null, at: Number.isNaN(at) ? null : at,
+      input, cacheRead, cacheWrite: 0, output, context: input + cacheRead,
+    });
+  }
+}
+
+// Antigravity CLI keeps conversation metadata (workspace, agent name, parent id) in
+// conversation_summaries.db and per-step token usage in brain/<id>/.system_generated/logs/transcript.jsonl.
+// Conversations already recorded in uso-ferramentas.jsonl by `baco harness-answer` are skipped here.
+function readAntigravity(dir, ledger, opts, stats, ledgerConversations) {
+  const dbFile = join(dir, 'conversation_summaries.db');
+  if (!existsSync(dbFile)) {
+    if (!opts.sessions) return;
+    for (const id of opts.sessions) {
+      if (ledgerConversations.has(id)) continue;
+      const file = antigravityTranscriptPath(dir, id);
+      if (!file || staleFile(file, opts.since)) continue;
+      const who = opts.conductorHarness === 'antigravity' ? 'condutor' : 'avulsa';
+      stats.antigravitySessions++;
+      readAntigravityFile(file, id, who, true, ledger, opts, stats);
+    }
+    return;
+  }
+  const mod = sqlite();
+  if (!mod) { stats.antigravityUnreadable = true; return; }
+  let db;
+  try { db = new mod.DatabaseSync(dbFile, { readOnly: true }); } catch { stats.antigravityUnreadable = true; return; }
+  let rows;
+  try {
+    rows = db.prepare('SELECT conversation_id, workspace_uris, agent_name, parent_conversation_id FROM conversation_summaries').all();
+  } catch { stats.antigravityUnreadable = true; return; } finally { db.close(); }
+
+  const byId = new Map();
+  for (const r of rows) {
+    let paths = [];
+    try {
+      const parsed = JSON.parse(r.workspace_uris || '[]');
+      if (Array.isArray(parsed)) paths = parsed.map(uriToPath).filter(Boolean);
+    } catch { /* empty */ }
+    byId.set(r.conversation_id, {
+      id: r.conversation_id,
+      paths,
+      agent: typeof r.agent_name === 'string' ? r.agent_name.trim() : '',
+      parent: typeof r.parent_conversation_id === 'string' ? r.parent_conversation_id.trim() : '',
+    });
+  }
+
+  const belongs = (conv) => {
+    const visited = new Set();
+    let cur = conv;
+    while (cur && !visited.has(cur.id)) {
+      visited.add(cur.id);
+      if (opts.sessions) {
+        if (opts.sessions.includes(cur.id)) return true;
+      } else if (cur.paths.some((p) => inside(p, opts.roots))) {
+        return true;
+      }
+      cur = cur.parent ? byId.get(cur.parent) : null;
+    }
+    return false;
+  };
+
+  for (const conv of byId.values()) {
+    if (ledgerConversations.has(conv.id)) continue;
+    if (!belongs(conv)) continue;
+    const file = antigravityTranscriptPath(dir, conv.id);
+    if (!file || staleFile(file, opts.since)) continue;
+    if (conv.parent) {
+      stats.antigravitySubagents++;
+      readAntigravityFile(file, conv.id, conv.agent || 'subagente', false, ledger, opts, stats);
+    } else {
+      stats.antigravitySessions++;
+      const who = opts.conductorHarness === 'antigravity' ? 'condutor' : 'avulsa';
+      readAntigravityFile(file, conv.id, who, true, ledger, opts, stats);
     }
   }
 }
@@ -410,16 +524,25 @@ export function totals(rows, harnessOverride = null) {
   };
 }
 
-// opts: { claudeDirs: [existing dirs], codexDir: existing dir or null, since/until: ms or null,
-// sessions: [ids] or null, roots: [project paths a Codex session must run inside],
-// conductorHarness: 'claude-code' (default) or 'codex' (the harness whose own sessions are the conductor) }.
+// opts: { claudeDirs: [existing dirs], codexDir: existing dir or null, antigravityDir: existing dir or null,
+// since/until: ms or null, sessions: [ids] or null, roots: [project paths a session must run inside],
+// conductorHarness: 'claude-code' (default), 'codex' or 'antigravity' }.
 export function measureUsage(given) {
   const opts = { ...given, conductorHarness: given.conductorHarness || 'claude-code' };
-  const stats = { claudeConductor: 0, claudeSubagents: 0, codexSessions: 0, toolCalls: 0, opencodeSessions: 0, opencodeUnreadable: false, skippedLines: 0 };
+  const stats = {
+    claudeConductor: 0, claudeSubagents: 0, codexSessions: 0, toolCalls: 0,
+    antigravitySessions: 0, antigravitySubagents: 0, antigravityUnreadable: false,
+    opencodeSessions: 0, opencodeUnreadable: false, skippedLines: 0,
+  };
   const ledger = makeLedger();
   readClaude(opts.claudeDirs ?? [], ledger, opts, stats);
   if (opts.codexDir) readCodex(opts.codexDir, ledger, opts, stats);
-  if (opts.toolLedger && existsSync(opts.toolLedger)) readToolLedger(opts.toolLedger, ledger, opts, stats);
+  const ledgerConversations = opts.toolLedger && existsSync(opts.toolLedger)
+    ? readToolLedger(opts.toolLedger, ledger, opts, stats)
+    : new Set();
+  if (opts.antigravityDir && existsSync(opts.antigravityDir)) {
+    readAntigravity(opts.antigravityDir, ledger, opts, stats, ledgerConversations);
+  }
   if (opts.opencodeDb && existsSync(opts.opencodeDb)) readOpenCode(opts.opencodeDb, ledger, opts, stats);
   const order = (r) => [r.harness, r.who === 'condutor' ? 0 : 1, r.who, r.model].join('\u0000');
   const sessionList = ledger.sessionList();
@@ -432,6 +555,7 @@ export function measureUsage(given) {
     sources: {
       claude: { conductorFiles: stats.claudeConductor, subagentFiles: stats.claudeSubagents },
       codex: { sessions: stats.codexSessions },
+      antigravity: { sessions: stats.antigravitySessions, subagentFiles: stats.antigravitySubagents, unreadable: stats.antigravityUnreadable },
       tools: { calls: stats.toolCalls },
       opencode: { sessions: stats.opencodeSessions, unreadable: stats.opencodeUnreadable },
     },
