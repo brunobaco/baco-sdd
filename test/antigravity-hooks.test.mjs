@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeRepo } from './helpers/tmprepo.mjs';
 import { SKILL_ROOT } from './helpers/content.mjs';
-import { readHookInput, preToolAnswer, contextAnswer, quietAnswer, isAntigravitySubagent } from '../hooks/host.mjs';
+import { readHookInput, preToolAnswer, stopAnswer, contextAnswer, quietAnswer, isAntigravitySubagent } from '../hooks/host.mjs';
 
 // Hook input and output of the Antigravity CLI (1.5.10), as captured from a real session: camelCase
 // fields, the tool call in `toolCall` (`write_file`/`edit_file` with `Path`, `run_command` with
@@ -52,6 +52,10 @@ test('host: reads both input formats into the same fields', () => {
   const agy = readHookInput(tool('/w', '/t', 'edit_file', { Path: '/w/a.js', Target: 'a', Replacement: 'b' }), ['--host', 'antigravity']);
   assert.deepEqual({ host: agy.host, event: agy.event, session: agy.session, tool: agy.tool, filePath: agy.filePath }, { host: 'antigravity', event: 'PreToolUse', session: 'c1-conv', tool: 'edit_file', filePath: '/w/a.js' });
   assert.equal(readHookInput(tool('/w', '/t', 'run_command', { CommandLine: 'echo x' }), ['--host', 'antigravity']).command, 'echo x');
+  const agyStop = readHookInput(base('Stop', '/w', '/t', { terminationReason: 'NO_TOOL_CALL', continuationActive: true }), ['--host', 'antigravity']);
+  assert.deepEqual({ event: agyStop.event, terminationReason: agyStop.terminationReason, stopHookActive: agyStop.stopHookActive }, { event: 'Stop', terminationReason: 'NO_TOOL_CALL', stopHookActive: true });
+  const claudeStop = readHookInput({ hook_event_name: 'Stop', session_id: 's', cwd: '/w', stop_hook_active: true }, []);
+  assert.deepEqual({ event: claudeStop.event, terminationReason: claudeStop.terminationReason, stopHookActive: claudeStop.stopHookActive }, { event: 'Stop', terminationReason: null, stopHookActive: true });
   // The flag decides even when the input is garbage, so the answer is always in the host's format.
   assert.equal(readHookInput(null, ['--host', 'antigravity']).host, 'antigravity');
   assert.equal(readHookInput(null, []).host, 'claude');
@@ -63,6 +67,10 @@ test('host: answers in each host format', () => {
   // `allow` leaves the permission rules in charge (checked live: a command outside the rules stayed denied).
   assert.deepEqual(JSON.parse(preToolAnswer('antigravity', { deny: false })), { decision: 'allow' });
   assert.deepEqual(JSON.parse(preToolAnswer('antigravity', { deny: true, reason: 'r' })), { decision: 'deny', reason: 'r' });
+  assert.equal(stopAnswer('claude', { block: false }), '');
+  assert.deepEqual(JSON.parse(stopAnswer('claude', { block: true, reason: 'r' })), { decision: 'block', reason: 'r' });
+  assert.equal(stopAnswer('antigravity', { block: false }), '{}');
+  assert.deepEqual(JSON.parse(stopAnswer('antigravity', { block: true, reason: 'r' })), { decision: 'continue', reason: 'r' });
   assert.deepEqual(JSON.parse(contextAnswer('claude', 'SessionStart', 'n')), { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'n' } });
   assert.deepEqual(JSON.parse(contextAnswer('antigravity', 'SessionStart', 'n')), { injectSteps: [{ systemMessage: { systemMessage: 'n' } }] });
   assert.equal(quietAnswer('claude'), '');

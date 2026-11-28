@@ -44,6 +44,8 @@ export function readHookInput(input, argv = process.argv.slice(2)) {
       tool: str(raw.toolCall?.name),
       filePath: str(args.Path) ?? str(args.TargetFile) ?? str(args.AbsolutePath) ?? str(args.FilePath),
       command: str(args.CommandLine),
+      terminationReason: str(raw.terminationReason),
+      stopHookActive: raw.continuationActive === true,
       compact: false,
       subagent: () => isAntigravitySubagent(transcript),
     };
@@ -58,6 +60,8 @@ export function readHookInput(input, argv = process.argv.slice(2)) {
     tool: str(raw.tool_name),
     filePath: str(ti.file_path) ?? str(ti.notebook_path),
     command: str(ti.command),
+    terminationReason: null,
+    stopHookActive: raw.stop_hook_active === true,
     compact: raw.source === 'compact',
     // Claude Code sends `agent_id` only inside a subagent.
     subagent: () => raw.agent_id !== undefined && raw.agent_id !== null,
@@ -71,6 +75,14 @@ export function preToolAnswer(host, result) {
   return result.deny
     ? JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: result.reason } })
     : '';
+}
+
+// Stop: Claude Code blocks a turn end with `{ decision: "block", reason }`; Antigravity CLI 1.5.15
+// re-enters the loop with `{ decision: "continue", reason }` and lets it end with `{}` (or any
+// decision other than "continue").
+export function stopAnswer(host, result) {
+  if (host === 'antigravity') return result?.block ? JSON.stringify({ decision: 'continue', reason: result.reason }) : '{}';
+  return result?.block ? JSON.stringify({ decision: 'block', reason: result.reason }) : '';
 }
 
 // Text for the model: Claude Code's additionalContext, or an Antigravity system message.

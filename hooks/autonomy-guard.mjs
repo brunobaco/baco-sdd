@@ -1,30 +1,33 @@
 #!/usr/bin/env node
-// PreToolUse (AskUserQuestion) and Stop hook: keeps an autonomous delivery from stopping in the
-// middle. While a delivery's progresso.md says `Execução autônoma: sim` and `Situação: rodando`,
-// the conversation recorded in `Conversa condutora` (the first session id written there) may not ask
-// a blocking question, which would hold the whole delivery until the person answers, nor end its
-// turn: the rule in prose (implementation.md, section 7) was not enough on its own.
-// Any other conversation, a subagent, and a delivery that is not running are left alone. The
-// conductor ends legitimately by changing the situation to one of the template's stops (`parado para
-// conversa nova`, `fim`, `parado por pergunta`, `parado a pedido`). Against a loop, Stop goes through
-// after three blocks with no new commit on any branch of the delivery (touching progresso.md is not
-// progress), and after ten blocks in one hour whatever happened. The project is found from the
-// conversation's folder upward, also in a subfolder of a larger repository, and progresso.md is read
-// from the main checkout even from a task worktree. Claude Code only. Fails open: any error allows
-// and exits 0.
+// PreToolUse (Claude Code: AskUserQuestion; Antigravity: ask_question) and Stop hook: keeps an
+// autonomous delivery from stopping in the middle. While a delivery's progresso.md says
+// `Execução autônoma: sim` and `Situação: rodando`, the conversation recorded in
+// `Conversa condutora` (the first session id written there) may not ask a blocking question, which
+// would hold the whole delivery until the person answers, nor end its turn: the rule in prose
+// (implementation.md, section 7) was not enough on its own.
+// Any other conversation, a subagent, and a delivery that is not running are left alone. In
+// Antigravity, a Stop whose `terminationReason` is not `NO_TOOL_CALL` (user cancel, error, limit)
+// is also left alone. The conductor ends legitimately by changing the situation to one of the
+// template's stops (`parado para conversa nova`, `fim`, `parado por pergunta`, `parado a pedido`).
+// Against a loop, Stop goes through after three blocks with no new commit on any branch of the
+// delivery (touching progresso.md is not progress), and after ten blocks in one hour whatever
+// happened. The project is found from the conversation's folder upward, also in a subfolder of a
+// larger repository, and progresso.md is read from the main checkout even from a task worktree.
+// Fails open: any error allows and exits 0.
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { parseRetomada } from '../skills/baco-sdd/scripts/commands/check-stalled.mjs';
 import { hookStateDir, sessionStateFile } from '../skills/baco-sdd/scripts/lib/hookrules.mjs';
 import { isMainModule } from '../skills/baco-sdd/scripts/lib/entrypoint.mjs';
-import { readHookInput, preToolAnswer } from './host.mjs';
+import { readHookInput, preToolAnswer, stopAnswer } from './host.mjs';
 
 export const STOP_BLOCK_LIMIT = 3;
 export const STOP_HOURLY_LIMIT = 10;
 const HOUR_MS = 60 * 60 * 1000;
 const ALLOW = null;
 const SESSION_ID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const ASK_TOOL = { claude: 'AskUserQuestion', antigravity: 'ask_question' };
 
 const git = (args, cwd) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 
@@ -107,29 +110,36 @@ function mayBlockStop(session, key, now = Date.now()) {
   return true;
 }
 
-// `hook` is the normalized input of host.mjs. Returns { pre } or { stop } for Claude Code, or null.
+// `hook` is the normalized input of host.mjs. Returns { pre } or { stop } for either host, or null.
 export function decide(hook) {
-  if (hook.host !== 'claude' || hook.subagent()) return ALLOW;
-  const isAsk = hook.event === 'PreToolUse' && hook.tool === 'AskUserQuestion';
+  if (!(hook.host in ASK_TOOL) || hook.subagent()) return ALLOW;
+  const isAsk = hook.event === 'PreToolUse' && hook.tool === ASK_TOOL[hook.host];
   const isStop = hook.event === 'Stop';
   if (!isAsk && !isStop) return ALLOW;
+  if (isStop && hook.host === 'antigravity' && hook.terminationReason && hook.terminationReason !== 'NO_TOOL_CALL') return ALLOW;
   const d = conductedDelivery(hook.cwd, hook.session);
   if (!d) return ALLOW;
   if (isAsk) return { pre: { deny: true, reason: askReason(d.id) } };
   if (!mayBlockStop(hook.session, progressKey(d.root, d.id))) return ALLOW;
-  return { stop: { decision: 'block', reason: stopReason(d.id) } };
+  return { stop: { block: true, reason: stopReason(d.id) } };
+}
+
+function formatAnswer(hook, result) {
+  if (hook.event === 'PreToolUse') return preToolAnswer(hook.host, result?.pre ?? { deny: false });
+  if (hook.event === 'Stop') return stopAnswer(hook.host, result?.stop ?? { block: false });
+  // Unknown event or unreadable input: `decision: "allow"` fails open for both PreToolUse and Stop in Antigravity.
+  return preToolAnswer(hook.host, { deny: false });
 }
 
 if (isMainModule(import.meta.url)) {
-  let out = '';
+  let hook = readHookInput(null);
+  let result = ALLOW;
   try {
-    const hook = readHookInput(JSON.parse(readFileSync(0, 'utf8')));
-    const r = decide(hook);
-    if (r?.pre) out = preToolAnswer(hook.host, r.pre);
-    else if (r?.stop) out = JSON.stringify(r.stop);
+    hook = readHookInput(JSON.parse(readFileSync(0, 'utf8')));
+    result = decide(hook);
   } catch (err) {
     if (err?.message) process.stderr.write(`baco autonomy-guard: ${err.message} (permitido)\n`);
   }
-  process.stdout.write(out);
+  process.stdout.write(formatAnswer(hook, result));
   process.exit(0);
 }

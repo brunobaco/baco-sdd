@@ -110,9 +110,10 @@ test('antigravity plugin: the main skill is copied whole, its commands named the
 test('antigravity plugin: hooks in the Antigravity format, run from the plugin folder with --host antigravity', () => {
   const dest = build();
   const hooks = JSON.parse(readFileSync(join(dest, 'hooks.json'), 'utf8')).baco;
-  assert.deepEqual(Object.keys(hooks).sort(), ['PostToolUse', 'PreInvocation', 'PreToolUse', 'SessionStart']);
+  assert.deepEqual(Object.keys(hooks).sort(), ['PostToolUse', 'PreInvocation', 'PreToolUse', 'SessionStart', 'Stop']);
   const commands = [
     ...hooks.SessionStart.map((h) => h.command), ...hooks.PreInvocation.map((h) => h.command),
+    ...hooks.Stop.map((h) => h.command),
     ...hooks.PreToolUse.flatMap((g) => g.hooks.map((h) => h.command)),
     ...hooks.PostToolUse.flatMap((g) => g.hooks.map((h) => h.command)),
   ];
@@ -124,11 +125,16 @@ test('antigravity plugin: hooks in the Antigravity format, run from the plugin f
   assert.match(hooks.PreToolUse[0].matcher, /write_file/);
   assert.match(hooks.PreToolUse[0].matcher, /edit_file/);
   assert.equal(hooks.PreToolUse[1].matcher, 'run_command');
+  assert.equal(hooks.PreToolUse[2].matcher, 'ask_question');
+  assert.equal(hooks.PreToolUse[2].hooks[0].command, 'node ./hooks/autonomy-guard.mjs --host antigravity');
+  assert.equal(hooks.Stop[0].command, 'node ./hooks/autonomy-guard.mjs --host antigravity');
   assert.ok(existsSync(join(dest, 'hooks', 'host.mjs')));
   assert.ok(!existsSync(join(dest, 'hooks', 'hooks.json')), 'only the root hooks.json is read by a native plugin');
   // The hooks import the engine from the copied skill, so they run from the plugin folder.
   const r = spawnSync(process.execPath, [join(dest, 'hooks', 'branch-guard.mjs'), '--host', 'antigravity'], { input: 'garbage', encoding: 'utf8', cwd: dest });
   assert.deepEqual(JSON.parse(r.stdout), { decision: 'allow' });
+  const auto = spawnSync(process.execPath, [join(dest, 'hooks', 'autonomy-guard.mjs'), '--host', 'antigravity'], { input: 'garbage', encoding: 'utf8', cwd: dest });
+  assert.deepEqual(JSON.parse(auto.stdout), { decision: 'allow' });
 });
 
 test('antigravity plugin: rebuilds its own folder, refuses to overwrite anything else', () => {

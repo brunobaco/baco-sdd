@@ -126,11 +126,13 @@ export function buildAntigravityPlugin({ root = ROOT, dest }) {
       PreToolUse: [
         { matcher: FILE_TOOLS, hooks: [hookCommand('branch-guard.mjs')] },
         { matcher: 'run_command', hooks: [hookCommand('write-guard.mjs')] },
+        { matcher: 'ask_question', hooks: [hookCommand('autonomy-guard.mjs')] },
       ],
       PostToolUse: [
         { matcher: FILE_TOOLS, hooks: [hookCommand('board-sync.mjs')] },
       ],
       PreInvocation: [hookCommand('context-size.mjs')],
+      Stop: [hookCommand('autonomy-guard.mjs')],
     },
   }, null, 2)}\n`);
 
@@ -152,7 +154,7 @@ if (isMainModule(import.meta.url)) {
   const dest = i >= 0 ? argv[i + 1].replace(/^~(?=\/|$)/, homedir()) : join(homedir(), '.gemini', 'config', 'plugins', 'baco');
   try {
     const r = buildAntigravityPlugin({ dest });
-    console.log(`Plugin BACO ${r.version} para o Antigravity em ${r.dest}: ${r.agents} subagentes, ${r.commands} comandos como skills, 5 ganchos.`);
+    console.log(`Plugin BACO ${r.version} para o Antigravity em ${r.dest}: ${r.agents} subagentes, ${r.commands} comandos como skills, 6 ganchos.`);
     console.log('Para conferir: antigravity plugin validate <pasta> (ou agy plugin validate <pasta>).');
   } catch (e) {
     console.error(e.message);

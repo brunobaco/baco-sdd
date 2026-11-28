@@ -160,3 +160,82 @@ test('outside a BACO project, or with garbage input, the hook allows and exits 0
     assert.equal(r.stdout, '');
   }
 });
+
+// Antigravity CLI (checked live on 1.5.15): PreToolUse on `ask_question` expects `decision: "deny"`
+// or `decision: "allow"` (never empty); Stop expects `decision: "continue"` with `reason`, or `{}`
+// to let the turn end, and sends `terminationReason`.
+const runAgy = (input, stateDir) => spawnSync(process.execPath, [HOOK, '--host', 'antigravity'], {
+  input: typeof input === 'string' ? input : JSON.stringify(input), encoding: 'utf8',
+  env: { ...process.env, TMPDIR: stateDir, HOME: stateDir },
+});
+const agyTranscript = (firstLine) => {
+  const file = join(tmp(), 'transcript_full.jsonl');
+  writeFileSync(file, `${JSON.stringify(firstLine)}\n`);
+  return file;
+};
+const AGY_MAIN = () => agyTranscript({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', status: 'DONE', content: '<USER_REQUEST>\nexecutar\n</USER_REQUEST>' });
+const AGY_SUB = () => agyTranscript({ step_index: 0, source: 'SYSTEM', type: 'SYSTEM_MESSAGE', status: 'DONE', content: `<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-28T10:00:00Z sender=${CONDUCTOR} priority=MESSAGE_PRIORITY_HIGH content=tarefa\n</SYSTEM_MESSAGE>` });
+const agyAsk = (cwd, session = CONDUCTOR, transcriptPath = AGY_MAIN()) => ({
+  hookEventName: 'PreToolUse', conversationId: session, cwd, transcriptPath,
+  toolCall: { id: 'call-1', name: 'ask_question', args: { questions: [] } },
+});
+const agyStop = (cwd, session = CONDUCTOR, extra = {}, transcriptPath = AGY_MAIN()) => ({
+  hookEventName: 'Stop', conversationId: session, cwd, transcriptPath,
+  terminationReason: 'NO_TOOL_CALL', continuationActive: false, executionNum: 0, ...extra,
+});
+const AGY_CONDUCTOR = `/portal/?chat=antigravity%3A${CONDUCTOR}&de=pessoa%40example.com`;
+
+test('antigravity: conductor ask_question is denied; other conversations, stopped deliveries and subagents get allow', async () => {
+  const repo = await repoWith('rodando', { conductor: AGY_CONDUCTOR });
+  const denied = runAgy(agyAsk(repo), tmp());
+  assert.equal(denied.status, 0);
+  const out = json(denied);
+  assert.equal(out.decision, 'deny');
+  assert.match(out.reason, /ENT-004/);
+  assert.match(out.reason, /decidido pelo agente, conferir no fim/);
+  assert.match(out.reason, /Esperando a pessoa/);
+  assert.deepEqual(json(runAgy(agyAsk(repo, OTHER), tmp())), { decision: 'allow' });
+  assert.deepEqual(json(runAgy(agyAsk(repo, CONDUCTOR, AGY_SUB()), tmp())), { decision: 'allow' });
+  const stopped = await repoWith('fim', { conductor: AGY_CONDUCTOR });
+  assert.deepEqual(json(runAgy(agyAsk(stopped), tmp())), { decision: 'allow' });
+});
+
+test('antigravity: Stop returns continue on NO_TOOL_CALL and {} on non-normal termination, other sessions, subagents or changed status', async () => {
+  const repo = await repoWith('rodando', { conductor: AGY_CONDUCTOR });
+  const blocked = runAgy(agyStop(repo), tmp());
+  assert.equal(blocked.status, 0);
+  const out = json(blocked);
+  assert.equal(out.decision, 'continue');
+  assert.match(out.reason, /ENT-004/);
+  for (const s of ['parado para conversa nova', 'fim', 'parado por pergunta', 'parado a pedido']) assert.match(out.reason, new RegExp(`"${s}"`));
+  for (const reason of ['USER_CANCELED', 'ERROR', 'MAX_INVOCATIONS', 'MAX_FORCED_INVOCATIONS', 'MAX_TOKEN_BUDGET_EXCEEDED', 'TERMINAL_CUSTOM_HOOK', 'TERMINAL_STEP_TYPE']) {
+    assert.deepEqual(json(runAgy(agyStop(repo, CONDUCTOR, { terminationReason: reason }), tmp())), {}, `must allow Stop on ${reason}`);
+  }
+  assert.deepEqual(json(runAgy(agyStop(repo, OTHER), tmp())), {});
+  assert.deepEqual(json(runAgy(agyStop(repo, CONDUCTOR, {}, AGY_SUB()), tmp())), {});
+  writeFileSync(join(repo, PROGRESS), progress('fim', { conductor: AGY_CONDUCTOR }));
+  assert.deepEqual(json(runAgy(agyStop(repo), tmp())), {});
+});
+
+test('antigravity: Stop respects the three-without-commit loop guard and resets after a commit', async () => {
+  const repo = await repoWith('rodando', { conductor: AGY_CONDUCTOR });
+  execFileSync('git', ['branch', 'baco/ENT-004'], { cwd: repo });
+  const state = tmp();
+  for (let i = 0; i < 3; i++) assert.equal(json(runAgy(agyStop(repo, CONDUCTOR, { executionNum: i }), state)).decision, 'continue');
+  assert.deepEqual(json(runAgy(agyStop(repo, CONDUCTOR, { executionNum: 3 }), state)), {}, 'fourth stop allowed');
+  commit(repo, { 'src/x.js': 'x\n' }, 'ENT-004 T-001: progresso');
+  execFileSync('git', ['branch', '-f', 'baco/ENT-004-T-001'], { cwd: repo });
+  assert.equal(json(runAgy(agyStop(repo, CONDUCTOR, { executionNum: 4 }), state)).decision, 'continue');
+});
+
+test('antigravity: outside a project or with garbage input, fails open in the Antigravity format', () => {
+  const plain = tmp();
+  assert.deepEqual(json(runAgy(agyAsk(plain), tmp())), { decision: 'allow' });
+  assert.deepEqual(json(runAgy(agyStop(plain), tmp())), {});
+  for (const bad of ['não é json', '']) {
+    const r = runAgy(bad, tmp());
+    assert.equal(r.status, 0);
+    // `decision: "allow"` fails open for PreToolUse and also allows Stop (only "continue" blocks Stop).
+    assert.deepEqual(json(r), { decision: 'allow' });
+  }
+});
